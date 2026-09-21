@@ -1,0 +1,100 @@
+<section id="home" class="section active">
+  <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">Home</h3>
+
+  <!-- Playback Preview -->
+  <div id="mainControls" class="container-fluid p-0 {% if pause or not is_schedule_enabled_now %}d-none{% endif %}">
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <strong>
+          {% if playlist_mode == 'random' %}
+          Random Mode
+          {% elif playlist_mode == 'fixed' and fixed_order %}
+          Fixed Order Mode
+          {% elif playlist_mode == 'single' %}
+          Single Video
+          {% endif %}
+        </strong>
+      </div>
+
+      <div class="card-body">
+        <p class="text-muted small mb-0">
+          View the current video and playlist based on the selected playback mode.
+        </p>
+        <br>
+
+        {% if today_schedule.enabled %}
+        {% for slot in today_schedule.slots %}
+        <strong>Schedule for {{ today }}</strong>
+        <p {% if slot.is_active %}style="font-weight:bold; color:green;" {% endif %}>
+          {{ slot.name }}: {{ slot.start_ampm }} - {{ slot.end_ampm }}
+          ({{ "Kid-Friendly" if slot.category=="kid"
+          else "Scary" if slot.category=="scary"
+          else (slot.category or "None") }})
+
+          {% if slot.is_active %} - Active Now{% endif %}
+        </p>
+        {% endfor %}
+        {% endif %}
+
+        {% if triggered_flag %}
+        <p>Triggered Mode: On</p>
+
+        {% set minutes = (delay or 0) // 60 %}
+        {% set seconds = (delay or 0) % 60 %}
+
+        <p>Trigger Delay: {{ minutes }}m {{ seconds }}s</p>
+        {% else %}
+        <p>Triggered Mode: Off</p>
+        {% endif %}
+
+        {% if playlist_mode == 'random' %}
+        <p>Current Video: <strong>{{ selected }}</strong></p>
+
+        {% if time_remaining is not none %}
+        <p>
+          Next switch in:
+          <span id="countdown">{{ time_remaining }}</span> seconds
+        </p>
+        {% endif %}
+
+        {% elif playlist_mode == 'fixed' and fixed_order %}
+        <p>Current Video: <strong>{{ selected }}</strong></p>
+
+        {% if time_remaining is not none %}
+        <p>
+          Next switch in:
+          <span id="countdown">{{ time_remaining }}</span> seconds
+        </p>
+        {% endif %}
+
+        <p>Playlist:</p>
+        <ol>
+          {% for video in fixed_order %}
+          <li>{{ video.filename }}</li>
+          {% endfor %}
+        </ol>
+
+        {% elif playlist_mode == 'single' %}
+        <p>Selected Video: <strong>{{ selected }}</strong></p>
+        {% endif %}
+      </div>
+    </div>
+
+    <br>
+
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <strong>Playback Preview</strong>
+      </div>
+
+      <div class="card-body">
+        <video id="videoPreview" controls autoplay muted class="w-100 mt-3" style="max-width:360px;">
+          {% if selected %}
+          <source src="{{ url_for('video_file', filename=selected) }}" type="video/mp4" />
+          {% endif %}
+          Your browser does not support the video tag.
+        </video>
+      </div>
+    </div>
+  </div>
+</section>

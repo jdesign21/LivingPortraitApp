@@ -1,0 +1,215 @@
+
+<section id="network" class="section">
+    <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
+        Network Settings
+    </h3>
+
+    <!-- NETWORK CONFIGURATION -->
+    <form method="POST" action="{{ url_for('network') }}">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <strong>Network Configuration</strong>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-4">
+                    Configure this Pi's network role and MQTT communication.
+                </p>
+
+                <div class="row g-4">
+                    <!-- Role -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Role</label>
+                        <select class="form-select" name="role">
+                            <option value="primary" {% if role=='primary' %}selected{% endif %}>
+                                Primary
+                            </option>
+                            <option value="secondary" {% if role=='secondary' %}selected{% endif %}>
+                                Secondary
+                            </option>
+                        </select>
+                        <div class="form-text">
+                            Primary controls playback. Secondary receives commands.
+                        </div>
+                    </div>
+
+                    <!-- Primary IP -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Primary IP</label>
+                        <input type="text" class="form-control" name="primary_ip"
+                            value="{{ primary_ip }}" placeholder="192.168.1.xxx">
+                        <div class="form-text">
+                            Required when this Pi is using Secondary mode.
+                        </div>
+                    </div>
+
+                    <!-- MQTT -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">MQTT Communication</label>
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox"
+                                name="enable" value="1"
+                                {% if enable=='1' %}checked{% endif %}>
+                            <label class="form-check-label">
+                                Enable MQTT
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            Enables communication between Primary and Secondary Pis.
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="small text-muted">
+                        <strong>Playback:</strong>
+                        When MQTT is enabled, synchronized playback uses Single Video mode.
+                    </div>
+
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-save"></i> Save Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- SECONDARY PIS -->
+    <div class="card shadow-sm" style="display: {{ 'none' if role == 'secondary' else 'block' }}">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <strong>Secondary Pis</strong>
+
+            <form method="POST" action="{{ url_for('network_check_secondary') }}" class="mb-0">
+                <button type="submit" class="btn btn-light btn-sm">
+                    <i class="bi bi-wifi"></i> Check Status
+                </button>
+            </form>
+        </div>
+
+        <div class="card-body">
+            <p class="text-muted small mb-4">
+                Add and manage the Secondary Pis used for synchronized playback.
+            </p>
+
+            <!-- ADD SECONDARY PI -->
+            <form method="POST" action="{{ url_for('network_add_secondary') }}" class="mb-4">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold small">
+                            Secondary Pi Name
+                        </label>
+                        <input type="text" class="form-control form-control-sm"
+                            name="name" placeholder="Example: Second Screen" required>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold small">
+                            IP Address
+                        </label>
+                        <input type="text" class="form-control form-control-sm"
+                            name="ip" placeholder="192.168.1.xxx" required>
+                    </div>
+
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="bi bi-plus-lg"></i> Add Secondary Pi
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- SECONDARY PI LIST -->
+            <div class="table-responsive border rounded">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>IP Address</th>
+                            <th>Status</th>
+                            <th>Last Checked</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for pi in secondary_pis %}
+                        <tr>
+                            <td>
+                                <form method="POST"
+                                    action="{{ url_for('network_edit_secondary', index=loop.index0) }}"
+                                    class="row g-2">
+                                    <div class="col">
+                                        <input type="text"
+                                            class="form-control form-control-sm"
+                                            name="name"
+                                            value="{{ pi.name }}"
+                                            required>
+                                    </div>
+                            </td>
+
+                            <td>
+                                    <input type="text"
+                                        class="form-control form-control-sm"
+                                        name="ip"
+                                        value="{{ pi.ip }}"
+                                        required>
+                            </td>
+
+                            <td>
+                                {% if pi.status == 'online' %}
+                                <span class="badge bg-success">
+                                    <i class="bi bi-check-circle"></i> Online
+                                </span>
+                                {% elif pi.status == 'offline' %}
+                                <span class="badge bg-danger">
+                                    <i class="bi bi-x-circle"></i> Offline
+                                </span>
+                                {% else %}
+                                <span class="badge bg-secondary">
+                                    Not Checked
+                                </span>
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {% if pi.last_checked %}
+                                <span class="text-muted small">
+                                    {{ pi.last_checked }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted small">—</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="text-end">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-check-lg"></i> Update
+                                </button>
+                                </form>
+
+                                <form method="POST"
+                                    action="{{ url_for('network_delete_secondary', index=loop.index0) }}"
+                                    class="d-inline"
+                                    onsubmit="return confirm('Delete {{ pi.name }}?');">
+                                    <button type="submit" class="btn btn-danger btn-sm">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">
+                                <i class="bi bi-diagram-3 fs-4 d-block mb-2"></i>
+                                No Secondary Pis configured.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+

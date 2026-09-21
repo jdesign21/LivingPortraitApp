@@ -1,3 +1,4 @@
+@ -1,290 +0,0 @@
 #!/bin/bash
 set -e
 
@@ -7,7 +8,7 @@ set -e
 # ============================================================
 
 # GitHub release to install
-RELEASE="v1.0.0"
+RELEASE="v2.0.0-beta.1"
 BASE_URL="https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/tags/$RELEASE/pi"
 
 # ============================================================
@@ -287,4 +288,3 @@ echo -e "📦 Application version: $VERSION"
 echo -e "============================================"
 
 echo -e "\nPlease reboot to apply all changes."
-

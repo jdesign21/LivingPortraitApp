@@ -3,7 +3,7 @@ from pathlib import Path
 import os
 from datetime import datetime, timedelta
 import random
-from flask import jsonify
+from flask import jsonify, send_file
 import sys
 
 HOME = Path(os.path.expanduser("~"))
@@ -24,6 +24,18 @@ from shared.vlc_helper import (
     is_schedule_enabled_now,
     get_next_start_time
 )
+
+from shared.vlc_network_helper import (
+    load_network_settings,
+    save_network_settings,
+    set_role,
+    add_secondary,
+    update_secondary,
+    remove_secondary,
+    configure_mosquitto,
+    check_secondary_status
+)
+
 
 app = Flask(__name__)
 app.secret_key = 'replace-this-with-a-secure-random-key'  # Change to a secure key in production
@@ -50,16 +62,41 @@ def index():
     selected_video = settings.get("selected_video", "")
     pause_flag = settings.get("pause_flag", False)
 
+    network_settings = load_network_settings()
+    role = network_settings.get("role", "")
+    primary_ip = network_settings.get("primary_ip", "")
+    enable = network_settings.get("enable", "0")
+    secondary_pis = network_settings.get("secondary_pis", [])
+
     mode, interval, last_updated, order, triggered_flag, delay = get_playlist_settings()
     delay = delay or 0
+
 
     # Get days schedule
     days_schedule = settings.get("days", {})
 
-    # Format times
+    # Format times for all slots and store in a list
     for day, sched in days_schedule.items():
-        sched["start_ampm"] = format_ampm(sched["start"])
-        sched["end_ampm"] = format_ampm(sched["end"])
+        slots = []
+        for slot_key in ["slot1", "slot2"]:
+            slot = sched.get(slot_key, {})
+            if slot.get("enabled", False):
+                # Determine if this slot is active now
+                start_time = datetime.strptime(slot.get("start", "00:00"), "%H:%M").time()
+                end_time = datetime.strptime(slot.get("end", "23:59"), "%H:%M").time()
+                now_time = datetime.now().time()
+                is_active = start_time <= now_time < end_time  # no overnight
+
+                slots.append({
+                    "name": slot_key,
+                    "start_ampm": format_ampm(slot.get("start", "00:00")),
+                    "end_ampm": format_ampm(slot.get("end", "23:59")),
+                    "category": slot.get("category", ""),
+                    "is_active": is_active
+                })
+        sched["slots"] = slots
+
+
     
     # Get today's name, e.g., "Friday"
     today = datetime.now().strftime("%A")
@@ -68,7 +105,7 @@ def index():
     # Check if schedule is enabled right now
     schedule_enabled = is_schedule_enabled_now()
 
-    next_start_time = get_next_start_time(settings)
+    next_start_time, next_category = get_next_start_time(settings)
 
     fixed_order = [
          entry for entry in order
@@ -79,6 +116,24 @@ def index():
         entry for entry in order
         if isinstance(entry, dict) and entry.get("filename") in videos
     ]
+
+
+    manage_videosTags = settings.get("playlist", {}).get("order", [])
+    available_tags = set()
+
+    for video in manage_videosTags:
+        if not video.get("active", False):
+            continue
+
+        tags = video.get("tags", [])
+        #log(f"Video: {video.get('filename')} tags: {tags}")  # DEBUG
+
+        for tag in tags:
+            available_tags.add(tag.lower())
+
+    available_tags = list(available_tags)
+
+    #log(f"Available tags: {available_tags}")  # DEBUG
 
     # Calculate time remaining until next video switch
     time_remaining = None
@@ -113,6 +168,7 @@ def index():
         fixed_order=fixed_order,
         manage_videos=manage_videos, 
         time_remaining=time_remaining,
+        available_tags=available_tags,
         pause=pause_flag,
         video_count=len(fixed_order),
         theme=theme,
@@ -122,14 +178,20 @@ def index():
         current_time=current_time,
         is_schedule_enabled_now=schedule_enabled,
         next_start_time=next_start_time,
+        next_category = next_category,
         triggered_flag=triggered_flag,
-        delay=delay
+        delay=delay,
+        role=role,
+        primary_ip=primary_ip,
+        enable=enable,
+        secondary_pis=secondary_pis
     )
 
 @app.route("/select", methods=["POST"])
 def select():
     action = request.form.get("action", "")
-        # Normal save logic below
+
+    # Normal save logic below
     playlist_mode = request.form.get("mode", "")
     interval_str = request.form.get("interval", "0")
     triggered_flag = request.form.get("triggered_flag") == "on"
@@ -141,36 +203,44 @@ def select():
             raise ValueError()
     except (ValueError, TypeError):
         flash("Invalid interval value", "danger")
-        return redirect(url_for("index"))    
-    
+        return redirect(url_for("index"))
+
     if action == "shuffle":
         settings = load_settings()
         order = settings.get("playlist", {}).get("order", [])
-        
+
         # Separate active and inactive videos
         active_videos = [v for v in order if v.get("active", True)]
         inactive_videos = [v for v in order if not v.get("active", True)]
-        
+
         random.shuffle(active_videos)
-        
+
         # Combine shuffled active with inactive
         new_order = active_videos + inactive_videos
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        update_playlist_settings(mode="fixed",interval=interval,last_updated=timestamp,order=new_order,triggered_flag=triggered_flag,delay=delay)
+
+        update_playlist_settings(
+            mode="fixed",
+            interval=interval,
+            last_updated=timestamp,
+            order=new_order,
+            triggered_flag=triggered_flag,
+            delay=delay
+        )
 
         # Now load settings again to update selected_video
         settings = load_settings()
+
         if new_order:
             settings["selected_video"] = new_order[0]["filename"]
             save_settings(settings)
-        
+
         flash("Playlist order shuffled!", "success")
         return redirect(url_for("index"))
-    
-
 
     videos = sorted([f.name for f in VIDEO_FOLDER.glob("*.mp4")])
+
     if not videos:
         flash("No videos found in the Videos folder", "danger")
         return redirect(url_for("index"))
@@ -181,24 +251,47 @@ def select():
             return redirect(url_for("index"))
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        update_playlist_settings(mode="random",interval=interval,last_updated=timestamp,triggered_flag=triggered_flag,delay=delay)
+
+        update_playlist_settings(
+            mode="random",
+            interval=interval,
+            last_updated=timestamp,
+            triggered_flag=triggered_flag,
+            delay=delay
+        )
 
         settings = load_settings()
         current_video = settings.get("selected_video", "")
         order = settings.get("playlist", {}).get("order", [])
-        active_files = [item["filename"] for item in order if item.get("active", True)]
+
+        active_files = [
+            item["filename"]
+            for item in order
+            if item.get("active", True)
+        ]
 
         if not active_files:
             flash("No active videos available for random playback", "danger")
             return redirect(url_for("index"))
 
-        other_choices = [f for f in active_files if f != current_video]
-        new_video = random.choice(other_choices) if other_choices else current_video
+        other_choices = [
+            f for f in active_files
+            if f != current_video
+        ]
+
+        new_video = (
+            random.choice(other_choices)
+            if other_choices
+            else current_video
+        )
 
         settings["selected_video"] = new_video
         save_settings(settings)
 
-        flash(f"Random mode enabled with interval {interval} seconds", "success")
+        flash(
+            f"Random mode enabled with interval {interval} seconds",
+            "success"
+        )
 
     elif playlist_mode == "fixed":
         if interval == 0:
@@ -206,46 +299,90 @@ def select():
             return redirect(url_for("index"))
 
         order_str = request.form.get("fixed_order", "")
-        filenames = [v.strip() for v in order_str.split(",") if v.strip() in videos]
+        filenames = [
+            v.strip()
+            for v in order_str.split(",")
+            if v.strip() in videos
+        ]
 
         if not filenames:
-            flash("Please provide a valid fixed order with existing videos", "danger")
+            flash(
+                "Please provide a valid fixed order with existing videos",
+                "danger"
+            )
             return redirect(url_for("index"))
 
         existing_order = load_settings().get("playlist", {}).get("order", [])
-        existing_dict = {entry['filename']: entry for entry in existing_order if 'filename' in entry}
+
+        existing_dict = {
+            entry["filename"]: entry
+            for entry in existing_order
+            if "filename" in entry
+        }
 
         new_order = []
+
         for fn in filenames:
-            new_order.append({"filename": fn, "active": True})
+            new_order.append({
+                "filename": fn,
+                "active": True
+            })
 
         for fn, entry in existing_dict.items():
             if fn not in filenames:
-                new_order.append({"filename": fn, "active": False})
+                new_order.append({
+                    "filename": fn,
+                    "active": False
+                })
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        update_playlist_settings(mode="fixed", interval=interval, last_updated=timestamp, order=new_order,triggered_flag=triggered_flag,delay=delay)
+
+        update_playlist_settings(
+            mode="fixed",
+            interval=interval,
+            last_updated=timestamp,
+            order=new_order,
+            triggered_flag=triggered_flag,
+            delay=delay
+        )
 
         # Now load settings again to update selected_video
         settings = load_settings()
+
         if new_order:
             settings["selected_video"] = new_order[0]["filename"]
             save_settings(settings)
 
-        flash(f"Fixed playlist mode enabled with interval {interval} seconds", "success")
+        flash(
+            f"Fixed playlist mode enabled with interval {interval} seconds",
+            "success"
+        )
 
     else:
         selected_video = request.form.get("video")
+
         if selected_video and (VIDEO_FOLDER / selected_video).exists():
-            update_playlist_settings(mode="single", interval=0, last_updated="",triggered_flag=triggered_flag,delay=delay)
             settings = load_settings()
+
             settings["selected_video"] = selected_video
+            settings["playlist"]["mode"] = "single"
+            settings["playlist"]["interval"] = 0
+            settings["playlist"]["last_updated"] = ""
+            settings["playlist"]["triggered_flag"] = triggered_flag
+            settings["playlist"]["delay"] = delay
+
             save_settings(settings)
-            flash(f"Selected single video: {selected_video}", "success")
+
+            flash(
+                f"Selected single video: {selected_video}",
+                "success"
+            )
         else:
             flash("Invalid video selection", "danger")
 
     return redirect(url_for("index"))
+
+
 
 @app.route('/pause_toggle', methods=['POST'])
 def pause_toggle():
@@ -257,7 +394,7 @@ def pause_toggle():
 @app.route('/videos/<filename>')
 def video_file(filename):
     full_path = VIDEO_FOLDER / filename
-    log(f"Serving video file: {full_path}")
+    #log(f"Serving video file: {full_path}")
     if not full_path.exists():
         log("File does not exist!")
         return "File not found", 404
@@ -267,7 +404,7 @@ def video_file(filename):
 @app.route('/images/<filename>')
 def image_file(filename):
     full_path = IMAGES_FOLDER / filename
-    log(f"Serving video file: {full_path}")
+    #log(f"Serving video file: {full_path}")
     if not full_path.exists():
         log("File does not exist!")
         return "File not found", 404
@@ -303,31 +440,74 @@ def upload():
     return redirect(url_for('index'))
 
 
-
 @app.route('/save_schedule', methods=['POST'])
 def save_schedule():
     settings = load_settings()
     current_days = settings.get("days", {})
     days = {}
 
+    manage_videosTags = settings.get("playlist", {}).get("order", [])
+    available_tags = set()
+
+    for video in manage_videosTags:
+        if not video.get("active", False):
+            continue
+
+        tags = video.get("tags", [])
+        #log(f"Video: {video.get('filename')} tags: {tags}")  # DEBUG
+
+        for tag in tags:
+            available_tags.add(tag.lower())
+
+    available_tags = list(available_tags)
+
     for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']:
         key = day.lower()
-        enabled = request.form.get(f"{key}Enabled") == 'on'
+        day_enabled = True
 
-        # Only get values from form if field is enabled
-        if enabled:
-            start_time = request.form.get(f"{key}Start") or "00:00"
-            end_time = request.form.get(f"{key}End") or "23:59"
+        # SLOT 1
+        slot1_enabled = request.form.get(f"{key}Slot1Enabled") == 'on' if day_enabled else False
+        slot1_start = request.form.get(f"{key}Slot1Start") or current_days.get(day, {}).get("slot1", {}).get("start", "00:00")
+        slot1_end = request.form.get(f"{key}Slot1End") or current_days.get(day, {}).get("slot1", {}).get("end", "23:59")
+
+        if f"{key}Slot1Category" in request.form:
+            slot1_category = request.form.get(f"{key}Slot1Category")
         else:
-            # Fall back to existing values in JSON if present
-            start_time = current_days.get(day, {}).get("start", "00:00")
-            end_time = current_days.get(day, {}).get("end", "23:59")
+            slot1_category = current_days.get(day, {}).get("slot1", {}).get("category", "")
+
+        if slot1_category and slot1_category.lower() not in available_tags:
+            slot1_category = ""
+
+        # SLOT 2
+        slot2_enabled = request.form.get(f"{key}Slot2Enabled") == 'on' if day_enabled else False
+        slot2_start = request.form.get(f"{key}Slot2Start") or current_days.get(day, {}).get("slot2", {}).get("start", "")
+        slot2_end = request.form.get(f"{key}Slot2End") or current_days.get(day, {}).get("slot2", {}).get("end", "")
+        if f"{key}Slot2Category" in request.form:
+            slot2_category = request.form.get(f"{key}Slot2Category")
+        else:
+            slot2_category = current_days.get(day, {}).get("slot2", {}).get("category", "")
+
+        if slot2_category and slot2_category.lower() not in available_tags:
+            slot2_category = ""    
 
         days[day] = {
-            "enabled": enabled,
-            "start": start_time,
-            "end": end_time
+            "enabled": day_enabled,
+            "slot1": {
+                "enabled": slot1_enabled,
+                "start": slot1_start,
+                "end": slot1_end,
+                "category": slot1_category
+            },
+            "slot2": {
+                "enabled": slot2_enabled,
+                "start": slot2_start,
+                "end": slot2_end,
+                "category": slot2_category
+            }
         }
+
+        #log(f"FORM DATA: {request.form.to_dict()}")
+        #log(f"DAYS DATA: {days}")
 
     settings["days"] = days
     save_settings(settings)
@@ -336,47 +516,68 @@ def save_schedule():
 
 
 
-
-@app.route('/update_status', methods=['POST'])
-def update_status():
-    filename = request.form.get('filename')
-    active = request.form.get('active') == 'true'
-
+@app.route('/update_all', methods=['POST'])
+def update_all():
     settings = load_settings()
     order = settings.get('playlist', {}).get('order', [])
 
-    # Count active videos before updating
-    active_count = sum(1 for v in order if v.get('active', True))
+    videos_form = request.form.to_dict(flat=False)
 
-    # Find target video
-    target_video = next((v for v in order if v['filename'] == filename), None)
+    # Extract videos[] structured input
+    videos = []
+    index = 0
+    while f'videos[{index}][filename]' in request.form:
+        filename = request.form.get(f'videos[{index}][filename]')
+        active = request.form.get(f'videos[{index}][active]') == 'true'
+        tags = request.form.getlist(f'videos[{index}][tags][]')
+        videos.append({'filename': filename, 'active': active, 'tags': tags})
+        index += 1
 
-    # If trying to deactivate and it's the only active video
-    if target_video and not active and active_count <= 1:
+    # Count how many are active
+    active_videos = [v for v in videos if v['active']]
+    if len(active_videos) == 0:
         flash("At least one video must remain active.", "danger")
         return redirect(url_for('index'))
 
-    # If not found, optionally add it
-    if not target_video:
-        order.append({'filename': filename, 'active': active})
-    else:
-        target_video['active'] = active
+    # Update or add each video in settings
+    for video in videos:
+        existing = next((v for v in order if v['filename'] == video['filename']), None)
+        if existing:
+            existing.update(video)
+        else:
+            order.append(video)
 
     settings['playlist']['order'] = order
+
+    # Check scheduler tags validity
+    active_tags = set()
+
+    for v in order:
+        if v.get('active', True):
+            for tag in v.get('tags', []):
+                active_tags.add(tag.lower())
+
+    for day, sched in settings.get('days', {}).items():
+        for slot_name in ['slot1', 'slot2']:
+            slot = sched.get(slot_name, {})
+
+            category = slot.get('category', '')
+
+            if category and category.lower() not in active_tags:
+                slot['category'] = ""
+
     save_settings(settings)
 
-    # After updating, check how many are now active
-    updated_active = [v for v in order if v.get('active', True)]
-
-    if len(updated_active) == 1:
-        only_video = updated_active[0]['filename']
+    # If only one video remains active, switch to single mode
+    if len(active_videos) == 1:
+        only_video = active_videos[0]['filename']
         update_playlist_settings(mode="single", interval=0, last_updated="")
         settings = load_settings()
         settings["selected_video"] = only_video
         save_settings(settings)
         flash(f"Only one active video remains. Switched to single mode with video: {only_video}", "info")
     else:
-        flash(f"Updated status for {filename}: {'Active' if active else 'Inactive'}", "success")
+        flash("All videos updated successfully.", "success")
 
     return redirect(url_for('index'))
 
@@ -399,37 +600,54 @@ def delete(filename):
         flash('File not found', 'danger')
     return redirect(url_for('index'))
 
+
+
 @app.route('/logs/view/<filename>')
 def view_log(filename):
     safe_filename = os.path.basename(filename)
     filepath = LOG_FOLDER / safe_filename
+
     if not filepath.exists() or not filepath.is_file():
         flash("Log file not found", "danger")
         return redirect(url_for('index'))
+
     try:
         with open(filepath, 'r') as f:
-            content = f.read(10000)
+            f.seek(0, os.SEEK_END)
+            file_size = f.tell()
+            f.seek(max(0, file_size - 20000))
+            content = f.read()
+
     except Exception as e:
         flash(f"Error reading file: {e}", "danger")
         return redirect(url_for('index'))
-    return render_template("view_log.html", filename=safe_filename, content=content)
+
+    return render_template(
+        "view_log.html",
+        filename=safe_filename,
+        content=content
+    )
+
 
 @app.route('/logs/raw/<filename>')
 def get_log_content(filename):
     safe_filename = os.path.basename(filename)
     filepath = LOG_FOLDER / safe_filename
+
     if not filepath.exists() or not filepath.is_file():
         return "File not found", 404
 
     try:
         with open(filepath, 'r') as f:
-            content = f.read(10000)
+            f.seek(0, os.SEEK_END)
+            file_size = f.tell()
+            f.seek(max(0, file_size - 20000))
+            content = f.read()
+
         return content, 200, {'Content-Type': 'text/plain'}
+
     except Exception as e:
         return f"Error reading file: {e}", 500
-
-
-
 
 @app.route('/logs/delete/<filename>', methods=['POST'])
 def delete_log(filename):
@@ -442,6 +660,129 @@ def delete_log(filename):
     else:
         flash("Log file not found", "danger")
     return redirect(url_for('index'))
+
+@app.route('/logs/download/<filename>')
+def download_log(filename):
+    safe_filename = os.path.basename(filename)
+    filepath = LOG_FOLDER / safe_filename
+
+    if not filepath.exists() or not filepath.is_file():
+        flash("Log file not found", "danger")
+        return redirect(url_for('index'))
+
+    return send_file(
+        filepath,
+        as_attachment=True,
+        download_name=safe_filename
+    )
+
+
+
+@app.route("/network", methods=["POST"])
+def network():
+    # Get form data from the Network Settings section
+    role = request.form.get("role", "primary")
+    primary_ip = request.form.get("primary_ip", "")
+    enable = request.form.get("enable", "0")
+
+    # Update network settings
+    try:
+        set_role(role, primary_ip, enable)
+
+        # Configure Mosquitto based on Pi role
+        configure_mosquitto(role, enable)
+
+        # Force Single mode for:
+        # - Secondary
+        # - Primary with MQTT enabled
+        if role == "secondary" or (role == "primary" and enable == "1"):
+            settings = load_settings()
+            order = settings.get("playlist", {}).get("order", [])
+
+            active_videos = [v for v in order if v.get("active", True)]
+
+            log(f"active_videos: {active_videos}")
+
+            if active_videos:
+                only_video = active_videos[0]["filename"]
+
+                #log(f"only_video: {only_video}")
+
+                update_playlist_settings(
+                    mode="single",
+                    interval=0,
+                    last_updated="",
+                    triggered_flag=settings.get("playlist", {}).get("triggered_flag", False),
+                    delay=settings.get("playlist", {}).get("delay", 0)
+                )
+
+                # Reload settings so we don't overwrite the new playlist mode
+                settings = load_settings()
+                settings["selected_video"] = only_video
+                save_settings(settings)
+
+                
+
+
+                #log(f"only_video: {settings}")
+                flash(
+                    f"Switched to single mode with video: {only_video}",
+                    "info"
+                )
+
+        flash(f"Network settings updated! {role} {primary_ip} {enable}", "success")
+
+    except Exception as e:
+        flash(f"Failed to update network: {e}", "danger")
+
+    return redirect(url_for("index"))
+
+
+
+# Add a new secondary Pi
+@app.route("/network/add_secondary", methods=["POST"])
+def network_add_secondary():
+    name = request.form.get("name", "").strip()
+    ip = request.form.get("ip", "").strip()
+    if name and ip:
+        add_secondary(name, ip)
+        flash(f"Added secondary Pi: {name} ({ip})", "success")
+    else:
+        flash("Name and IP required", "danger")
+    return redirect(url_for('index'))
+
+# Edit an existing secondary Pi
+@app.route("/network/edit_secondary/<int:index>", methods=["POST"])
+def network_edit_secondary(index):
+    name = request.form.get("name", "").strip()
+    ip = request.form.get("ip", "").strip()
+    try:
+        update_secondary(index, name, ip)
+        flash(f"Updated secondary Pi #{index+1}", "success")
+    except IndexError:
+        flash("Invalid secondary index", "danger")
+    return redirect(url_for('index'))
+
+# Delete a secondary Pi
+@app.route("/network/delete_secondary/<int:index>", methods=["POST"])
+def network_delete_secondary(index):
+    try:
+        remove_secondary(index)
+        flash(f"Deleted secondary Pi #{index+1}", "success")
+    except IndexError:
+        flash("Invalid secondary index", "danger")
+    return redirect(url_for('index'))
+
+# Check Secondary Pi status
+@app.route("/network/check_secondary", methods=["POST"])
+def network_check_secondary():
+    try:
+        check_secondary_status()
+        flash("Secondary Pi status checked.", "success")
+    except Exception as e:
+        flash(f"Failed to check Secondary Pi status: {e}", "danger")
+    return redirect(url_for("index"))
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

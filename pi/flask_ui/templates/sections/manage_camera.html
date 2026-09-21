@@ -1,0 +1,77 @@
+<section id="manage" class="section">
+  <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
+    Manage Videos
+  </h3>
+
+  <!-- Save All Form -->
+  <form method="POST" action="{{ url_for('update_all') }}">
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <strong>Videos</strong>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-4">
+          Enable or disable videos in the playlist, and use tags to categorize them as Kid-Friendly or Scary. 
+          Tags can be used by playback modes and schedules to determine which videos are available for playback. 
+          You can also delete videos from the system.
+        </p>
+
+        <ul class="list-group">
+          {% for video in manage_videos %}
+          <li class="list-group-item">
+            <div class="row g-3 align-items-center">
+
+              <!-- Video / Enable -->
+              <div class="col-12 col-lg-5">
+                <!-- Hidden filename -->
+                <input type="hidden" name="videos[{{ loop.index0 }}][filename]" value="{{ video.filename }}">
+
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="activeSwitch-{{ loop.index0 }}"
+                    name="videos[{{ loop.index0 }}][active]" value="true"
+                    {% if video.active %}checked{% endif %}>
+                  <label class="form-check-label fw-semibold" for="activeSwitch-{{ loop.index0 }}">
+                    {{ video.filename }}
+                  </label>
+                </div>
+              </div>
+
+              <!-- Tags -->
+              <div class="col-12 col-lg-5">
+                <select name="videos[{{ loop.index0 }}][tags][]" class="form-select form-select-sm tomselect" multiple>
+                  <option value="kid" {% if 'kid' in video.get('tags', []) %}selected{% endif %}>
+                    Kid-Friendly
+                  </option>
+                  <option value="scary" {% if 'scary' in video.get('tags', []) %}selected{% endif %}>
+                    Scary
+                  </option>
+                </select>
+              </div>
+
+              <!-- Delete -->
+              <div class="col-12 col-lg-2">
+                <button type="button" class="btn btn-danger btn-sm w-100"
+                  onclick="deleteVideo('{{ video.filename }}')">
+                  Delete
+                </button>
+              </div>
+
+            </div>
+          </li>
+          {% else %}
+          <li class="list-group-item text-muted">
+            No videos found.
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+
+    <!-- Save Button -->
+    <div class="text-end mt-3 mb-4">
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-save"></i> Save Videos
+      </button>
+    </div>
+  </form>
+</section>

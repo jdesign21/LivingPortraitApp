@@ -1,0 +1,212 @@
+<section id="mode" class="section">
+  <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
+    Mode
+  </h3>
+
+  <!-- PAUSE SYSTEM -->
+  {% if role == "primary" or (role == "secondary" and enable != "1") %}
+  <div class="card mb-4 shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <strong>Pause System</strong>
+    </div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('pause_toggle') }}">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <label class="form-check-label fw-semibold" for="pauseSystem" style="cursor: pointer;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor"
+                class="bi bi-pause-circle me-2" viewBox="0 0 16 16">
+                <path d="M6 5h1v6H6V5zm3 0h1v6H9V5z" />
+                <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zM8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1z" />
+              </svg>
+              Pause
+            </label>
+            <div class="form-text">
+              Temporarily stops video playback until the system is resumed.
+            </div>
+          </div>
+          <div class="form-check form-switch m-0">
+            <input class="form-check-input" type="checkbox" id="pauseSystem" name="pause" value="on"
+              {% if pause %}checked{% endif %} onchange="this.form.submit()">
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- SETTINGS FORM -->
+  <form method="POST" action="{{ url_for('select') }}">
+    <div id="mainControls" class="container-fluid p-0" {% if pause %}style="display:none;"{% endif %}>
+
+      <!-- PLAYBACK SETTINGS -->
+      <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-primary text-white">
+          <strong>Playback Settings</strong>
+        </div>
+        <div class="card-body">
+          <p class="text-muted small mb-4">
+            Configure how videos are triggered and played.
+            Select a playback mode and adjust video timing when applicable.
+          </p>
+
+          <!-- MQTT NOTICE -->
+          {% if role == "primary" and enable == "1" %}
+          <div class="alert alert-warning py-2 mb-4">
+            <strong>MQTT Enabled:</strong>
+            Playback Mode is forced to <strong>Single</strong>
+            while this Pi is the Primary.
+          </div>
+          {% endif %}
+
+          <!-- TRIGGERED MODE -->
+          {% if role == "primary" or (role == "secondary" and enable != "1") %}
+          <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <label class="form-check-label fw-semibold" for="triggeredFlag" style="cursor: pointer;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor"
+                    class="bi bi-camera-fill me-2" viewBox="0 0 16 16">
+                    <path d="M10.5 3h-5l-.5-1h-2A1.5 1.5 0 0 0 1.5 3v10A1.5 1.5 0 0 0 3 14.5h10A1.5 1.5 0 0 0 14.5 13V3A1.5 1.5 0 0 0 13 1.5h-2l-.5 1zM8 11.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" />
+                  </svg>
+                  Triggered Mode
+                </label>
+                <div class="form-text">
+                  Start video playback when motion is detected, or disable Triggered Mode to play videos
+                  continuously in an endless loop.
+                </div>
+              </div>
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" type="checkbox" id="triggeredFlag" name="triggered_flag"
+                  {% if triggered_flag %}checked{% endif %}>
+              </div>
+            </div>
+          </div>
+
+          <!-- TRIGGER DELAY -->
+          <div class="mb-4">
+            <label for="delay" class="form-label fw-semibold">
+              Trigger Delay
+            </label>
+            <select class="form-select" id="delay" name="delay" {% if not triggered_flag %}disabled{% endif %}>
+              {% for i in range(0, 601, 30) %}
+              <option value="{{ i }}" {% if delay==i %}selected{% endif %}>
+                {% if i == 0 %}
+                No Delay
+                {% elif i < 60 %}
+                {{ i }} sec
+                {% elif i % 60 == 0 %}
+                {{ i // 60 }} min
+                {% else %}
+                {{ i // 60 }} min {{ i % 60 }} sec
+                {% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            <div class="form-text">
+              Delay playback after motion is detected.
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- PLAYBACK MODE -->
+          <div class="mb-4">
+            <label for="modeSelect" class="form-label fw-semibold">
+              Playback Mode
+            </label>
+            <select class="form-select" id="modeSelect" name="mode" onchange="updateModeUI()">
+              <option value="single" {% if playlist_mode=='single' %}selected{% endif %}>
+                Single
+              </option>
+              <option value="random"
+                {% if video_count < 2 or role=='secondary' or (role=='primary' and enable=='1') %}disabled{% endif %}
+                {% if playlist_mode=='random' %}selected{% endif %}>
+                Random
+              </option>
+              <option value="fixed"
+                {% if video_count < 2 or role=='secondary' or (role=='primary' and enable=='1') %}disabled{% endif %}
+                {% if playlist_mode=='fixed' %}selected{% endif %}>
+                Fixed Order
+              </option>
+            </select>
+            <div class="form-text">
+              Choose how videos are selected during playback.
+            </div>
+          </div>
+
+          <!-- CHANGE VIDEO EVERY -->
+          <div class="mb-4" id="intervalGroup" style="display:none;">
+            <label for="interval" class="form-label fw-semibold">
+              Change Video Every
+            </label>
+            <select class="form-select" id="interval" name="interval">
+              {% for i in range(1, 61) %}
+              <option value="{{ i }}" {% if i==interval %}selected{% endif %}>
+                {{ i }} min
+              </option>
+              {% endfor %}
+            </select>
+            <div class="form-text">
+              Set how often the current video changes in Random or Fixed Order mode.
+            </div>
+          </div>
+
+          <!-- SINGLE VIDEO -->
+          <div class="mb-4" id="singleVideoSelectGroup" style="display:none;">
+            <label for="video" class="form-label fw-semibold">
+              Select Video
+            </label>
+            <select class="form-select" id="video" name="video" onchange="updateVideoPreview()">
+              <option value="">
+                -- Select a video --
+              </option>
+              {% for video in videos %}
+              <option value="{{ video.filename }}" {% if video.filename==selected %}selected{% endif %}>
+                {{ video.filename }}
+              </option>
+              {% endfor %}
+            </select>
+            <div class="form-text">
+              Select the video to play when Single mode is active.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FIXED PLAYLIST -->
+      <div id="fixedPlaylistGroup" class="card mb-4 shadow-sm"
+        {% if playlist_mode !='fixed' %}style="display:none;"{% endif %}>
+        <div class="card-header bg-primary text-white">
+          <strong>Fixed Playlist Order</strong>
+        </div>
+        <div class="card-body">
+          <p class="text-muted small mb-3">
+            Drag and drop videos to set the order they will play.
+          </p>
+          <ul id="fixedPlaylist" class="list-group mb-3" style="max-height: 300px; overflow-y: auto;">
+            {% for video in fixed_order %}
+            <li class="list-group-item" draggable="true">
+              {{ video.filename }}
+            </li>
+            {% endfor %}
+          </ul>
+          <input type="hidden" name="fixed_order" id="fixedOrderInput">
+          <button type="submit" name="action" value="shuffle" class="btn btn-outline-secondary">
+            Shuffle Playlist
+          </button>
+          <div class="form-text mt-2">
+            Randomly rearrange the videos in the fixed playlist.
+          </div>
+        </div>
+      </div>
+
+      <!-- SAVE BUTTON -->
+      <div class="text-end mb-4">
+        <button type="submit" class="btn btn-success">
+          <i class="bi bi-save"></i>
+          Save Settings
+        </button>
+      </div>
+    </div>
+  </form>
+</section>

@@ -1,0 +1,30 @@
+ <section id="upload" class="section">
+      <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">Upload</h3>
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+          <strong>Upload Video</strong>
+        </div>
+        <div class="card-body">
+          <p class="text-muted small mb-0">Upload new MP4 videos by dragging them here or selecting from your device.
+          </p><br>
+
+          <div class="text-center">
+            <form id="uploadForm" method="POST" action="{{ url_for('upload') }}" enctype="multipart/form-data">
+              <div id="dropArea" class="border border-3 border-secondary rounded p-5 bg-light">
+                <p class="mb-2">Drag & drop an MP4 file here</p>
+                <p class="small text-muted">or click to select</p>
+                <input type="file" id="fileInput" name="file" accept=".mp4" hidden />
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                  onclick="document.getElementById('fileInput').click()">Choose File</button>
+                <p id="fileName" class="mt-3 fw-bold text-success"></p>
+              </div>
+              <div class="mt-3">
+                <button type="submit" class="btn btn-success" id="uploadBtn" disabled>Upload</button>
+              </div>
+            </form>
+          </div>
+
+        </div>
+
+      </div>
+    </section>

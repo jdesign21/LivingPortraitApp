@@ -1,0 +1,681 @@
+// ============================================================
+// CLOCK
+// ============================================================
+
+function updateClock() {
+    const now = new Date();
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayName = days[now.getDay()];
+    const timeString = now.toLocaleTimeString('en-US', {
+        hour12: true,
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    const dateTimeElement = document.getElementById('currentDateTime');
+    if (dateTimeElement) {
+        dateTimeElement.textContent = `${dayName} ${timeString}`;
+    }
+}
+
+updateClock();
+setInterval(updateClock, 1000);
+
+// ============================================================
+// TOM SELECT
+// ============================================================
+
+document.querySelectorAll(".tomselect-single").forEach(el => {
+    const select = new TomSelect(el, {
+        create: false,
+        maxItems: 1,
+        placeholder: "Select Tag"
+    });
+    if (el.disabled) select.disable();
+    else select.enable();
+});
+
+document.querySelectorAll(".tomselect").forEach(el => {
+    new TomSelect(el, {
+        plugins: ['remove_button'],
+        placeholder: 'Select Tag',
+        maxItems: null
+    });
+});
+
+// ============================================================
+// DOM READY
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    // ========================================================
+    // FILE UPLOAD
+    // ========================================================
+
+    const dropArea = document.getElementById('dropArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileName = document.getElementById('fileName');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const triggerToggle = document.getElementById("triggeredFlag");
+    const delayDropdown = document.getElementById("delay");
+
+    // ========================================================
+    // BOOTSTRAP VALIDATION MODAL
+    // ========================================================
+
+    const validationModalElement = document.getElementById('validationModal');
+    const validationModal = validationModalElement
+        ? new bootstrap.Modal(validationModalElement)
+        : null;
+    const modalBody = document.getElementById('validationModalBody');
+
+    // ========================================================
+    // LOG VIEWER
+    // ========================================================
+
+    const logList = document.getElementById('log');
+    const logDetails = document.getElementById('log_details');
+    const logContent = document.getElementById('logContent');
+    const backBtn = document.getElementById('backToList');
+
+    document.querySelectorAll('.view-log').forEach(link => {
+        link.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const filename = e.target.dataset.filename;
+            try {
+                const response = await fetch(`/logs/raw/${filename}`);
+                if (!response.ok) throw new Error("Log not found");
+                const content = await response.text();
+                logContent.textContent = content;
+                logList.classList.add('d-none');
+                logDetails.classList.remove('d-none');
+            } catch (err) {
+                logContent.textContent = 'Error loading log: ' + err.message;
+                logList.classList.add('d-none');
+                logDetails.classList.remove('d-none');
+            }
+        });
+    });
+
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            logDetails.classList.add('d-none');
+            logList.classList.remove('d-none');
+            logContent.textContent = '';
+        });
+    }
+
+    // ========================================================
+    // TRIGGER DELAY
+    // ========================================================
+
+    function updateDelayState() {
+        if (delayDropdown && triggerToggle) {
+            delayDropdown.disabled = !triggerToggle.checked;
+        }
+    }
+
+    if (triggerToggle && delayDropdown) {
+        triggerToggle.addEventListener("change", updateDelayState);
+        updateDelayState();
+    }
+
+    // ========================================================
+    // SCHEDULE SLOT VALIDATION
+    // ========================================================
+
+    const slots = ['Slot1', 'Slot2'];
+    const allSlotValidators = [];
+
+    days.forEach(day => {
+        const slotElements = slots.map(slot => ({
+            toggle: document.getElementById(`${day}${slot}Enabled`),
+            start: document.getElementById(`${day}${slot}Start`),
+            end: document.getElementById(`${day}${slot}End`),
+            category: document.getElementById(`${day}${slot}Category`)
+        }));
+
+        slotElements.forEach((slotObj, idx) => {
+            if (!slotObj.toggle || !slotObj.start || !slotObj.end) return;
+
+            const updateSlotInputs = () => {
+                const enabled = slotObj.toggle.checked;
+                slotObj.start.disabled = !enabled;
+                slotObj.end.disabled = !enabled;
+                if (slotObj.category) {
+                    slotObj.category.disabled = !enabled;
+                }
+            };
+
+            updateSlotInputs();
+            slotObj.toggle.addEventListener('change', updateSlotInputs);
+
+            const validateTimes = () => {
+                if (!slotObj.toggle.checked) {
+                    return true;
+                }
+
+                if (!slotObj.start.value || !slotObj.end.value) {
+                    if (modalBody && validationModal) {
+                        modalBody.textContent =
+                            `On ${day.charAt(0).toUpperCase() + day.slice(1)} (${slots[idx]}), both start and end times must be filled.`;
+                        validationModal.show();
+                    }
+                    slotObj.start.focus();
+                    return false;
+                }
+
+                if (slotObj.start.value >= slotObj.end.value) {
+                    if (modalBody && validationModal) {
+                        modalBody.textContent =
+                            `On ${day.charAt(0).toUpperCase() + day.slice(1)} (${slots[idx]}), start time must be before end time.`;
+                        validationModal.show();
+                    }
+                    slotObj.start.focus();
+                    return false;
+                }
+
+                for (let otherIdx = 0; otherIdx < slotElements.length; otherIdx++) {
+                    if (otherIdx === idx) continue;
+
+                    const other = slotElements[otherIdx];
+
+                    if (!other.toggle ||
+                        !other.toggle.checked ||
+                        !other.start.value ||
+                        !other.end.value) {
+                        continue;
+                    }
+
+                    if (!(slotObj.end.value <= other.start.value ||
+                        slotObj.start.value >= other.end.value)) {
+                        if (modalBody && validationModal) {
+                            modalBody.textContent =
+                                `On ${day.charAt(0).toUpperCase() + day.slice(1)}, ${slots[idx]} overlaps with ${slots[otherIdx]}.`;
+                            validationModal.show();
+                        }
+                        slotObj.start.focus();
+                        return false;
+                    }
+                }
+
+                return true;
+            };
+
+            allSlotValidators.push(validateTimes);
+            slotObj.start.addEventListener('blur', validateTimes);
+            slotObj.end.addEventListener('blur', validateTimes);
+            slotObj.toggle.addEventListener('change', validateTimes);
+        });
+    });
+
+    // ========================================================
+    // SCHEDULE FORM VALIDATION
+    // ========================================================
+
+    const scheduleForm = document.getElementById('scheduleForm');
+
+    if (scheduleForm) {
+        scheduleForm.addEventListener('submit', e => {
+            for (const validate of allSlotValidators) {
+                if (!validate()) {
+                    e.preventDefault();
+                    return false;
+                }
+            }
+        });
+    }
+
+    // ========================================================
+    // UPLOAD FORM
+    // ========================================================
+
+    const uploadForm = document.getElementById('uploadForm');
+
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', () => {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+        });
+    }
+
+    // ========================================================
+    // DRAG & DROP UPLOAD
+    // ========================================================
+
+    if (dropArea && fileInput) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, e => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropArea.classList.add('border-success', 'bg-light');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, e => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropArea.classList.remove('border-success', 'bg-light');
+            });
+        });
+
+        dropArea.addEventListener('drop', e => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFile(files[0]);
+        });
+
+        fileInput.addEventListener('change', e => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            if (file.type === "video/mp4") {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                fileInput.files = dt.files;
+                fileName.textContent = `Selected: ${file.name}`;
+                uploadBtn.disabled = false;
+            } else {
+                fileName.textContent = "Please upload a valid MP4 file.";
+                uploadBtn.disabled = true;
+            }
+        }
+    }
+
+    // ========================================================
+    // PLAYLIST MODE
+    // ========================================================
+
+    const modeSelect = document.getElementById('modeSelect');
+    const intervalGroup = document.getElementById('intervalGroup');
+    const intervalSelect = document.getElementById('interval');
+    const singleVideoGroup = document.getElementById('singleVideoSelectGroup');
+    const fixedPlaylistGroup = document.getElementById('fixedPlaylistGroup');
+
+    function updateModeUI() {
+        if (!modeSelect) return;
+
+        const mode = modeSelect.value;
+
+        if (mode === 'random' || mode === 'fixed') {
+            intervalGroup.style.display = 'block';
+            intervalSelect.disabled = false;
+        } else {
+            intervalGroup.style.display = 'none';
+            intervalSelect.disabled = true;
+        }
+
+        singleVideoGroup.style.display = (mode === 'single') ? 'block' : 'none';
+        fixedPlaylistGroup.style.display = (mode === 'fixed') ? 'block' : 'none';
+    }
+
+    if (modeSelect) {
+        modeSelect.addEventListener('change', updateModeUI);
+        updateModeUI();
+    }
+
+    // ========================================================
+    // VIDEO PREVIEW
+    // ========================================================
+
+    const videoSelect = document.getElementById('video');
+    const videoPreview = document.getElementById('videoPreview');
+
+    function updateVideoPreview() {
+        if (!videoSelect || !videoPreview) return;
+
+        const video = videoSelect.value;
+
+        if (video) {
+            videoPreview.src = `/videos/${encodeURIComponent(video)}`;
+            videoPreview.load();
+        } else {
+            videoPreview.pause();
+            videoPreview.src = '';
+        }
+    }
+
+    if (videoSelect) {
+        videoSelect.addEventListener('change', updateVideoPreview);
+        updateVideoPreview();
+    }
+
+    // ========================================================
+    // FIXED PLAYLIST REORDERING
+    // ========================================================
+
+    const fixedPlaylist = document.getElementById('fixedPlaylist');
+    const fixedOrderInput = document.getElementById('fixedOrderInput');
+
+    if (fixedPlaylist && fixedOrderInput) {
+        Sortable.create(fixedPlaylist, {
+            animation: 150,
+            onEnd: () => {
+                const order = Array.from(fixedPlaylist.querySelectorAll('li'))
+                    .map(li => li.textContent.trim());
+                fixedOrderInput.value = order.join(',');
+            }
+        });
+
+        const initialOrder = Array.from(fixedPlaylist.querySelectorAll('li'))
+            .map(li => li.textContent.trim());
+
+        fixedOrderInput.value = initialOrder.join(',');
+    }
+
+    // ========================================================
+    // COUNTDOWN TIMER
+    // ========================================================
+
+    if (window.countdownConfig && window.countdownConfig.enabled) {
+        let countdown = window.countdownConfig.timeRemaining;
+        const countdownElement = document.getElementById('countdown');
+
+        if (countdownElement) {
+            const countdownInterval = setInterval(() => {
+                if (--countdown >= 0) {
+                    countdownElement.textContent = countdown;
+                } else {
+                    clearInterval(countdownInterval);
+                    location.reload();
+                }
+            }, 1500);
+        }
+    }
+
+
+    // ========================================================
+    // SIDEBAR NAVIGATION
+    // ========================================================
+
+    const navLinks = document.querySelectorAll('.sidebar .nav-link');
+    const sections = document.querySelectorAll('.section');
+    const sidebar = document.getElementById('sidebar');
+    const content = document.getElementById('mainContent');
+    const toggleButton = document.getElementById('toggleSidebar');
+    const toggleIcon = toggleButton ? toggleButton.querySelector('i') : null;
+    const alerts = document.querySelectorAll('.alert-dismissible');
+
+    alerts.forEach(alert => {
+        setTimeout(() => {
+            const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+            bsAlert.close();
+        }, 10000);
+    });
+
+    function activateSection(sectionId) {
+        navLinks.forEach(link => {
+            link.classList.toggle(
+                'active',
+                link.getAttribute('data-section') === sectionId
+            );
+        });
+
+        sections.forEach(sec => {
+            sec.classList.toggle(
+                'active',
+                sec.id === sectionId
+            );
+        });
+    }
+
+    let savedSection = localStorage.getItem('activeSidebarSection') || 'select';
+
+    if (![...sections].some(sec => sec.id === savedSection)) {
+        savedSection = navLinks.length
+            ? navLinks[0].getAttribute('data-section')
+            : null;
+    }
+
+    if (savedSection) {
+        activateSection(savedSection);
+    }
+
+    navLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            const selectedSection = link.getAttribute('data-section');
+            localStorage.setItem('activeSidebarSection', selectedSection);
+            activateSection(selectedSection);
+        });
+    });
+
+
+    // ========================================================
+    // SIDEBAR TOGGLE
+    // ========================================================
+
+    if (toggleButton && sidebar && content && toggleIcon) {
+        toggleButton.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            content.classList.toggle('collapsed');
+
+            if (sidebar.classList.contains('collapsed')) {
+                toggleIcon.classList.remove('bi-chevron-left');
+                toggleIcon.classList.add('bi-chevron-right');
+            } else {
+                toggleIcon.classList.remove('bi-chevron-right');
+                toggleIcon.classList.add('bi-chevron-left');
+            }
+        });
+    }
+
+
+    // ========================================================
+    // THEME & FONT
+    // ========================================================
+
+    function getCookie(name) {
+        const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+        return match ? decodeURIComponent(match[2]) : null;
+    }
+
+    function setCookie(name, value, days = 30) {
+        const expires = new Date(Date.now() + days * 86400 * 1000).toUTCString();
+        document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
+    }
+
+    function setTheme(mode) {
+        document.body.classList.toggle('dark-theme', mode === 'dark');
+        localStorage.setItem('themeMode', mode);
+        setCookie('themeMode', mode);
+        updateIconTheme(mode);
+    }
+
+    function updateIconTheme(mode) {
+        const icon = document.getElementById('themeIcon');
+
+        if (!icon) return;
+
+        icon.classList.remove('text-light', 'text-dark');
+        icon.classList.add(mode === 'dark' ? 'text-light' : 'text-dark');
+    }
+
+    function setFont(font) {
+        document.body.style.fontFamily = font;
+        localStorage.setItem('fontFamily', font);
+        setCookie('fontFamily', font);
+    }
+
+
+    // ========================================================
+    // THEME COLORS
+    // ========================================================
+
+    const defaultPrimaryColor = '#0d6efd';
+    const defaultSecondaryColor = '#084298';
+    const defaultFontColor = '#6c757d';
+
+    function setThemeColors(primaryColor, secondaryColor, fontColor) {
+        document.documentElement.style.setProperty(
+            '--primary-color',
+            primaryColor
+        );
+
+        document.documentElement.style.setProperty(
+            '--secondary-color',
+            secondaryColor
+        );
+
+        document.documentElement.style.setProperty(
+            '--font-color',
+            fontColor
+        );
+
+        localStorage.setItem('primaryColor', primaryColor);
+        localStorage.setItem('secondaryColor', secondaryColor);
+        localStorage.setItem('fontColor', fontColor);
+
+        setCookie('primaryColor', primaryColor);
+        setCookie('secondaryColor', secondaryColor);
+        setCookie('fontColor', fontColor);
+    }
+
+    const savedTheme = localStorage.getItem('themeMode') || getCookie('themeMode') || 'light';
+    const savedFont = localStorage.getItem('fontFamily') || getCookie('fontFamily') || "'Roboto', sans-serif";
+
+    const savedPrimaryColor =
+        localStorage.getItem('primaryColor') ||
+        getCookie('primaryColor') ||
+        defaultPrimaryColor;
+
+    const savedSecondaryColor =
+        localStorage.getItem('secondaryColor') ||
+        getCookie('secondaryColor') ||
+        defaultSecondaryColor;
+
+    const savedFontColor =
+        localStorage.getItem('fontColor') ||
+        getCookie('fontColor') ||
+        defaultFontColor;
+
+    setTheme(savedTheme);
+    setFont(savedFont);
+    updateIconTheme(savedTheme);
+
+    setThemeColors(
+        savedPrimaryColor,
+        savedSecondaryColor,
+        savedFontColor
+    );
+
+
+    // ========================================================
+    // THEME SWITCH
+    // ========================================================
+
+    const lightSwitch = document.getElementById('lightSwitch');
+
+    if (lightSwitch) {
+        lightSwitch.checked = savedTheme === 'dark';
+
+        lightSwitch.addEventListener('change', () => {
+            setTheme(lightSwitch.checked ? 'dark' : 'light');
+        });
+    }
+
+
+    // ========================================================
+    // FONT SELECTION
+    // ========================================================
+
+    const fontRadios = document.querySelectorAll('input[name="font"]');
+
+    fontRadios.forEach(radio => {
+        if (radio.value === savedFont) {
+            radio.checked = true;
+        }
+
+        radio.addEventListener('change', () => {
+            if (radio.checked) {
+                setFont(radio.value);
+            }
+        });
+    });
+
+
+    // ========================================================
+    // COLOR SELECTION
+    // ========================================================
+
+    const primaryColorPicker = document.getElementById('primaryColor');
+    const secondaryColorPicker = document.getElementById('secondaryColor');
+    const fontColorPicker = document.getElementById('fontColor');
+    const resetThemeColors = document.getElementById('resetThemeColors');
+
+
+    if (primaryColorPicker && secondaryColorPicker && fontColorPicker) {
+
+        primaryColorPicker.value = savedPrimaryColor;
+        secondaryColorPicker.value = savedSecondaryColor;
+        fontColorPicker.value = savedFontColor;
+
+        primaryColorPicker.addEventListener('input', () => {
+            setThemeColors(
+                primaryColorPicker.value,
+                secondaryColorPicker.value,
+                fontColorPicker.value
+            );
+        });
+
+        secondaryColorPicker.addEventListener('input', () => {
+            setThemeColors(
+                primaryColorPicker.value,
+                secondaryColorPicker.value,
+                fontColorPicker.value
+            );
+        });
+
+        fontColorPicker.addEventListener('input', () => {
+            setThemeColors(
+                primaryColorPicker.value,
+                secondaryColorPicker.value,
+                fontColorPicker.value
+            );
+
+            console.log(
+                "CSS FONT:",
+                getComputedStyle(document.documentElement)
+                    .getPropertyValue('--font-color')
+            );
+        });
+    }
+
+
+    // ========================================================
+    // RESET THEME COLORS
+    // ========================================================
+
+    if (resetThemeColors) {
+        resetThemeColors.addEventListener('click', () => {
+
+            primaryColorPicker.value = defaultPrimaryColor;
+            secondaryColorPicker.value = defaultSecondaryColor;
+            fontColorPicker.value = defaultFontColor;
+
+            setThemeColors(
+                defaultPrimaryColor,
+                defaultSecondaryColor,
+                defaultFontColor
+            );
+        });
+    }
+
+
+});
+
+// ============================================================
+// GLOBAL FUNCTIONS
+// ============================================================
+
+function deleteVideo(filename) {
+    if (confirm(`Delete ${filename}?`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/delete/${filename}`;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+

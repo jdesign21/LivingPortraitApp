@@ -1,0 +1,102 @@
+   <section id="about" class="section">
+      <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">About This Project</h3>
+
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+          <strong>About Us</strong>
+        </div>
+        <div class="card-body">
+          <p class="text-muted small mb-0">If you like this project, make sure to subscribe to my YouTube channel.</p>
+          <br>
+
+
+
+          <!-- YouTube Subscribe -->
+          <div class="mb-3 text-center">
+            <a href="https://www.youtube.com/@LightsOnLanternLn" target="_blank" class="btn btn-danger">
+              <i class="bi bi-youtube me-2"></i> Subscribe on YouTube
+            </a>
+          </div>
+
+
+        </div>
+      </div>
+
+      <br>
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+          <strong>Parts List</strong>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-striped mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th scope="col">Item</th>
+                  <th scope="col">Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Raspberry Pi</td>
+                  <td>Model 3,4,5</td>
+                </tr>
+                <tr>
+                  <td>MicroSD Card</td>
+                  <td>With Raspberry Pi OS installed</td>
+                </tr>
+                <tr>
+                  <td>5V Power Supply</td>
+                  <td>Micro-USB, 2.5A or higher</td>
+                </tr>
+                <tr>
+                  <td>PIR Sensor (5V)</td>
+                  <td>HC-SR501 or similar (3-pin)</td>
+                </tr>
+                <tr>
+                  <td>Jumper Wires (M to F)</td>
+                  <td>3 wires for connection</td>
+                </tr>
+                <tr>
+                  <td>HDMI Cable</td>
+                  <td>Full-size HDMI</td>
+                </tr>
+                <tr>
+                  <td>TV</td>
+                  <td>With HDMI input</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+          <strong>Wiring Guide</strong>
+        </div>
+        <div class="card-body">
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <strong>HDMI from Pi to TV:</strong><br>
+              HDMI cable runs from Raspberry Pi’s HDMI port to the TV.
+            </li>
+            <li class="list-group-item">
+              <strong>PIR Sensor Wiring:</strong>
+              <ul class="mt-2">
+                <li><strong>VCC (Red)</strong> → 5V pin on Pi</li>
+                <li><strong>GND (Black)</strong> → GND pin on Pi</li>
+                <li><strong>OUT (Yellow)</strong> → GPIO pin on Pi (assumed to be GPIO 4)</li>
+              </ul>
+            </li>
+            <li class="list-group-item">
+              <strong>5V Power Supply:</strong><br>
+              Properly connected to the Pi’s micro-USB port.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+
+      <p class="text-muted small">Version: {{ version }}</p>
+    </section>

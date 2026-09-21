@@ -1,0 +1,57 @@
+
+<section id="logs" class="section">
+  <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">Logs Section</h3>
+
+  <div id="log" class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <strong>System Logs</strong>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-2">
+        Browse, download, or delete system logs for recent activity.
+      </p>
+
+      <div class="alert alert-info py-2 small mb-3">
+        Only the latest <strong>20,000 characters</strong> of each log are displayed.
+        Use <strong>Download</strong> to view the complete log file.
+      </div>
+
+      <ul class="list-group mb-3">
+        {% for log in logs %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <div>
+            <a href="#" class="view-log" data-filename="{{ log.name }}">{{ log.name }}</a>
+            <small class="text-muted d-block">
+              Size: {{ (log.size / 1024) | round(1) }} KB | Modified: {{ log.mtime }}
+            </small>
+          </div>
+
+          <div class="d-flex gap-2">
+            <a href="{{ url_for('download_log', filename=log.name) }}"
+              class="btn btn-primary btn-sm">
+              Download
+            </a>
+
+            <form method="POST" action="{{ url_for('delete_log', filename=log.name) }}"
+              onsubmit="return confirm('Delete log {{ log.name }}?');">
+              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+          </div>
+        </li>
+        {% else %}
+        <li class="list-group-item">No logs found.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div id="log_details" class="card shadow-sm d-none">
+    <div class="card-header bg-primary text-white">
+      <strong>Log Detail</strong>
+    </div>
+    <div class="card-body">
+      <button class="btn btn-secondary mb-3" id="backToList">Back</button>
+      <pre id="logContent"></pre>
+    </div>
+  </div>
+</section>
