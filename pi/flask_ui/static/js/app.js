@@ -241,6 +241,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ========================================================
+    // NETWORK SETTINGS
+    // ========================================================
+
+    const networkForm = document.getElementById('networkForm');
+    const networkLoading = document.getElementById('networkLoading');
+
+    if (networkForm && networkLoading) {
+        networkForm.addEventListener('submit', () => {
+            networkLoading.style.display = 'flex';
+        });
+    }
+
+    // ========================================================
     // DRAG & DROP UPLOAD
     // ========================================================
 

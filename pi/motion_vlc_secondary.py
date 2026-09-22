@@ -198,7 +198,7 @@ def main():
     # --------------------------------------------------
 
     mqtt_client.client.on_message = on_message
-    mqtt_client.client.subscribe(mqtt_client.TOPIC_CONTROL)
+    #mqtt_client.client.subscribe(mqtt_client.TOPIC_CONTROL)
 
     log("Waiting for MQTT commands...")
 

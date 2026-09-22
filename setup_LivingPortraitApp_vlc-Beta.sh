@@ -1,4 +1,3 @@
-@ -1,290 +0,0 @@
 #!/bin/bash
 set -e
 
@@ -8,7 +7,7 @@ set -e
 # ============================================================
 
 # GitHub release to install
-RELEASE="v2.0.0-beta.1"
+RELEASE="v2.0.0-beta.2"
 BASE_URL="https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/tags/$RELEASE/pi"
 
 # ============================================================
@@ -120,8 +119,8 @@ if [ ! -d "$VENV_PATH" ]; then
 
     "$VENV_PATH/bin/pip" install --upgrade pip
 
-    "$VENV_PATH/bin/pip" install flask \
-        || log_fail "Flask pip install"
+    "$VENV_PATH/bin/pip" install flask paho-mqtt \
+        || log_fail "Flask and MQTT pip install"
 
     log_success "Flask virtual environment setup"
 
@@ -288,3 +287,4 @@ echo -e "📦 Application version: $VERSION"
 echo -e "============================================"
 
 echo -e "\nPlease reboot to apply all changes."
+
