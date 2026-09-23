@@ -16,13 +16,19 @@ def load_network_settings():
         with open(NETWORK_FILE, "r") as f:
             return json.load(f)
 
-    return {
+    settings = {
         "role": "primary",
         "primary_ip": "",
         "enable": "1",
         "sync_start_delay_ms": 1000,
         "secondary_pis": []
     }
+
+    save_network_settings(settings)
+
+    return settings
+
+
 
 
 def save_network_settings(settings):

@@ -454,6 +454,453 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    
+    // ========================================================
+// APPLICATION UPDATES
+// ========================================================
+
+const checkUpdatesBtn =
+    document.getElementById('check-updates-btn');
+
+const updateNowBtn =
+    document.getElementById('update-now-btn');
+
+const latestVersionElement =
+    document.getElementById('latest-version');
+
+const updateStatusElement =
+    document.getElementById('update-status');
+
+const stableChannel =
+    document.getElementById('stableChannel');
+
+const betaChannel =
+    document.getElementById('betaChannel');
+
+const updateProgressContainer =
+    document.getElementById('update-progress-container');
+
+const updateProgress =
+    document.getElementById('update-progress');
+
+let availableReleaseTag = null;
+let updateStatusTimer = null;
+
+
+function showUpdateProgress(history) {
+
+    if (!updateProgressContainer || !updateProgress) {
+        return;
+    }
+
+    updateProgressContainer.classList.remove('d-none');
+
+    updateProgress.innerHTML = '';
+
+    if (!history || history.length === 0) {
+        return;
+    }
+
+    history.forEach(step => {
+
+        const row = document.createElement('div');
+
+        row.className =
+            'd-flex align-items-start mb-2';
+
+        let icon = '✓';
+        let iconClass = 'text-success';
+
+        if (step.status === 'restarting' ||
+            step.status === 'starting' ||
+            step.status === 'downloading' ||
+            step.status === 'extracting' ||
+            step.status === 'backing_up' ||
+            step.status === 'installing') {
+
+            icon = '⟳';
+            iconClass = 'text-primary';
+        }
+
+        if (step.error) {
+            icon = '✗';
+            iconClass = 'text-danger';
+        }
+
+        row.innerHTML = `
+            <div
+                class="${iconClass} fw-bold me-2"
+                style="width: 20px;">
+                ${icon}
+            </div>
+
+            <div class="flex-grow-1">
+                ${step.message}
+            </div>
+
+            <div class="text-muted small ms-3">
+                ${step.time || ''}
+            </div>
+        `;
+
+        updateProgress.appendChild(row);
+    });
+
+    updateProgress.scrollTop =
+        updateProgress.scrollHeight;
+}
+
+
+async function checkUpdateStatus() {
+
+    try {
+
+        const response =
+            await fetch('/update_status');
+
+        if (!response.ok) {
+            return;
+        }
+
+        const data =
+            await response.json();
+
+        showUpdateProgress(
+            data.history || []
+        );
+
+        if (data.status === 'complete') {
+
+            if (updateStatusElement) {
+
+                updateStatusElement.className =
+                    'alert alert-success';
+
+                updateStatusElement.textContent =
+                    data.message ||
+                    'Update completed successfully.';
+            }
+
+            stopUpdateStatusPolling();
+
+            if (updateNowBtn) {
+                updateNowBtn.disabled = false;
+            }
+
+            if (checkUpdatesBtn) {
+                checkUpdatesBtn.disabled = false;
+            }
+
+        } else if (data.status === 'failed') {
+
+            if (updateStatusElement) {
+
+                updateStatusElement.className =
+                    'alert alert-danger';
+
+                updateStatusElement.textContent =
+                    data.message ||
+                    'The update failed.';
+            }
+
+            stopUpdateStatusPolling();
+
+            if (updateNowBtn) {
+                updateNowBtn.disabled = false;
+            }
+
+            if (checkUpdatesBtn) {
+                checkUpdatesBtn.disabled = false;
+            }
+
+        } else if (
+            data.status &&
+            data.status !== 'idle'
+        ) {
+
+            if (updateStatusElement) {
+
+                updateStatusElement.className =
+                    'alert alert-info';
+
+                updateStatusElement.textContent =
+                    data.message ||
+                    'Update in progress...';
+            }
+        }
+
+    } catch (error) {
+
+        console.error(
+            'Unable to read update status:',
+            error
+        );
+    }
+}
+
+
+function startUpdateStatusPolling() {
+
+    stopUpdateStatusPolling();
+
+    checkUpdateStatus();
+
+    updateStatusTimer =
+        setInterval(
+            checkUpdateStatus,
+            1000
+        );
+}
+
+
+function stopUpdateStatusPolling() {
+
+    if (updateStatusTimer) {
+
+        clearInterval(
+            updateStatusTimer
+        );
+
+        updateStatusTimer = null;
+    }
+}
+
+
+if (
+    checkUpdatesBtn &&
+    latestVersionElement &&
+    updateStatusElement
+) {
+
+    checkUpdatesBtn.addEventListener(
+        'click',
+        async () => {
+
+            const channel =
+                betaChannel &&
+                betaChannel.checked
+                    ? 'beta'
+                    : 'stable';
+
+            checkUpdatesBtn.disabled = true;
+
+            if (updateNowBtn) {
+
+                updateNowBtn.classList.add(
+                    'd-none'
+                );
+
+                updateNowBtn.disabled = false;
+            }
+
+            availableReleaseTag = null;
+
+            latestVersionElement.textContent =
+                'Checking...';
+
+            latestVersionElement.className =
+                'badge bg-secondary fs-6';
+
+            updateStatusElement.className =
+                'alert alert-secondary';
+
+            updateStatusElement.textContent =
+                'Checking GitHub for the latest release...';
+
+            try {
+
+                const response =
+                    await fetch(
+                        `/check_updates?channel=${channel}`
+                    );
+
+                const data =
+                    await response.json();
+
+                if (
+                    !response.ok ||
+                    !data.success
+                ) {
+
+                    throw new Error(
+                        data.error ||
+                        'Unable to check for updates.'
+                    );
+                }
+
+                latestVersionElement.textContent =
+                    data.latest_version;
+
+                if (data.update_available) {
+
+                    latestVersionElement.className =
+                        'badge bg-warning text-dark fs-6';
+
+                    updateStatusElement.className =
+                        'alert alert-success';
+
+                    updateStatusElement.textContent =
+                        `Update available: ${data.latest_version}`;
+
+                    availableReleaseTag =
+                        data.tag_name;
+
+                    if (updateNowBtn) {
+
+                        updateNowBtn.classList.remove(
+                            'd-none'
+                        );
+                    }
+
+                } else {
+
+                    latestVersionElement.className =
+                        'badge bg-success fs-6';
+
+                    updateStatusElement.className =
+                        'alert alert-success';
+
+                    updateStatusElement.textContent =
+                        'Your application is up to date.';
+                }
+
+            } catch (error) {
+
+                latestVersionElement.textContent =
+                    'Check failed';
+
+                latestVersionElement.className =
+                    'badge bg-danger fs-6';
+
+                updateStatusElement.className =
+                    'alert alert-danger';
+
+                updateStatusElement.textContent =
+                    `Unable to check for updates: ${error.message}`;
+
+            } finally {
+
+                checkUpdatesBtn.disabled = false;
+            }
+        }
+    );
+}
+
+
+// ========================================================
+// UPDATE NOW
+// ========================================================
+
+if (updateNowBtn) {
+
+    updateNowBtn.addEventListener(
+        'click',
+        async () => {
+
+            if (!availableReleaseTag) {
+                return;
+            }
+
+            const confirmed =
+                confirm(
+                    `Update LivingPortraitApp to ${availableReleaseTag}?\n\n` +
+                    `The application will restart after the update.`
+                );
+
+            if (!confirmed) {
+                return;
+            }
+
+            updateNowBtn.disabled = true;
+
+            if (checkUpdatesBtn) {
+                checkUpdatesBtn.disabled = true;
+            }
+
+            if (updateProgressContainer) {
+
+                updateProgressContainer.classList.remove(
+                    'd-none'
+                );
+            }
+
+            if (updateProgress) {
+                updateProgress.innerHTML = '';
+            }
+
+            if (updateStatusElement) {
+
+                updateStatusElement.className =
+                    'alert alert-info';
+
+                updateStatusElement.textContent =
+                    `Starting update to ${availableReleaseTag}...`;
+            }
+
+            try {
+
+                const response =
+                    await fetch(
+                        '/start_update',
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type':
+                                    'application/json'
+                            },
+                            body: JSON.stringify({
+                                tag_name:
+                                    availableReleaseTag
+                            })
+                        }
+                    );
+
+                const data =
+                    await response.json();
+
+                if (
+                    !response.ok ||
+                    !data.success
+                ) {
+
+                    throw new Error(
+                        data.error ||
+                        'Unable to start update.'
+                    );
+                }
+
+                if (updateStatusElement) {
+
+                    updateStatusElement.className =
+                        'alert alert-info';
+
+                    updateStatusElement.textContent =
+                        'Update started. Watching update progress...';
+                }
+
+                startUpdateStatusPolling();
+
+            } catch (error) {
+
+                updateNowBtn.disabled = false;
+
+                if (checkUpdatesBtn) {
+                    checkUpdatesBtn.disabled = false;
+                }
+
+                if (updateStatusElement) {
+
+                    updateStatusElement.className =
+                        'alert alert-danger';
+
+                    updateStatusElement.textContent =
+                        `Unable to start update: ${error.message}`;
+                }
+            }
+        }
+    );
+}
+    
 
     // ========================================================
     // SIDEBAR TOGGLE

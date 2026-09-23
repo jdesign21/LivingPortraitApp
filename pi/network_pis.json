@@ -1,9 +1,0 @@
-{
-  "role": "primary",
-  "enable": "0",
-  "primary_ip": "",
-  "sync_start_delay_ms": 1000,
-  "secondary_pis": [
-
-  ]
-}

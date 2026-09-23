@@ -20,13 +20,21 @@ stop_playlist_thread = threading.Event()
 
 def get_version():
     version_file = HOME / "version.txt"
+
     try:
         with open(version_file, "r") as f:
-            return f.read().strip()
+            version = f.read().strip()
+
+            if version:
+                return version
+
+            return "unknown"
+
     except FileNotFoundError:
         return "unknown"
-
-VERSION = get_version()
+    except Exception as e:
+        log(f"Failed to read version.txt: {e}")
+        return "unknown"
 
 def log(msg):
     timestamp = f"[{datetime.now().isoformat()}]"

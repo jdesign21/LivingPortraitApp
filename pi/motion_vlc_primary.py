@@ -294,9 +294,10 @@ def main():
 
     video_files = sorted(VIDEO_FOLDER.glob("*.mp4"))
 
-    if not video_files:
-        log("No videos found!")
-        sys.exit(1)
+    while not video_files:
+        log("No videos found. Waiting for a video to be uploaded...")
+        time.sleep(5)
+        video_files = sorted(VIDEO_FOLDER.glob("*.mp4"))
 
     log(f"Found {len(video_files)} video(s)")
 

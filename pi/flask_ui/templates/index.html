@@ -71,6 +71,10 @@
       <span class="label">Logs</span>
     </a>
 
+    <a class="nav-link" data-section="updates">
+  <i class="bi bi-arrow-repeat"></i>
+  <span class="label">Application Updates</span>
+</a>
 
     <a class="nav-link" data-section="Appearance">
       <i class="bi bi-palette"></i>
@@ -150,6 +154,9 @@
     <!-- LOGS SECTION  -->
     {% include 'sections/logs.html' %}
 
+        <!-- ABOUT SECTION  -->
+    {% include 'sections/updates.html' %}
+
     <!-- ABOUT SECTION  -->
     {% include 'sections/about.html' %}
 
@@ -192,7 +199,7 @@
   <script>
     window.countdownConfig = {
       enabled: {{ 'true' if playlist_mode in ['random', 'fixed'] and time_remaining is not none and time_remaining > 0 else 'false' }},
-    timeRemaining: { { time_remaining if time_remaining is not none else 0 } }
+    timeRemaining: {{ time_remaining if time_remaining is not none else 0 }}
     };
   </script>
 

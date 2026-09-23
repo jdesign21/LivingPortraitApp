@@ -14,6 +14,7 @@ sys.path.append(str(HOME))
 
 from shared.vlc_helper import (
     log,
+    get_version,
     load_settings,
     save_settings,
     get_playlist_settings,
@@ -37,6 +38,9 @@ from shared.vlc_network_helper import (
     check_secondary_status,
     get_sync_start_delay_ms
 )
+
+from shared.update_helper import check_for_update
+from shared.update_manager import start_update
 
 app = Flask(__name__)
 app.secret_key = 'replace-this-with-a-secure-random-key'  # Change to a secure key in production
@@ -80,6 +84,7 @@ def get_mqtt_status():
 def index():
     current_time = datetime.now().strftime("%A %I:%M:%S %p")
     theme = request.cookies.get("themeMode", "light")
+    version = get_version()
     videos = sorted([f.name for f in VIDEO_FOLDER.glob("*.mp4")])
     settings = load_settings()
     selected_video = settings.get("selected_video", "")
@@ -223,7 +228,8 @@ def index():
         enable=enable,
         secondary_pis=secondary_pis,
         mqtt_connected=mqtt_connected,
-        sync_start_delay_ms=sync_start_delay_ms
+        sync_start_delay_ms=sync_start_delay_ms,
+        version=version
     )
 
 @app.route("/select", methods=["POST"])
@@ -1021,6 +1027,101 @@ def network_check_secondary():
         )
 
     return redirect(url_for("index"))
+
+
+@app.route("/check_updates")
+def check_updates():
+    channel = request.args.get("channel", "stable").lower()
+
+    if channel not in ("stable", "beta"):
+        return jsonify({
+            "success": False,
+            "error": "Invalid release channel."
+        }), 400
+
+    try:
+        installed_version = get_version()
+
+        result = check_for_update(
+            installed_version,
+            channel
+        )
+
+        result["success"] = True
+
+        return jsonify(result)
+
+    except Exception as e:
+        log(f"Update check failed: {e}")
+
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route("/start_update", methods=["POST"])
+def start_update_route():
+
+    try:
+        data = request.get_json(silent=True) or {}
+
+        tag_name = data.get("tag_name", "").strip()
+
+        if not tag_name:
+            return jsonify({
+                "success": False,
+                "error": "No release was specified."
+            }), 400
+
+        start_update(tag_name)
+
+        log(
+            f"[UPDATE] Update started for release {tag_name}"
+        )
+
+        return jsonify({
+            "success": True,
+            "message": f"Update to {tag_name} started."
+        })
+
+    except Exception as e:
+
+        log(
+            f"[UPDATE] Failed to start update: {e}"
+        )
+
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route("/update_status")
+def update_status():
+
+    status_file = HOME / "update_status.json"
+
+    if not status_file.exists():
+        return jsonify({
+            "status": "idle",
+            "message": "No update is running.",
+            "error": False
+        })
+
+    try:
+        with open(status_file, "r") as f:
+            return jsonify(json.load(f))
+
+    except Exception as e:
+
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "error": True
+        })
+
+    
 
 
 if __name__ == "__main__":

@@ -1,0 +1,148 @@
+<section id="updates" class="section">
+  <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
+    Application Updates
+  </h3>
+
+  <div class="card shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <strong>LivingPortraitApp Updates</strong>
+    </div>
+
+    <div class="card-body">
+
+      <p class="text-muted mb-4">
+        Check GitHub for a newer version of LivingPortraitApp.
+      </p>
+
+      <!-- Installed Version -->
+      <div class="row align-items-center mb-4">
+        <div class="col-md-6">
+          <strong>Installed Version</strong>
+          <div class="text-muted small">
+            The version currently installed on this Raspberry Pi.
+          </div>
+        </div>
+
+        <div class="col-md-6 text-md-end mt-2 mt-md-0">
+          <span class="badge bg-secondary fs-6">
+            {{ version }}
+          </span>
+        </div>
+      </div>
+
+      <hr>
+
+      <!-- Release Channel -->
+      <div class="row align-items-center mb-4">
+        <div class="col-md-6">
+          <strong>Release Channel</strong>
+          <div class="text-muted small">
+            Choose whether to receive stable or beta releases.
+          </div>
+        </div>
+
+        <div class="col-md-6 mt-2 mt-md-0">
+          <div class="d-flex justify-content-md-end gap-3">
+
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                type="radio"
+                name="releaseChannel"
+                id="stableChannel"
+                value="stable">
+              <label
+                class="form-check-label"
+                for="stableChannel">
+                Stable
+              </label>
+            </div>
+
+            <div class="form-check">
+              <input
+                class="form-check-input"
+                type="radio"
+                name="releaseChannel"
+                id="betaChannel"
+                value="beta"
+                checked>
+              <label
+                class="form-check-label"
+                for="betaChannel">
+                Beta
+              </label>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <hr>
+
+      <!-- Latest Version -->
+      <div class="row align-items-center mb-4">
+        <div class="col-md-6">
+          <strong>Latest GitHub Release</strong>
+          <div class="text-muted small">
+            The latest version available for the selected channel.
+          </div>
+        </div>
+
+        <div class="col-md-6 text-md-end mt-2 mt-md-0">
+          <span
+            id="latest-version"
+            class="badge bg-secondary fs-6">
+            Not checked
+          </span>
+        </div>
+      </div>
+
+      <!-- Update Status -->
+      <div
+        id="update-status"
+        class="alert alert-secondary d-none"
+        role="alert">
+      </div>
+
+      <!-- Update Buttons -->
+      <div class="text-center mt-4">
+
+        <button
+          type="button"
+          id="check-updates-btn"
+          class="btn btn-primary">
+          <i class="bi bi-cloud-arrow-down me-2"></i>
+          Check for Updates
+        </button>
+
+        <button
+          type="button"
+          id="update-now-btn"
+          class="btn btn-success d-none ms-2">
+          <i class="bi bi-arrow-repeat me-2"></i>
+          Update Now
+        </button>
+
+      </div>
+
+      <!-- Update Progress -->
+      <div
+        id="update-progress-container"
+        class="mt-5 d-none">
+
+        <hr>
+
+        <h5 class="fw-bold mb-3">
+          Update Progress
+        </h5>
+
+        <div
+          id="update-progress"
+          class="border rounded p-3 bg-light">
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</section>
