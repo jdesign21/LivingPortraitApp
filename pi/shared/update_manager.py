@@ -1,3 +1,4 @@
+
 import json
 import shutil
 import tempfile
@@ -13,7 +14,6 @@ HOME = Path.home()
 REPO = "jdesign21/LivingPortraitApp"
 GITHUB_RELEASES_URL = f"https://api.github.com/repos/{REPO}/releases"
 
-# Application files/folders that may be updated.
 UPDATE_ITEMS = [
     "flask_ui",
     "shared",
@@ -24,7 +24,6 @@ UPDATE_ITEMS = [
     "version.txt",
 ]
 
-# Files/folders that must never be replaced by the updater.
 PROTECTED_ITEMS = [
     "videos",
     "logs",
@@ -40,15 +39,39 @@ STATUS_FILE = HOME / "update_status.json"
 
 
 def write_status(status, message, error=False):
-    data = {
-        "status": status,
-        "message": message,
-        "error": error
-    }
+    """
+    Write the current update status and maintain
+    a history of all update steps.
+    """
 
     try:
+        history = []
+
+        if STATUS_FILE.exists():
+            try:
+                with open(STATUS_FILE, "r") as f:
+                    previous = json.load(f)
+                    history = previous.get("history", [])
+            except Exception:
+                history = []
+
+        history.append({
+            "status": status,
+            "message": message,
+            "error": error,
+            "time": time.strftime("%H:%M:%S")
+        })
+
+        data = {
+            "status": status,
+            "message": message,
+            "error": error,
+            "history": history
+        }
+
         with open(STATUS_FILE, "w") as f:
             json.dump(data, f, indent=2)
+
     except Exception:
         pass
 
@@ -81,6 +104,7 @@ def get_release(tag_name):
 
 
 def download_release(tag_name, destination):
+
     release = get_release(tag_name)
 
     zip_url = release.get("zipball_url")
@@ -118,18 +142,10 @@ def download_release(tag_name, destination):
 
 
 def find_pi_folder(extract_path):
-    """
-    GitHub ZIP archives normally contain:
 
-        repository-name-commit/
-            pi/
-                ...
-
-    Find the pi folder without assuming the generated
-    GitHub directory name.
-    """
-
-    matches = list(extract_path.glob("*/pi"))
+    matches = list(
+        extract_path.glob("*/pi")
+    )
 
     if not matches:
         raise RuntimeError(
@@ -145,26 +161,35 @@ def find_pi_folder(extract_path):
 
 
 def backup_application(backup_path):
-    backup_path.mkdir(parents=True, exist_ok=True)
+
+    backup_path.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
     for item in UPDATE_ITEMS:
+
         source = HOME / item
 
         if not source.exists():
             continue
 
         destination = backup_path / item
+
         destination.parent.mkdir(
             parents=True,
             exist_ok=True
         )
 
         if source.is_dir():
+
             shutil.copytree(
                 source,
                 destination
             )
+
         else:
+
             shutil.copy2(
                 source,
                 destination
@@ -172,17 +197,23 @@ def backup_application(backup_path):
 
 
 def remove_existing_item(path):
+
     if not path.exists():
         return
 
     if path.is_dir():
+
         shutil.rmtree(path)
+
     else:
+
         path.unlink()
 
 
 def install_application(pi_folder):
+
     for item in UPDATE_ITEMS:
+
         source = pi_folder / item
 
         if not source.exists():
@@ -198,11 +229,14 @@ def install_application(pi_folder):
         )
 
         if source.is_dir():
+
             shutil.copytree(
                 source,
                 destination
             )
+
         else:
+
             shutil.copy2(
                 source,
                 destination
@@ -210,6 +244,7 @@ def install_application(pi_folder):
 
 
 def restart_services():
+
     write_status(
         "restarting",
         "Restarting LivingPortraitApp..."
@@ -217,21 +252,45 @@ def restart_services():
 
     time.sleep(2)
 
+    # Restart VLC first.
+    # Flask must be restarted last because
+    # the updater is running from the Flask service.
     subprocess.run(
-        ["sudo", "systemctl", "restart", "flask_ui"],
+        [
+            "sudo",
+            "systemctl",
+            "restart",
+            "motion_vlc"
+        ],
         check=True
     )
 
+    # Mark the update complete before restarting Flask.
+    write_status(
+        "complete",
+        "LivingPortraitApp update completed successfully."
+    )
+
+    time.sleep(1)
+
+    # Restart Flask last.
     subprocess.run(
-        ["sudo", "systemctl", "restart", "motion_vlc"],
+        [
+            "sudo",
+            "systemctl",
+            "restart",
+            "flask_ui"
+        ],
         check=True
     )
 
 
 def perform_update(tag_name):
+
     backup_path = None
 
     try:
+
         write_status(
             "starting",
             f"Preparing update to {tag_name}..."
@@ -242,6 +301,7 @@ def perform_update(tag_name):
         ) as temp_dir:
 
             temp_path = Path(temp_dir)
+
             extract_path = temp_path / "extracted"
 
             extract_path.mkdir()
@@ -274,8 +334,6 @@ def perform_update(tag_name):
                 extract_path
             )
 
-            # Make sure the release contains the expected
-            # application files before touching the current app.
             required_files = [
                 "motion_vlc.py",
                 "motion_vlc_primary.py",
@@ -293,6 +351,7 @@ def perform_update(tag_name):
             ]
 
             if missing:
+
                 raise RuntimeError(
                     "Release is missing required files: "
                     + ", ".join(missing)
@@ -328,11 +387,6 @@ def perform_update(tag_name):
 
             restart_services()
 
-            write_status(
-                "complete",
-                f"LivingPortraitApp updated to {tag_name}."
-            )
-
     except Exception as e:
 
         write_status(
@@ -341,12 +395,15 @@ def perform_update(tag_name):
             error=True
         )
 
-        # Restore application files if installation started
-        # and something failed afterward.
         if backup_path and backup_path.exists():
+
             try:
+
                 for item in UPDATE_ITEMS:
-                    backup_item = backup_path / item
+
+                    backup_item = (
+                        backup_path / item
+                    )
 
                     if not backup_item.exists():
                         continue
@@ -358,24 +415,38 @@ def perform_update(tag_name):
                     )
 
                     if backup_item.is_dir():
+
                         shutil.copytree(
                             backup_item,
                             destination
                         )
+
                     else:
+
                         shutil.copy2(
                             backup_item,
                             destination
                         )
 
                 try:
+
                     subprocess.run(
-                        ["sudo", "systemctl", "restart", "flask_ui"],
+                        [
+                            "sudo",
+                            "systemctl",
+                            "restart",
+                            "flask_ui"
+                        ],
                         check=False
                     )
 
                     subprocess.run(
-                        ["sudo", "systemctl", "restart", "motion_vlc"],
+                        [
+                            "sudo",
+                            "systemctl",
+                            "restart",
+                            "motion_vlc"
+                        ],
                         check=False
                     )
 
@@ -386,11 +457,8 @@ def perform_update(tag_name):
                 pass
 
 
+
 def start_update(tag_name):
-    """
-    Start the update in a separate process so Flask can
-    continue responding while its own files are replaced.
-    """
 
     if not tag_name:
         raise ValueError(
@@ -401,6 +469,19 @@ def start_update(tag_name):
         raise ValueError(
             "Invalid release tag."
         )
+
+    # Start a fresh progress history for this update.
+    try:
+        if STATUS_FILE.exists():
+            STATUS_FILE.unlink()
+    except Exception:
+        pass
+
+    write_status(
+        "starting",
+        f"Starting update to {tag_name}..."
+    )
+
 
     subprocess.Popen(
         [
