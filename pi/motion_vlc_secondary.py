@@ -6,6 +6,7 @@ import atexit
 import threading
 import os
 import json
+import time
 import mqtt_client
 
 from time import sleep
@@ -30,6 +31,10 @@ LOG_FOLDER.mkdir(parents=True, exist_ok=True)
 
 player = None
 instance = None
+
+scheduled_play_timer = None
+scheduled_play_lock = threading.Lock()
+
 
 # --------------------------------------------------
 # VLC helpers
@@ -102,10 +107,58 @@ def load_selected_video_paused():
 
 
 # --------------------------------------------------
-# MQTT
+# MQTT synchronized playback
 # --------------------------------------------------
 
+def scheduled_play(start_at_ms):
+    media_path = get_selected_video()
+
+    if not media_path:
+        log("No video selected to play.")
+        return
+
+    log(
+        f"[SYNC] Preparing Secondary video: "
+        f"{Path(media_path).name}"
+    )
+
+    media = instance.media_new(media_path)
+    player.set_media(media)
+
+    now_ms = time.time() * 1000
+    delay_ms = start_at_ms - now_ms
+
+    log(f"[SYNC] Target: {start_at_ms:.3f} ms")
+    log(f"[SYNC] Current: {now_ms:.3f} ms")
+    log(
+        f"[SYNC] Waiting approximately "
+        f"{max(0, delay_ms):.3f} ms"
+    )
+
+    # Wait until approximately 5 ms before target
+    if delay_ms > 10:
+        time.sleep((delay_ms - 5) / 1000)
+
+    # Precise final wait
+    while time.time() * 1000 < start_at_ms:
+        time.sleep(0.0005)
+
+    actual_ms = time.time() * 1000
+
+    log(
+        f"[SYNC] Secondary target reached. "
+        f"Actual: {actual_ms:.3f} ms "
+        f"Difference: {actual_ms - start_at_ms:+.3f} ms"
+    )
+
+    player.play()
+
+    log("[SYNC] Secondary VLC PLAY command executed.")
+
+
 def on_message(client, userdata, msg):
+    global scheduled_play_timer
+
     try:
         message = json.loads(msg.payload.decode())
     except Exception:
@@ -116,10 +169,75 @@ def on_message(client, userdata, msg):
 
     log(f"MQTT command received: {command}")
 
-    if command == "play":
+    # --------------------------------------------------
+    # Synchronized play
+    # --------------------------------------------------
+
+    if command == "play_at":
+
+        start_at_ms = message.get("start_at_ms")
+
+        if start_at_ms is None:
+            log("[SYNC] play_at received without start_at_ms")
+            return
+
+        try:
+            start_at_ms = float(start_at_ms)
+        except (TypeError, ValueError):
+            log(f"[SYNC] Invalid start_at_ms: {start_at_ms}")
+            return
+
+        log(
+            f"[SYNC] Received scheduled PLAY for "
+            f"{start_at_ms:.3f} ms"
+        )
+
+        with scheduled_play_lock:
+
+            # Cancel any previously scheduled playback
+            if scheduled_play_timer is not None:
+                try:
+                    scheduled_play_timer.cancel()
+                except Exception:
+                    pass
+
+            # Start preparing the video about 200 ms
+            # before the target time.
+            delay_seconds = max(
+                0,
+                (start_at_ms - time.time() * 1000) / 1000 - 0.200
+            )
+
+            scheduled_play_timer = threading.Timer(
+                delay_seconds,
+                scheduled_play,
+                args=(start_at_ms,)
+            )
+
+            scheduled_play_timer.daemon = True
+            scheduled_play_timer.start()
+
+    # --------------------------------------------------
+    # Original immediate play command
+    # --------------------------------------------------
+
+    elif command == "play":
         play_selected_video()
 
+    # --------------------------------------------------
+    # Pause
+    # --------------------------------------------------
+
     elif command == "pause":
+
+        with scheduled_play_lock:
+
+            if scheduled_play_timer is not None:
+                try:
+                    scheduled_play_timer.cancel()
+                except Exception:
+                    pass
+
         load_pause_video()
 
     else:
@@ -198,7 +316,6 @@ def main():
     # --------------------------------------------------
 
     mqtt_client.client.on_message = on_message
-    #mqtt_client.client.subscribe(mqtt_client.TOPIC_CONTROL)
 
     log("Waiting for MQTT commands...")
 
@@ -210,6 +327,14 @@ def main():
         log("Exiting")
 
     finally:
+        # Cancel any scheduled playback
+        with scheduled_play_lock:
+            if scheduled_play_timer is not None:
+                try:
+                    scheduled_play_timer.cancel()
+                except Exception:
+                    pass
+
         try:
             player.stop()
         except Exception:
@@ -221,4 +346,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -7,7 +7,7 @@ set -e
 # ============================================================
 
 # GitHub release to install
-RELEASE="v2.0.0-beta.2"
+RELEASE="v2.0.0-beta.3"
 BASE_URL="https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/tags/$RELEASE/pi"
 
 # ============================================================
@@ -49,7 +49,6 @@ sudo apt update -y || log_fail "apt update failed"
 
 echo -e "\nUpgrading packages (this may take several minutes)..."
 
-# Show progress, avoid waiting for input
 sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y \
     -o Dpkg::Options::="--force-confdef" \
     -o Dpkg::Options::="--force-confold" \
@@ -90,13 +89,35 @@ else
 fi
 
 # ============================================================
+# MQTT listener configuration
+# ============================================================
+
+echo -e "\nSetting up MQTT listener configuration..."
+
+sudo mkdir -p /etc/mosquitto/conf.d
+
+sudo tee /etc/mosquitto/conf.d/listener.conf > /dev/null << 'EOF'
+listener 1883
+allow_anonymous true
+EOF
+
+sudo chmod 644 /etc/mosquitto/conf.d/listener.conf
+
+# Enable and restart Mosquitto so the new listener configuration
+# is active immediately after installation.
+sudo systemctl enable mosquitto
+sudo systemctl restart mosquitto
+
+log_success "MQTT listener configuration created"
+
+# ============================================================
 # MQTT service permissions
 # ============================================================
 
 echo -e "\nSetting up MQTT service permissions..."
 
 sudo tee /etc/sudoers.d/livingportrait > /dev/null << EOF
-$USERNAME ALL=(root) NOPASSWD: /usr/bin/systemctl enable mosquitto, /usr/bin/systemctl disable mosquitto, /usr/bin/systemctl start mosquitto, /usr/bin/systemctl stop mosquitto
+$USERNAME ALL=(root) NOPASSWD: /usr/bin/systemctl enable mosquitto, /usr/bin/systemctl disable mosquitto, /usr/bin/systemctl start mosquitto, /usr/bin/systemctl stop mosquitto, /usr/bin/systemctl restart mosquitto
 EOF
 
 sudo chmod 440 /etc/sudoers.d/livingportrait
@@ -287,4 +308,3 @@ echo -e "📦 Application version: $VERSION"
 echo -e "============================================"
 
 echo -e "\nPlease reboot to apply all changes."
-

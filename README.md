@@ -55,7 +55,7 @@ curl -sSL https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/hea
 
 The beta version contains the latest features and changes that are still being tested. Use the beta installer only if you want to test the upcoming release.
 
-**Current Beta Release: `v2.0.0-beta.2`**
+**Current Beta Release: `v2.0.0-beta.3`**
 
 ### Raspberry Pi 3B, 3B+, 4, Zero
 

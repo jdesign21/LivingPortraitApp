@@ -44,7 +44,7 @@ def load_settings():
     else:
         settings = {
             "selected_video": "",
-            "pause_flag": False,
+            "pause_flag": True,
             "playlist": {
                 "mode": "single",
                 "interval": 0,

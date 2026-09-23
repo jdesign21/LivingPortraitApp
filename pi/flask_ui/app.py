@@ -34,7 +34,8 @@ from shared.vlc_network_helper import (
     update_secondary,
     remove_secondary,
     configure_mosquitto,
-    check_secondary_status
+    check_secondary_status,
+    get_sync_start_delay_ms
 )
 
 app = Flask(__name__)
@@ -88,6 +89,7 @@ def index():
     role = network_settings.get("role", "")
     primary_ip = network_settings.get("primary_ip", "")
     enable = network_settings.get("enable", "0")
+    sync_start_delay_ms = get_sync_start_delay_ms()
     secondary_pis = network_settings.get("secondary_pis", [])
 
     # Read MQTT status without importing mqtt_client.
@@ -220,9 +222,9 @@ def index():
         primary_ip=primary_ip,
         enable=enable,
         secondary_pis=secondary_pis,
-        mqtt_connected=mqtt_connected
+        mqtt_connected=mqtt_connected,
+        sync_start_delay_ms=sync_start_delay_ms
     )
-
 
 @app.route("/select", methods=["POST"])
 def select():
@@ -873,6 +875,19 @@ def network():
     enable = request.form.get("enable", "0")
 
     try:
+        # Save Sync Start Delay
+        sync_start_delay_ms = int(
+            request.form.get("sync_start_delay_ms", "1000")
+        )
+
+        if sync_start_delay_ms < 0:
+            raise ValueError("Sync Start Delay cannot be negative.")
+
+        network_settings = load_network_settings()
+        network_settings["sync_start_delay_ms"] = sync_start_delay_ms
+        save_network_settings(network_settings)
+
+        # Save network role / MQTT settings
         set_role(role, primary_ip, enable)
         configure_mosquitto(role, enable)
 
@@ -887,7 +902,8 @@ def network():
             order = settings.get("playlist", {}).get("order", [])
 
             active_videos = [
-                v for v in order
+                v
+                for v in order
                 if v.get("active", True)
             ]
 
@@ -912,7 +928,9 @@ def network():
                 settings["selected_video"] = only_video
                 save_settings(settings)
 
-                message += f" Switched to single mode with video: {only_video}"
+                message += (
+                    f" Switched to single mode with video: {only_video}"
+                )
 
         # Changing role or network configuration requires a reboot
         reboot_required = True
