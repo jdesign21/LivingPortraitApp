@@ -79,31 +79,134 @@ document.addEventListener('DOMContentLoaded', () => {
     const logDetails = document.getElementById('log_details');
     const logContent = document.getElementById('logContent');
     const backBtn = document.getElementById('backToList');
+    const detailSearch = document.getElementById('detailSearch');
+    const detailCategory = document.getElementById('detailCategory');
+    const clearDetailFilters = document.getElementById('clearDetailFilters');
+    const detailFilterCount = document.getElementById('detailFilterCount');
+
+    let currentLogContent = '';
+
+    function filterLogContent() {
+        if (!logContent) return;
+
+        const searchText = detailSearch
+            ? detailSearch.value.trim().toLowerCase()
+            : '';
+
+        const category = detailCategory
+            ? detailCategory.value
+            : 'ALL';
+
+        const lines = currentLogContent.split('\n');
+
+        const filteredLines = lines.filter(line => {
+            if (!line.trim()) return false;
+
+            if (category !== 'ALL') {
+                const categoryMatch = line.match(/^\[[^\]]+\]\s+\[([^\]]+)\]/);
+
+                if (!categoryMatch ||
+                    categoryMatch[1].toUpperCase() !== category.toUpperCase()) {
+                    return false;
+                }
+            }
+
+            if (searchText && !line.toLowerCase().includes(searchText)) {
+                return false;
+            }
+
+            return true;
+        });
+
+        logContent.textContent = filteredLines.join('\n');
+
+        if (detailFilterCount) {
+            detailFilterCount.textContent =
+                `${filteredLines.length} of ${lines.filter(line => line.trim()).length} entries`;
+        }
+    }
 
     document.querySelectorAll('.view-log').forEach(link => {
-        link.addEventListener('click', async (e) => {
+        link.addEventListener('click', async e => {
             e.preventDefault();
+
             const filename = e.target.dataset.filename;
+
             try {
                 const response = await fetch(`/logs/raw/${filename}`);
-                if (!response.ok) throw new Error("Log not found");
-                const content = await response.text();
-                logContent.textContent = content;
+
+                if (!response.ok) {
+                    throw new Error("Log not found");
+                }
+
+                currentLogContent = await response.text();
+
+                if (detailSearch) {
+                    detailSearch.value = '';
+                }
+
+                if (detailCategory) {
+                    detailCategory.value = 'ALL';
+                }
+
+                filterLogContent();
+
                 logList.classList.add('d-none');
                 logDetails.classList.remove('d-none');
             } catch (err) {
+                currentLogContent = '';
                 logContent.textContent = 'Error loading log: ' + err.message;
+
+                if (detailFilterCount) {
+                    detailFilterCount.textContent = '';
+                }
+
                 logList.classList.add('d-none');
                 logDetails.classList.remove('d-none');
             }
         });
     });
 
+    if (detailSearch) {
+        detailSearch.addEventListener('input', filterLogContent);
+    }
+
+    if (detailCategory) {
+        detailCategory.addEventListener('change', filterLogContent);
+    }
+
+    if (clearDetailFilters) {
+        clearDetailFilters.addEventListener('click', () => {
+            if (detailSearch) {
+                detailSearch.value = '';
+            }
+
+            if (detailCategory) {
+                detailCategory.value = 'ALL';
+            }
+
+            filterLogContent();
+        });
+    }
+
     if (backBtn) {
         backBtn.addEventListener('click', () => {
             logDetails.classList.add('d-none');
             logList.classList.remove('d-none');
             logContent.textContent = '';
+            currentLogContent = '';
+
+            if (detailSearch) {
+                detailSearch.value = '';
+            }
+
+            if (detailCategory) {
+                detailCategory.value = 'ALL';
+            }
+
+            if (detailFilterCount) {
+                detailFilterCount.textContent = '';
+            }
         });
     }
 
@@ -250,6 +353,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (networkForm && networkLoading) {
         networkForm.addEventListener('submit', () => {
             networkLoading.style.display = 'flex';
+        });
+    }
+
+    // ========================================================
+    // SYNC TAGS
+    // ========================================================
+
+    const syncTagsForm = document.getElementById('syncTagsForm');
+    const syncTagsLoading = document.getElementById('syncTagsLoading');
+
+    if (syncTagsForm && syncTagsLoading) {
+        syncTagsForm.addEventListener('submit', () => {
+            syncTagsLoading.style.display = 'flex';
         });
     }
 
@@ -453,6 +569,8 @@ document.addEventListener('DOMContentLoaded', () => {
             activateSection(selectedSection);
         });
     });
+
+
 
     
     // ========================================================

@@ -110,29 +110,32 @@
           {% endif %}
 
           <!-- PLAYBACK MODE -->
-          <div class="mb-4">
-            <label for="modeSelect" class="form-label fw-semibold">
-              Playback Mode
-            </label>
-            <select class="form-select" id="modeSelect" name="mode" onchange="updateModeUI()">
-              <option value="single" {% if playlist_mode=='single' %}selected{% endif %}>
-                Single
-              </option>
-              <option value="random"
-                {% if video_count < 2 or role=='secondary' or (role=='primary' and enable=='1') %}disabled{% endif %}
-                {% if playlist_mode=='random' %}selected{% endif %}>
-                Random
-              </option>
-              <option value="fixed"
-                {% if video_count < 2 or role=='secondary' or (role=='primary' and enable=='1') %}disabled{% endif %}
-                {% if playlist_mode=='fixed' %}selected{% endif %}>
-                Fixed Order
-              </option>
-            </select>
-            <div class="form-text">
-              Choose how videos are selected during playback.
-            </div>
-          </div>
+<div class="mb-4">
+  <label for="modeSelect" class="form-label fw-semibold">
+    Playback Mode
+  </label>
+  <select class="form-select" id="modeSelect" name="mode" onchange="updateModeUI()">
+    <option value="single" {% if playlist_mode=='single' %}selected{% endif %}>
+      Single
+    </option>
+
+    <option value="random"
+      {% if video_count < 2 or role=='secondary' %}disabled{% endif %}
+      {% if playlist_mode=='random' %}selected{% endif %}>
+      Random
+    </option>
+
+    <option value="fixed"
+      {% if video_count < 2 or role=='secondary' %}disabled{% endif %}
+      {% if playlist_mode=='fixed' %}selected{% endif %}>
+      Fixed Order
+    </option>
+  </select>
+
+  <div class="form-text">
+    Choose how videos are selected during playback.
+  </div>
+</div>
 
           <!-- CHANGE VIDEO EVERY -->
           <div class="mb-4" id="intervalGroup" style="display:none;">

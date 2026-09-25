@@ -40,12 +40,13 @@
       <span class="label">Home</span>
     </a>
 
+    {% if role == "primary" or (role == "secondary" and enable != "1") %}
     <a class="nav-link" data-section="mode">
       <i class="bi bi-check-square"></i>
       <span class="label">Mode</span>
     </a>
 
-    {% if role == "primary" or (role == "secondary" and enable != "1") %}
+
     <a class="nav-link" data-section="schedule">
       <i class="bi bi-calendar-check"></i>
       <span class="label">Schedule</span>
@@ -62,7 +63,7 @@
     </a>
 
     <a class="nav-link" data-section="network">
-      <i class="bi bi-file-earmark-text"></i>
+      <i class="bi bi-hdd-network"></i>
       <span class="label">Network</span>
     </a>
 
@@ -70,11 +71,6 @@
       <i class="bi bi-file-earmark-text"></i>
       <span class="label">Logs</span>
     </a>
-
-    <a class="nav-link" data-section="updates">
-  <i class="bi bi-arrow-repeat"></i>
-  <span class="label">Application Updates</span>
-</a>
 
     <a class="nav-link" data-section="Appearance">
       <i class="bi bi-palette"></i>
@@ -84,6 +80,11 @@
     <a class="nav-link" data-section="about">
       <i class="bi  bi-info-circle"></i>
       <span class="label">About</span>
+    </a>
+
+    <a class="nav-link" data-section="updates">
+      <i class="bi bi-arrow-repeat"></i>
+      <span class="label">Check Updates</span>
     </a>
 
   </nav>
@@ -154,14 +155,14 @@
     <!-- LOGS SECTION  -->
     {% include 'sections/logs.html' %}
 
-        <!-- ABOUT SECTION  -->
-    {% include 'sections/updates.html' %}
+    <!-- APPEARANCE SECTION  -->
+    {% include 'sections/appearance.html' %}
 
     <!-- ABOUT SECTION  -->
     {% include 'sections/about.html' %}
 
-    <!-- APPEARANCE SECTION  -->
-    {% include 'sections/appearance.html' %}
+    <!-- APP UPDATE SECTION  -->
+    {% include 'sections/updates.html' %}
 
 
   </main>

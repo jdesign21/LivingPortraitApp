@@ -1,99 +1,225 @@
 <section id="home" class="section active">
-  <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">Home</h3>
+  <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">Dashboard</h3>
 
-  <!-- Playback Preview -->
-  <div id="mainControls" class="container-fluid p-0 {% if pause or not is_schedule_enabled_now %}d-none{% endif %}">
-    <div class="card shadow-sm">
-      <div class="card-header bg-primary text-white">
-        <strong>
-          {% if playlist_mode == 'random' %}
-          Random Mode
-          {% elif playlist_mode == 'fixed' and fixed_order %}
-          Fixed Order Mode
-          {% elif playlist_mode == 'single' %}
-          Single Video
-          {% endif %}
-        </strong>
-      </div>
-
-      <div class="card-body">
-        <p class="text-muted small mb-0">
-          View the current video and playlist based on the selected playback mode.
-        </p>
-        <br>
-
-        {% if today_schedule.enabled %}
-        {% for slot in today_schedule.slots %}
-        <strong>Schedule for {{ today }}</strong>
-        <p {% if slot.is_active %}style="font-weight:bold; color:green;" {% endif %}>
-          {{ slot.name }}: {{ slot.start_ampm }} - {{ slot.end_ampm }}
-          ({{ "Kid-Friendly" if slot.category=="kid"
-          else "Scary" if slot.category=="scary"
-          else (slot.category or "None") }})
-
-          {% if slot.is_active %} - Active Now{% endif %}
-        </p>
-        {% endfor %}
-        {% endif %}
-
-        {% if triggered_flag %}
-        <p>Triggered Mode: On</p>
-
-        {% set minutes = (delay or 0) // 60 %}
-        {% set seconds = (delay or 0) % 60 %}
-
-        <p>Trigger Delay: {{ minutes }}m {{ seconds }}s</p>
-        {% else %}
-        <p>Triggered Mode: Off</p>
-        {% endif %}
-
-        {% if playlist_mode == 'random' %}
-        <p>Current Video: <strong>{{ selected }}</strong></p>
-
-        {% if time_remaining is not none %}
-        <p>
-          Next switch in:
-          <span id="countdown">{{ time_remaining }}</span> seconds
-        </p>
-        {% endif %}
-
-        {% elif playlist_mode == 'fixed' and fixed_order %}
-        <p>Current Video: <strong>{{ selected }}</strong></p>
-
-        {% if time_remaining is not none %}
-        <p>
-          Next switch in:
-          <span id="countdown">{{ time_remaining }}</span> seconds
-        </p>
-        {% endif %}
-
-        <p>Playlist:</p>
-        <ol>
-          {% for video in fixed_order %}
-          <li>{{ video.filename }}</li>
-          {% endfor %}
-        </ol>
-
-        {% elif playlist_mode == 'single' %}
-        <p>Selected Video: <strong>{{ selected }}</strong></p>
-        {% endif %}
+  <!-- System Status and Today's Schedule -->
+  <div class="row g-3 mb-3">
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-primary text-white">
+          <strong>System Status</strong>
+        </div>
+        <div class="card-body">
+          <p class="mb-2">
+            <strong>Role:</strong>
+            {{ role|capitalize }}
+          </p>
+          <p class="mb-2">
+            <strong>MQTT:</strong>
+            {% if enable == "1" %}
+            <span class="badge bg-success">Enabled</span>
+            {% else %}
+            <span class="badge bg-secondary">Disabled</span>
+            {% endif %}
+          </p>
+          <p class="mb-0">
+            <strong>System Status:</strong>
+            {% if is_schedule_enabled_now %}
+            <span class="badge bg-success">Active</span>
+            {% else %}
+            <span class="badge bg-secondary">Inactive</span>
+            {% endif %}
+          </p>
+        </div>
       </div>
     </div>
 
-    <br>
+<div class="col-lg-6">
+  <div class="card shadow-sm h-100">
+    <div class="card-header bg-primary text-white">
+      <strong>Today's Schedule</strong>
+    </div>
+    <div class="card-body">
+      {% if today_schedule.enabled %}
+      {% for slot in today_schedule.slots %}
+      <div class="d-flex flex-wrap align-items-center justify-content-between py-2 {% if not loop.last %}border-bottom{% endif %}">
+        <div>
+          <strong>{{ slot.name }}</strong>
+          <div class="small text-muted">
+            {{ slot.start_ampm }} - {{ slot.end_ampm }}
+          </div>
+        </div>
 
-    <div class="card shadow-sm">
-      <div class="card-header bg-primary text-white">
-        <strong>Playback Preview</strong>
-      </div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="small">
+            {{ "Kid-Friendly" if slot.category=="kid"
+            else "Scary" if slot.category=="scary"
+            else (slot.category or "None") }}
+          </span>
 
-      <div class="card-body">
-        <video id="videoPreview" controls autoplay muted class="w-100 mt-3" style="max-width:360px;">
-          {% if selected %}
-          <source src="{{ url_for('video_file', filename=selected) }}" type="video/mp4" />
+          {% if slot.is_active %}
+          <span class="badge bg-success">Active Now</span>
           {% endif %}
-          Your browser does not support the video tag.
-        </video>
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p class="text-muted mb-0">
+        No schedule is currently enabled. All active videos are available for playback.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+  <!-- Current Playback and Playback Preview -->
+  <div class="row g-3 mb-3">
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-primary text-white">
+          <strong>Current Playback</strong>
+        </div>
+        <div class="card-body">
+          <p class="mb-2">
+            <strong>Mode:</strong>
+            {% if playlist_mode == 'random' %}
+            Random
+            {% elif playlist_mode == 'fixed' %}
+            Fixed Order
+            {% elif playlist_mode == 'single' %}
+            Single
+            {% else %}
+            None
+            {% endif %}
+          </p>
+
+          <p class="mb-2">
+            <strong>Video:</strong>
+            {% if selected %}
+            {{ selected }}
+            {% else %}
+            None
+            {% endif %}
+          </p>
+
+          {% if playlist_mode == 'random' or (playlist_mode == 'fixed' and fixed_order) %}
+          {% if time_remaining is not none %}
+          <p class="mb-2">
+            <strong>Next switch:</strong>
+            <span id="countdown">{{ time_remaining }}</span> seconds
+          </p>
+          {% endif %}
+          {% endif %}
+
+          <p class="mb-2">
+            <strong>Triggered Mode:</strong>
+            {% if triggered_flag %}
+            <span class="badge bg-success">Enabled</span>
+            {% else %}
+            <span class="badge bg-secondary">Disabled</span>
+            {% endif %}
+          </p>
+
+          {% if triggered_flag %}
+          {% set minutes = (delay or 0) // 60 %}
+          {% set seconds = (delay or 0) % 60 %}
+          <p class="mb-2">
+            <strong>Trigger Delay:</strong>
+            {{ minutes }}m {{ seconds }}s
+          </p>
+          {% endif %}
+
+          {% if playlist_mode == 'fixed' and fixed_order %}
+          <hr>
+          <strong>Playlist</strong>
+          <ol class="mb-0 mt-2">
+            {% for video in fixed_order %}
+            <li>{{ video.filename }}</li>
+            {% endfor %}
+          </ol>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-primary text-white">
+          <strong>Playback Preview</strong>
+        </div>
+        <div class="card-body text-center">
+          {% if selected and not pause and is_schedule_enabled_now %}
+          <video id="videoPreview" controls autoplay muted class="w-100" style="max-width:360px;">
+            <source src="{{ url_for('video_file', filename=selected) }}" type="video/mp4">
+            Your browser does not support the video tag.
+          </video>
+          {% elif selected %}
+          <div class="text-muted py-5">
+            Playback is currently paused or outside the active schedule.
+          </div>
+          {% else %}
+          <div class="text-muted py-5">
+            No video selected.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Secondary Pis and Recent Activity -->
+  <div class="row g-3">
+    {% if role == "primary" %}
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-primary text-white">
+          <strong>Secondary Pis</strong>
+        </div>
+        <div class="card-body">
+          {% if secondary_pis %}
+          <div class="row g-3">
+            {% for pi in secondary_pis %}
+            <div class="col-md-6">
+              <div class="border rounded p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <strong>{{ pi.name }}</strong>
+                  {% if pi.status == "online" %}
+                  <span class="badge bg-success">Online</span>
+                  {% else %}
+                  <span class="badge bg-danger">Offline</span>
+                  {% endif %}
+                </div>
+                <div class="small text-muted mb-1">
+                  IP: {{ pi.ip }}
+                </div>
+                {% if pi.last_checked %}
+                <div class="small text-muted">
+                  Last checked: {{ pi.last_checked }}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="text-muted mb-0">
+            No Secondary Pis configured.
+          </p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="{% if role == 'primary' %}col-lg-6{% else %}col-lg-6{% endif %}">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-primary text-white">
+          <strong>Recent Activity</strong>
+        </div>
+        <div class="card-body">
+          <p class="text-muted mb-0">
+            Recent system activity can be viewed in the Logs section.
+          </p>
+        </div>
       </div>
     </div>
   </div>
