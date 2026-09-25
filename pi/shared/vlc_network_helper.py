@@ -20,7 +20,7 @@ def load_network_settings():
     settings = {
         "role": "primary",
         "primary_ip": "",
-        "enable": "1",
+        "enable": "0",
         "sync_start_delay_ms": 1000,
         "secondary_pis": []
     }
@@ -91,10 +91,7 @@ def remove_secondary(index):
 
 def get_secondary_ips():
     settings = load_network_settings()
-    return [
-        entry["ip"]
-        for entry in settings.get("secondary_pis", [])
-    ]
+    return [entry["ip"] for entry in settings.get("secondary_pis", [])]
 
 def get_primary_ip():
     settings = load_network_settings()
@@ -154,42 +151,20 @@ def configure_mosquitto(role, enable):
     try:
         if enable == "1":
             if role == "primary":
-                subprocess.run(
-                    ["sudo", "systemctl", "enable", "mosquitto"],
-                    check=True
-                )
-                subprocess.run(
-                    ["sudo", "systemctl", "restart", "mosquitto"],
-                    check=True
-                )
+                subprocess.run(["sudo", "systemctl", "enable", "mosquitto"], check=True)
+                subprocess.run(["sudo", "systemctl", "restart", "mosquitto"], check=True)
                 log("Mosquitto enabled and restarted on Primary.", "MQTT")
-
             elif role == "secondary":
-                subprocess.run(
-                    ["sudo", "systemctl", "disable", "mosquitto"],
-                    check=True
-                )
-                subprocess.run(
-                    ["sudo", "systemctl", "stop", "mosquitto"],
-                    check=True
-                )
+                subprocess.run(["sudo", "systemctl", "disable", "mosquitto"], check=True)
+                subprocess.run(["sudo", "systemctl", "stop", "mosquitto"], check=True)
                 log("Mosquitto disabled and stopped on Secondary.", "MQTT")
-
             else:
                 log(f"Invalid network role for Mosquitto: {role}", "ERROR")
                 raise ValueError("Role must be 'primary' or 'secondary'")
-
         else:
-            subprocess.run(
-                ["sudo", "systemctl", "disable", "mosquitto"],
-                check=True
-            )
-            subprocess.run(
-                ["sudo", "systemctl", "stop", "mosquitto"],
-                check=True
-            )
+            subprocess.run(["sudo", "systemctl", "disable", "mosquitto"], check=True)
+            subprocess.run(["sudo", "systemctl", "stop", "mosquitto"], check=True)
             log("Mosquitto disabled and stopped.", "MQTT")
-
     except Exception as e:
         log(f"Failed to configure Mosquitto: {e}", "ERROR")
         raise

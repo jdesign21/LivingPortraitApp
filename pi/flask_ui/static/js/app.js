@@ -471,6 +471,33 @@ document.addEventListener('DOMContentLoaded', () => {
         updateVideoPreview();
     }
 
+// ========================================================
+// MANAGE VIDEO TABS
+// ========================================================
+
+const manageTabs = document.querySelectorAll('#manageTabs button[data-bs-toggle="tab"]');
+
+manageTabs.forEach(tab => {
+    tab.addEventListener('shown.bs.tab', event => {
+        localStorage.setItem(
+            'activeManageTab',
+            event.target.getAttribute('data-bs-target')
+        );
+    });
+});
+
+const savedManageTab = localStorage.getItem('activeManageTab');
+
+if (savedManageTab) {
+    const savedTab = document.querySelector(
+        `#manageTabs button[data-bs-target="${savedManageTab}"]`
+    );
+
+    if (savedTab) {
+        bootstrap.Tab.getOrCreateInstance(savedTab).show();
+    }
+}
+
     // ========================================================
     // FIXED PLAYLIST REORDERING
     // ========================================================

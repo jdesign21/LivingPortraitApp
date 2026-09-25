@@ -1,200 +1,274 @@
 <section id="manage" class="section">
   <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
-    Manage Videos
+    <i class="bi bi-folder2-open"></i> Manage Videos
   </h3>
 
-  <!-- Video Management -->
-  <form method="POST" action="{{ url_for('update_all') }}">
-    <div class="card shadow-sm">
-      <div class="card-header bg-primary text-white">
-        <strong>Videos</strong>
-      </div>
-      <div class="card-body">
-        <p class="text-muted small mb-4">
-          Enable or disable videos in the playlist, and use schedule tags
-          to categorize them as Kid-Friendly or Scary. Schedule tags can
-          be used by playback modes and schedules to determine which
-          videos are available for playback.
-        </p>
+  <!-- Tabs -->
+  <ul class="nav nav-tabs mb-3" id="manageTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="videos-tab" data-bs-toggle="tab" data-bs-target="#videos-pane"
+        type="button" role="tab" aria-controls="videos-pane" aria-selected="true">
+        Videos
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload-pane"
+        type="button" role="tab" aria-controls="upload-pane" aria-selected="false">
+        Upload
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="sync-tags-tab" data-bs-toggle="tab" data-bs-target="#sync-tags-pane"
+        type="button" role="tab" aria-controls="sync-tags-pane" aria-selected="false">
+        Sync Tags
+      </button>
+    </li>
+  </ul>
 
-        <ul class="list-group">
-          {% for video in manage_videos %}
-          <li class="list-group-item">
-            <div class="row g-3 align-items-center">
-              <!-- Video / Enable -->
-              <div class="col-12 col-lg-4">
-                <input type="hidden" name="videos[{{ loop.index0 }}][filename]" value="{{ video.filename }}">
-                <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" id="activeSwitch-{{ loop.index0 }}"
-                    name="videos[{{ loop.index0 }}][active]" value="true" {% if video.active %}checked{% endif %}>
-                  <label class="form-check-label fw-semibold" for="activeSwitch-{{ loop.index0 }}">
-                    {{ video.filename }}
-                  </label>
+  <div class="tab-content" id="manageTabsContent">
+
+    <!-- Videos Tab -->
+    <div class="tab-pane fade show active" id="videos-pane" role="tabpanel" aria-labelledby="videos-tab">
+      <form method="POST" action="{{ url_for('update_all') }}">
+        <div class="card shadow-sm">
+          <div class="card-header bg-primary text-white">
+            <strong>Videos</strong>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small mb-4">
+              Enable or disable videos in the playlist, and use schedule tags
+              to categorize them as Kid-Friendly or Scary. Schedule tags can
+              be used by playback modes and schedules to determine which
+              videos are available for playback.
+            </p>
+
+            <ul class="list-group">
+              {% for video in manage_videos %}
+              <li class="list-group-item">
+                <div class="row g-3 align-items-center">
+                  <!-- Video / Enable -->
+                  <div class="col-12 col-lg-4">
+                    <input type="hidden" name="videos[{{ loop.index0 }}][filename]" value="{{ video.filename }}">
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" id="activeSwitch-{{ loop.index0 }}"
+                        name="videos[{{ loop.index0 }}][active]" value="true" {% if video.active %}checked{% endif %}>
+                      <label class="form-check-label fw-semibold" for="activeSwitch-{{ loop.index0 }}">
+                        {{ video.filename }}
+                      </label>
+                    </div>
+                  </div>
+
+                  <!-- Schedule Tags -->
+                  <div class="col-12 col-lg-4">
+                    <label class="form-label small text-muted mb-1">
+                      Schedule Tags
+                    </label>
+                    <select name="videos[{{ loop.index0 }}][tags][]" class="form-select form-select-sm tomselect" multiple>
+                      <option value="kid" {% if 'kid' in video.get('tags', []) %}selected{% endif %}>
+                        Kid-Friendly
+                      </option>
+                      <option value="scary" {% if 'scary' in video.get('tags', []) %}selected{% endif %}>
+                        Scary
+                      </option>
+                    </select>
+                  </div>
+
+                  <!-- Sync Tag -->
+                  <div class="col-12 col-lg-3">
+                    <label class="form-label small text-muted mb-1" for="syncTag-{{ loop.index0 }}">
+                      Sync Tag
+                    </label>
+                    <select class="form-select form-select-sm" id="syncTag-{{ loop.index0 }}"
+                      name="videos[{{ loop.index0 }}][sync_tag]">
+                      <option value="">None</option>
+                      {% for tag in sync_tags %}
+                      <option value="{{ tag }}" {% if video.get('sync_tag', '').lower() == tag.lower() %}selected{% endif %}>
+                        {{ tag }}
+                      </option>
+                      {% endfor %}
+                    </select>
+                  </div>
+
+                  <!-- Delete Video -->
+                  <div class="col-12 col-lg-1">
+                    <button type="button" class="btn btn-danger btn-sm w-100"
+                      onclick="deleteVideo('{{ video.filename }}')">
+                      Delete
+                    </button>
+                  </div>
                 </div>
+              </li>
+              {% else %}
+              <li class="list-group-item text-muted">
+                No videos found.
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+
+        <div class="text-end mt-3">
+          <button type="submit" class="btn btn-success">
+            <i class="bi bi-save me-1"></i>
+            Save Videos
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Upload Tab -->
+    <div class="tab-pane fade" id="upload-pane" role="tabpanel" aria-labelledby="upload-tab">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+          <strong>Upload Video</strong>
+        </div>
+
+        <div class="card-body">
+          <p class="text-muted small mb-4">
+            Upload new MP4 videos by dragging them here or selecting from your device.
+          </p>
+
+          <div class="text-center">
+            <form id="uploadForm" method="POST" action="{{ url_for('upload') }}" enctype="multipart/form-data">
+              <div id="dropArea" class="border border-3 border-secondary rounded p-5 bg-light">
+                <p class="mb-2">Drag &amp; drop an MP4 file here</p>
+                <p class="small text-muted">or click to select</p>
+
+                <input type="file" id="fileInput" name="file" accept=".mp4" hidden>
+
+                <button type="button" class="btn btn-outline-secondary btn-sm"
+                  onclick="document.getElementById('fileInput').click()">
+                  Choose File
+                </button>
+
+                <p id="fileName" class="mt-3 fw-bold text-success"></p>
               </div>
 
-              <!-- Schedule Tags -->
-              <div class="col-12 col-lg-4">
-                <label class="form-label small text-muted mb-1">
-                  Schedule Tags
-                </label>
-                <select name="videos[{{ loop.index0 }}][tags][]" class="form-select form-select-sm tomselect" multiple>
-                  <option value="kid" {% if 'kid' in video.get('tags', []) %}selected{% endif %}>
-                    Kid-Friendly
-                  </option>
-                  <option value="scary" {% if 'scary' in video.get('tags', []) %}selected{% endif %}>
-                    Scary
-                  </option>
-                </select>
-              </div>
-
-              <!-- Sync Tag -->
-              <div class="col-12 col-lg-3">
-                <label class="form-label small text-muted mb-1" for="syncTag-{{ loop.index0 }}">
-                  Sync Tag
-                </label>
-                <select class="form-select form-select-sm" id="syncTag-{{ loop.index0 }}"
-                  name="videos[{{ loop.index0 }}][sync_tag]">
-                  <option value="">None</option>
-                  {% for tag in sync_tags %}
-                  <option value="{{ tag }}" {% if video.get('sync_tag', '' ).lower()==tag.lower() %}selected{% endif %}>
-                    {{ tag }}
-                  </option>
-                  {% endfor %}
-                </select>
-              </div>
-
-              <!-- Delete Video -->
-              <div class="col-12 col-lg-1">
-                <button type="button" class="btn btn-danger btn-sm w-100" onclick="deleteVideo('{{ video.filename }}')">
-                  Delete
+              <div class="mt-3">
+                <button type="submit" class="btn btn-success" id="uploadBtn" disabled>
+                  Upload
                 </button>
               </div>
-            </div>
-          </li>
-          {% else %}
-          <li class="list-group-item text-muted">
-            No videos found.
-          </li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
-
-    <!-- Save Button -->
-    <div class="text-end mt-3 mb-4">
-      <button type="submit" class="btn btn-success">
-        <i class="bi bi-save me-1"></i>
-        Save Videos
-      </button>
-    </div>
-  </form>
-
-  <br>
-
-  <!-- Sync Tag Management -->
-  <div class="card shadow-sm">
-    <div class="card-header bg-primary text-white">
-      <strong>Sync Tags</strong>
-    </div>
-
-    <div class="card-body">
-      <p class="text-muted small mb-3">
-        Sync Tags are used to match corresponding videos between the
-        Primary and Secondary Pis. Each Sync Tag can only be assigned
-        to one video on each Pi.
-      </p>
-
-      <!-- Primary Only -->
-      {% if role == "primary" %}
-      <div class="row g-2 align-items-end mb-3">
-        <!-- Add Sync Tag -->
-        <form method="POST" action="{{ url_for('add_sync_tag') }}" class="col-12 col-md-7">
-          <label for="newSyncTag" class="form-label small text-muted mb-1">
-            Add Sync Tag
-          </label>
-          <div class="input-group">
-            <input type="text" class="form-control" id="newSyncTag" name="sync_tag" placeholder="Enter a Sync Tag"
-              maxlength="50" required>
-            <button type="submit" class="btn btn-success">
-              <i class="bi bi-plus-lg me-1"></i>
-              Add Sync Tag
-            </button>
+            </form>
           </div>
-        </form>
-
-        <!-- Sync Tags to Secondaries -->
-        <form method="POST" action="{{ url_for('sync_tags_to_secondaries') }}" class="col-12 col-md-auto"
-          id="syncTagsForm">
-          <button type="submit" class="btn btn-primary">
-            <i class="bi bi-arrow-repeat me-1"></i>
-            Sync Tags to Secondaries
-          </button>
-        </form>
+        </div>
       </div>
-      {% endif %}
+    </div>
 
-      <!-- Available Sync Tags -->
-      <div class="d-flex align-items-center mb-2">
-        <i class="bi bi-tags text-primary me-2"></i>
-        <strong>Available Sync Tags</strong>
-      </div>
+    <!-- Sync Tags Tab -->
+    <div class="tab-pane fade" id="sync-tags-pane" role="tabpanel" aria-labelledby="sync-tags-tab">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+          <strong>Sync Tags</strong>
+        </div>
 
-      {% if sync_tags %}
-      <div class="border rounded">
-        {% for tag in sync_tags %}
-        {% set tag_video_count = namespace(count=0) %}
-        {% for video in manage_videos %}
-        {% if video.get('sync_tag', '').lower() == tag.lower() %}
-        {% set tag_video_count.count = tag_video_count.count + 1 %}
-        {% endif %}
-        {% endfor %}
+        <div class="card-body">
+          <p class="text-muted small mb-3">
+            Sync Tags are used to match corresponding videos between the
+            Primary and Secondary Pis. Each Sync Tag can only be assigned
+            to one video on each Pi.
+          </p>
 
-        <div
-          class="d-flex align-items-center justify-content-between px-3 py-2 {% if not loop.last %}border-bottom{% endif %}">
-          <div class="d-flex align-items-center">
-            <i class="bi bi-link-45deg text-primary me-2"></i>
-            <span class="fw-semibold me-3">{{ tag }}</span>
-            <span class="text-muted small">
-              {% if tag_video_count.count == 0 %}
-              Not assigned
-              {% elif tag_video_count.count == 1 %}
-              1 video assigned
-              {% else %}
-              {{ tag_video_count.count }} videos assigned
-              {% endif %}
-            </span>
-          </div>
-
+          <!-- Primary Only -->
           {% if role == "primary" %}
-          <form method="POST" action="{{ url_for('delete_sync_tag') }}"
-            onsubmit="return confirm('Delete Sync Tag {{ tag }}? Any video using this tag will be cleared.');">
-            <input type="hidden" name="sync_tag" value="{{ tag }}">
-            <button type="submit" class="btn btn-outline-danger btn-sm">
-              <i class="bi bi-trash me-1"></i>
-              Delete
-            </button>
-          </form>
+          <div class="row g-2 align-items-end mb-3">
+            <!-- Add Sync Tag -->
+            <form method="POST" action="{{ url_for('add_sync_tag') }}" class="col-12 col-md-7">
+              <label for="newSyncTag" class="form-label small text-muted mb-1">
+                Add Sync Tag
+              </label>
+
+              <div class="input-group">
+                <input type="text" class="form-control" id="newSyncTag" name="sync_tag"
+                  placeholder="Enter a Sync Tag" maxlength="50" required>
+
+                <button type="submit" class="btn btn-success">
+                  <i class="bi bi-plus-lg me-1"></i>
+                  Add Sync Tag
+                </button>
+              </div>
+            </form>
+
+            <!-- Sync Tags to Secondaries -->
+            <form method="POST" action="{{ url_for('sync_tags_to_secondaries') }}"
+              class="col-12 col-md-auto" id="syncTagsForm">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-arrow-repeat me-1"></i>
+                Sync Tags to Secondaries
+              </button>
+            </form>
+          </div>
+          {% endif %}
+
+          <!-- Available Sync Tags -->
+          <div class="d-flex align-items-center mb-2">
+            <i class="bi bi-tags text-primary me-2"></i>
+            <strong>Available Sync Tags</strong>
+          </div>
+
+          {% if sync_tags %}
+          <div class="border rounded">
+            {% for tag in sync_tags %}
+            {% set tag_video_count = namespace(count=0) %}
+
+            {% for video in manage_videos %}
+            {% if video.get('sync_tag', '').lower() == tag.lower() %}
+            {% set tag_video_count.count = tag_video_count.count + 1 %}
+            {% endif %}
+            {% endfor %}
+
+            <div class="d-flex align-items-center justify-content-between px-3 py-2 {% if not loop.last %}border-bottom{% endif %}">
+              <div class="d-flex align-items-center">
+                <i class="bi bi-link-45deg text-primary me-2"></i>
+
+                <span class="fw-semibold me-3">
+                  {{ tag }}
+                </span>
+
+                <span class="text-muted small">
+                  {% if tag_video_count.count == 0 %}
+                  Not assigned
+                  {% elif tag_video_count.count == 1 %}
+                  1 video assigned
+                  {% else %}
+                  {{ tag_video_count.count }} videos assigned
+                  {% endif %}
+                </span>
+              </div>
+
+              {% if role == "primary" %}
+              <form method="POST" action="{{ url_for('delete_sync_tag') }}"
+                onsubmit="return confirm('Delete Sync Tag {{ tag }}? Any video using this tag will be cleared.');">
+                <input type="hidden" name="sync_tag" value="{{ tag }}">
+
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                  <i class="bi bi-trash me-1"></i>
+                  Delete
+                </button>
+              </form>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="border rounded text-center text-muted p-3">
+            <div class="small">
+              No Sync Tags have been created yet.
+            </div>
+
+            {% if role != "primary" %}
+            <div class="small mt-1">
+              Sync Tags must be created on the Primary Pi.
+            </div>
+            {% endif %}
+          </div>
           {% endif %}
         </div>
-        {% endfor %}
       </div>
-      {% else %}
-      <div class="border rounded text-center text-muted p-3">
-        <div class="small">
-          No Sync Tags have been created yet.
-        </div>
-        {% if role != "primary" %}
-        <div class="small mt-1">
-          Sync Tags must be created on the Primary Pi.
-        </div>
-        {% endif %}
-      </div>
-      {% endif %}
     </div>
+
   </div>
 </section>
-
 
 <!-- Sync Tags Loading Overlay -->
 <div id="syncTagsLoading" style="
@@ -209,9 +283,7 @@
     <div class="spinner-border mb-3" role="status" style="width: 3rem; height: 3rem;">
       <span class="visually-hidden">Syncing...</span>
     </div>
-
     <h5>Syncing Tags...</h5>
-
     <p>Please wait while the Secondary Pis are updated.</p>
   </div>
 </div>

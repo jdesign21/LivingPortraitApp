@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Living Portrait Setup</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body class="{{ 'dark-theme' if request.cookies.get('themeMode') == 'dark' else '' }}">
+
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+
+      <div class="text-center mb-4">
+        <img src="{{ url_for('image_file', filename='logo.png') }}"
+             alt="Living Portrait"
+             class="img-fluid"
+             style="max-width:180px;">
+        <h2 class="fw-bold mt-3 text-primary">Living Portrait Setup</h2>
+        <p class="text-muted mb-0">
+          Complete the initial setup before using LivingPortraitApp.
+        </p>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+      {% endfor %}
+      {% endif %}
+      {% endwith %}
+
+      <div id="setupError" class="alert alert-danger d-none" role="alert"></div>
+
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+          <strong>Initial Setup</strong>
+        </div>
+
+        <div class="card-body">
+          <form id="setupForm" method="POST" action="{{ url_for('setup') }}" enctype="multipart/form-data">
+
+            <!-- Device Role -->
+            <div class="mb-4">
+              <label class="form-label fw-semibold">Device Role</label>
+
+              <div class="form-check">
+                <input class="form-check-input"
+                       type="radio"
+                       name="role"
+                       id="rolePrimary"
+                       value="primary"
+                       {% if role == "primary" %}checked{% endif %}>
+                <label class="form-check-label" for="rolePrimary">
+                  Primary
+                </label>
+              </div>
+
+              <div class="form-check">
+                <input class="form-check-input"
+                       type="radio"
+                       name="role"
+                       id="roleSecondary"
+                       value="secondary"
+                       {% if role != "primary" %}checked{% endif %}>
+                <label class="form-check-label" for="roleSecondary">
+                  Secondary
+                </label>
+              </div>
+            </div>
+
+            <!-- MQTT -->
+            <div class="mb-4">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <label class="form-label fw-semibold mb-0" for="enable">
+                    MQTT
+                  </label>
+                  <div class="small text-muted">
+                    Enable Primary/Secondary communication.
+                  </div>
+                </div>
+
+                <div class="form-check form-switch">
+                  <input class="form-check-input"
+                         type="checkbox"
+                         id="enable"
+                         name="enable"
+                         value="1"
+                         {% if enable == "1" %}checked{% endif %}>
+                </div>
+              </div>
+            </div>
+
+            <!-- Primary Settings -->
+            <div id="primarySettings" class="mb-4">
+              <div class="border rounded p-3">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <div>
+                    <div class="fw-semibold">Secondary Pis</div>
+                    <div class="small text-muted">
+                      Add Secondary Pis controlled by this Primary.
+                    </div>
+                  </div>
+
+                  <button type="button" class="btn btn-outline-primary btn-sm" id="addSecondaryBtn">
+                    <i class="bi bi-plus-lg me-1"></i>
+                    Add Secondary
+                  </button>
+                </div>
+
+                <div id="secondaryPisContainer">
+                  {% if secondary_pis %}
+                  {% for pi in secondary_pis %}
+                  <div class="secondary-pi border rounded p-3 mb-2">
+                    <div class="row g-2 align-items-end">
+                      <div class="col-md-5">
+                        <label class="form-label small">Name</label>
+                        <input type="text"
+                               class="form-control form-control-sm secondary-name"
+                               name="secondary_pis[{{ loop.index0 }}][name]"
+                               value="{{ pi.name }}"
+                               maxlength="50">
+                      </div>
+
+                      <div class="col-md-5">
+                        <label class="form-label small">IP Address</label>
+                        <input type="text"
+                               class="form-control form-control-sm secondary-ip"
+                               name="secondary_pis[{{ loop.index0 }}][ip]"
+                               value="{{ pi.ip }}"
+                               placeholder="192.168.1.101">
+                      </div>
+
+                      <div class="col-md-2">
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100 remove-secondary">
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  {% endfor %}
+                  {% endif %}
+                </div>
+
+                <div id="noSecondariesMessage"
+                     class="small text-muted {% if secondary_pis %}d-none{% endif %}">
+                  No Secondary Pis added.
+                </div>
+              </div>
+            </div>
+
+            <!-- Secondary Settings -->
+            <div id="secondarySettings" class="mb-4">
+              <label for="primary_ip" class="form-label fw-semibold">
+                Primary Pi IP Address
+              </label>
+
+              <input type="text"
+                     class="form-control"
+                     id="primary_ip"
+                     name="primary_ip"
+                     value="{{ primary_ip }}"
+                     placeholder="192.168.1.155">
+
+              <div class="form-text">
+                Required when this Secondary uses MQTT.
+              </div>
+            </div>
+
+            <!-- First Video -->
+            {% if not videos %}
+            <div class="mb-4">
+              <div class="border rounded p-3">
+                <div class="fw-semibold mb-1">First Video</div>
+                <div class="small text-muted mb-3">
+                  Upload your first MP4 video to enable playback.
+                </div>
+
+                <div id="dropArea"
+                     class="border border-2 border-secondary rounded p-4 text-center bg-light">
+                  <p class="mb-2">Drag &amp; drop an MP4 file here</p>
+                  <p class="small text-muted">or choose a file below</p>
+
+                  <input type="file"
+                         id="setupVideo"
+                         name="video"
+                         accept=".mp4"
+                         hidden>
+
+                  <button type="button"
+                          class="btn btn-outline-secondary btn-sm"
+                          id="chooseVideoBtn">
+                    <i class="bi bi-folder2-open me-1"></i>
+                    Choose File
+                  </button>
+
+                  <div id="setupVideoName"
+                       class="mt-3 fw-semibold text-success"></div>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Complete -->
+            <div class="text-end">
+              <button type="submit" class="btn btn-success" id="completeSetupBtn">
+                <i class="bi bi-check-circle me-1"></i>
+                Complete Setup
+              </button>
+            </div>
+
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Setup Loading Overlay -->
+<div id="setupLoadingOverlay"
+     style="
+       display:none;
+       position:fixed;
+       inset:0;
+       background:rgba(0,0,0,0.70);
+       z-index:9999;
+       align-items:center;
+       justify-content:center;
+       padding:20px;
+     ">
+  <div class="text-center text-white">
+    <div class="spinner-border text-light mb-4"
+         role="status"
+         style="width:3.5rem;height:3.5rem;">
+      <span class="visually-hidden">Setting up...</span>
+    </div>
+
+    <h4 class="fw-bold mb-2">Setting Up LivingPortraitApp</h4>
+
+    <p class="mb-0">
+      Please wait while your settings are applied.
+    </p>
+
+    <p class="small text-white-50 mt-2 mb-0">
+      This may take a few moments.
+    </p>
+  </div>
+</div>
+
+<script>
+const rolePrimary = document.getElementById('rolePrimary');
+const roleSecondary = document.getElementById('roleSecondary');
+const primarySettings = document.getElementById('primarySettings');
+const secondarySettings = document.getElementById('secondarySettings');
+
+const secondaryPisContainer = document.getElementById('secondaryPisContainer');
+const addSecondaryBtn = document.getElementById('addSecondaryBtn');
+const noSecondariesMessage = document.getElementById('noSecondariesMessage');
+
+const enable = document.getElementById('enable');
+const primaryIp = document.getElementById('primary_ip');
+
+const setupForm = document.getElementById('setupForm');
+const setupError = document.getElementById('setupError');
+const setupLoadingOverlay = document.getElementById('setupLoadingOverlay');
+const completeSetupBtn = document.getElementById('completeSetupBtn');
+
+function updateRoleUI() {
+  const isPrimary = rolePrimary && rolePrimary.checked;
+
+  if (primarySettings) {
+    primarySettings.style.display = isPrimary ? 'block' : 'none';
+  }
+
+  if (secondarySettings) {
+    secondarySettings.style.display = isPrimary ? 'none' : 'block';
+  }
+}
+
+function updateSecondaryMessage() {
+  if (!noSecondariesMessage || !secondaryPisContainer) {
+    return;
+  }
+
+  const count = secondaryPisContainer.querySelectorAll('.secondary-pi').length;
+  noSecondariesMessage.classList.toggle('d-none', count > 0);
+}
+
+function addSecondary() {
+  if (!secondaryPisContainer) {
+    return;
+  }
+
+  const index = secondaryPisContainer.querySelectorAll('.secondary-pi').length;
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'secondary-pi border rounded p-3 mb-2';
+
+  wrapper.innerHTML = `
+    <div class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label small">Name</label>
+        <input type="text"
+               class="form-control form-control-sm secondary-name"
+               name="secondary_pis[${index}][name]"
+               placeholder="Secondary Pi ${index + 1}"
+               maxlength="50">
+      </div>
+
+      <div class="col-md-5">
+        <label class="form-label small">IP Address</label>
+        <input type="text"
+               class="form-control form-control-sm secondary-ip"
+               name="secondary_pis[${index}][ip]"
+               placeholder="192.168.1.101">
+      </div>
+
+      <div class="col-md-2">
+        <button type="button" class="btn btn-outline-danger btn-sm w-100 remove-secondary">
+          Remove
+        </button>
+      </div>
+    </div>
+  `;
+
+  secondaryPisContainer.appendChild(wrapper);
+  updateSecondaryMessage();
+}
+
+if (rolePrimary) {
+  rolePrimary.addEventListener('change', updateRoleUI);
+}
+
+if (roleSecondary) {
+  roleSecondary.addEventListener('change', updateRoleUI);
+}
+
+if (addSecondaryBtn) {
+  addSecondaryBtn.addEventListener('click', addSecondary);
+}
+
+document.addEventListener('click', event => {
+  if (!event.target.classList.contains('remove-secondary')) {
+    return;
+  }
+
+  const item = event.target.closest('.secondary-pi');
+
+  if (item) {
+    item.remove();
+    updateSecondaryMessage();
+  }
+});
+
+updateRoleUI();
+updateSecondaryMessage();
+
+const setupVideo = document.getElementById('setupVideo');
+const chooseVideoBtn = document.getElementById('chooseVideoBtn');
+const dropArea = document.getElementById('dropArea');
+const setupVideoName = document.getElementById('setupVideoName');
+
+if (chooseVideoBtn && setupVideo) {
+  chooseVideoBtn.addEventListener('click', () => {
+    setupVideo.click();
+  });
+}
+
+function showSetupVideo(file) {
+  if (!setupVideoName || !file) {
+    return;
+  }
+
+  if (
+    file.type !== 'video/mp4' &&
+    !file.name.toLowerCase().endsWith('.mp4')
+  ) {
+    setupVideoName.textContent = 'Please select a valid MP4 file.';
+    setupVideoName.classList.remove('text-success');
+    setupVideoName.classList.add('text-danger');
+    return;
+  }
+
+  setupVideoName.textContent = `Selected: ${file.name}`;
+  setupVideoName.classList.remove('text-danger');
+  setupVideoName.classList.add('text-success');
+}
+
+if (setupVideo) {
+  setupVideo.addEventListener('change', event => {
+    if (event.target.files.length > 0) {
+      showSetupVideo(event.target.files[0]);
+    }
+  });
+}
+
+if (dropArea && setupVideo) {
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropArea.addEventListener(eventName, event => {
+      event.preventDefault();
+      event.stopPropagation();
+      dropArea.classList.add('border-primary');
+    });
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropArea.addEventListener(eventName, event => {
+      event.preventDefault();
+      event.stopPropagation();
+      dropArea.classList.remove('border-primary');
+    });
+  });
+
+  dropArea.addEventListener('drop', event => {
+    const files = event.dataTransfer.files;
+
+    if (files.length > 0) {
+      const file = files[0];
+
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+
+      setupVideo.files = dataTransfer.files;
+
+      showSetupVideo(file);
+    }
+  });
+}
+
+
+// ========================================================
+// SETUP VALIDATION
+// ========================================================
+
+function showSetupError(message) {
+  if (!setupError) {
+    return;
+  }
+
+  setupError.textContent = message;
+  setupError.classList.remove('d-none');
+
+  setupError.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center'
+  });
+}
+
+function clearSetupError() {
+  if (setupError) {
+    setupError.textContent = '';
+    setupError.classList.add('d-none');
+  }
+}
+
+function isValidIPv4(ip) {
+  const parts = ip.trim().split('.');
+
+  if (parts.length !== 4) {
+    return false;
+  }
+
+  return parts.every(part => {
+    if (!/^\d+$/.test(part)) {
+      return false;
+    }
+
+    const value = Number(part);
+
+    return value >= 0 && value <= 255;
+  });
+}
+
+function validateSetup() {
+  clearSetupError();
+
+  const isPrimary = rolePrimary && rolePrimary.checked;
+  const mqttEnabled = enable && enable.checked;
+
+  if (!rolePrimary || !roleSecondary || (!rolePrimary.checked && !roleSecondary.checked)) {
+    showSetupError('Please select a device role.');
+    return false;
+  }
+
+  if (!isPrimary && mqttEnabled) {
+    const ip = primaryIp ? primaryIp.value.trim() : '';
+
+    if (!ip) {
+      showSetupError('Please enter the Primary Pi IP Address.');
+      if (primaryIp) {
+        primaryIp.focus();
+      }
+      return false;
+    }
+
+    if (!isValidIPv4(ip)) {
+      showSetupError('Please enter a valid Primary Pi IP Address.');
+      if (primaryIp) {
+        primaryIp.focus();
+      }
+      return false;
+    }
+  }
+
+  if (isPrimary && secondaryPisContainer) {
+    const secondaryPis =
+      secondaryPisContainer.querySelectorAll('.secondary-pi');
+
+    for (let i = 0; i < secondaryPis.length; i++) {
+      const nameInput = secondaryPis[i].querySelector('.secondary-name');
+      const ipInput = secondaryPis[i].querySelector('.secondary-ip');
+
+      const name = nameInput ? nameInput.value.trim() : '';
+      const ip = ipInput ? ipInput.value.trim() : '';
+
+      if (!name) {
+        showSetupError(`Secondary Pi ${i + 1} needs a name.`);
+        if (nameInput) {
+          nameInput.focus();
+        }
+        return false;
+      }
+
+      if (!ip) {
+        showSetupError(`Secondary Pi ${i + 1} needs an IP address.`);
+        if (ipInput) {
+          ipInput.focus();
+        }
+        return false;
+      }
+
+      if (!isValidIPv4(ip)) {
+        showSetupError(`Secondary Pi ${i + 1} has an invalid IP address.`);
+        if (ipInput) {
+          ipInput.focus();
+        }
+        return false;
+      }
+    }
+  }
+
+  if (setupVideo) {
+    if (!setupVideo.files || setupVideo.files.length === 0) {
+      showSetupError('Please upload your first MP4 video before completing setup.');
+      return false;
+    }
+
+    const file = setupVideo.files[0];
+
+    if (
+      file.type !== 'video/mp4' &&
+      !file.name.toLowerCase().endsWith('.mp4')
+    ) {
+      showSetupError('The first video must be an MP4 file.');
+      return false;
+    }
+  }
+
+  return true;
+}
+
+
+// ========================================================
+// SETUP SUBMIT
+// ========================================================
+
+if (setupForm) {
+  setupForm.addEventListener('submit', event => {
+    event.preventDefault();
+
+    if (!validateSetup()) {
+      return;
+    }
+
+    if (completeSetupBtn) {
+      completeSetupBtn.disabled = true;
+      completeSetupBtn.innerHTML =
+        '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Setting Up...';
+    }
+
+    if (setupLoadingOverlay) {
+      setupLoadingOverlay.style.display = 'flex';
+    }
+
+    setupForm.submit();
+  });
+}
+</script>
+
+</body>
+</html>

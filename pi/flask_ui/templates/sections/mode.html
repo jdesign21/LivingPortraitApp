@@ -1,6 +1,6 @@
 <section id="mode" class="section">
   <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
-    Mode
+    <i class="bi bi-check-square"></i> Mode
   </h3>
 
   <!-- PAUSE SYSTEM -->
@@ -49,15 +49,6 @@
             Configure how videos are triggered and played.
             Select a playback mode and adjust video timing when applicable.
           </p>
-
-          <!-- MQTT NOTICE -->
-          {% if role == "primary" and enable == "1" %}
-          <div class="alert alert-warning py-2 mb-4">
-            <strong>MQTT Enabled:</strong>
-            Playback Mode is forced to <strong>Single</strong>
-            while this Pi is the Primary.
-          </div>
-          {% endif %}
 
           <!-- TRIGGERED MODE -->
           {% if role == "primary" or (role == "secondary" and enable != "1") %}

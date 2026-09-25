@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory
+from werkzeug.utils import secure_filename
 from pathlib import Path
 import os
 from datetime import datetime, timedelta
@@ -83,6 +84,9 @@ def index():
     version = get_version()
     videos = sorted([f.name for f in VIDEO_FOLDER.glob("*.mp4")])
     settings = load_settings()
+
+    if not settings.get("setup_complete", False):
+        return redirect(url_for("setup"))
 
     selected_video = settings.get("selected_video", "")
     pause_flag = settings.get("pause_flag", False)
@@ -175,19 +179,74 @@ def index():
             log(f"Error calculating time remaining: {e}", "ERROR")
 
     logs = []
+    recent_activity = []
 
     if LOG_FOLDER.exists():
-        for f in LOG_FOLDER.glob("*.txt"):
+        log_files = list(LOG_FOLDER.glob("*.txt"))
+
+        for f in log_files:
             logs.append({
                 "name": f.name,
                 "mtime": datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %I:%M %p"),
                 "size": f.stat().st_size
             })
+
+            try:
+                with open(f, "r", errors="replace") as log_file:
+                    for line in log_file:
+                        line = line.strip()
+
+                        if not line:
+                            continue
+
+                        timestamp = None
+                        category = "SYSTEM"
+                        message = line
+
+                        if line.startswith("["):
+                            first_end = line.find("]")
+
+                            if first_end != -1:
+                                timestamp_text = line[1:first_end]
+
+                                try:
+                                    timestamp = datetime.fromisoformat(timestamp_text)
+                                except ValueError:
+                                    timestamp = datetime.fromtimestamp(f.stat().st_mtime)
+
+                                remainder = line[first_end + 1:].strip()
+
+                                if remainder.startswith("["):
+                                    category_end = remainder.find("]")
+
+                                    if category_end != -1:
+                                        category = remainder[1:category_end]
+                                        message = remainder[category_end + 1:].strip()
+                                    else:
+                                        message = remainder
+                                else:
+                                    message = remainder
+
+                        if timestamp is None:
+                            timestamp = datetime.fromtimestamp(f.stat().st_mtime)
+
+                        recent_activity.append({
+                            "time": timestamp.strftime("%I:%M %p").lstrip("0"),
+                            "category": category,
+                            "message": message,
+                            "timestamp": timestamp
+                        })
+            except Exception as e:
+                log(f"Error reading recent activity from {f.name}: {e}", "ERROR")
+
         logs.sort(key=lambda x: x["mtime"], reverse=True)
+        recent_activity.sort(key=lambda x: x["timestamp"], reverse=True)
+        recent_activity = recent_activity[:8]
 
     return render_template(
         "index.html",
         logs=logs,
+        recent_activity=recent_activity,
         videos=fixed_order,
         selected=selected_video,
         playlist_mode=mode,
@@ -217,6 +276,184 @@ def index():
         mqtt_connected=mqtt_connected,
         sync_start_delay_ms=sync_start_delay_ms,
         version=version
+    )
+
+
+@app.route("/setup", methods=["GET", "POST"])
+def setup():
+    settings = load_settings()
+    network_settings = load_network_settings()
+    videos = sorted([f.name for f in VIDEO_FOLDER.glob("*.mp4")])
+
+    if settings.get("setup_complete", False):
+        return redirect(url_for("index"))
+
+    role = network_settings.get("role", "secondary")
+    enable = network_settings.get("enable", "0")
+    primary_ip = network_settings.get("primary_ip", "")
+    secondary_pis = network_settings.get("secondary_pis", [])
+
+    if request.method == "POST":
+        role = request.form.get("role", "secondary")
+        enable = "1" if request.form.get("enable") == "1" else "0"
+        primary_ip = request.form.get("primary_ip", "").strip()
+
+        if role not in ("primary", "secondary"):
+            role = "secondary"
+
+        if role == "primary":
+            primary_ip = ""
+
+        if role == "secondary" and enable == "1" and not primary_ip:
+            flash("Primary Pi IP Address is required when MQTT is enabled on a Secondary.", "danger")
+            return render_template(
+                "setup.html",
+                role=role,
+                enable=enable,
+                primary_ip=primary_ip,
+                secondary_pis=secondary_pis,
+                videos=videos
+            )
+
+        # Read Secondary Pis configured on the Primary.
+        new_secondary_pis = []
+        index = 0
+
+        while True:
+            name_key = f"secondary_pis[{index}][name]"
+            ip_key = f"secondary_pis[{index}][ip]"
+
+            if name_key not in request.form and ip_key not in request.form:
+                break
+
+            name = request.form.get(name_key, "").strip()
+            ip = request.form.get(ip_key, "").strip()
+
+            if not name or not ip:
+                flash("Each Secondary Pi must have both a name and IP address.", "danger")
+                return render_template(
+                    "setup.html",
+                    role=role,
+                    enable=enable,
+                    primary_ip=primary_ip,
+                    secondary_pis=new_secondary_pis,
+                    videos=videos
+                )
+
+            new_secondary_pis.append({
+                "name": name[:50],
+                "ip": ip
+            })
+
+            index += 1
+
+        # Save Role / MQTT / Primary IP using the existing network helper.
+        set_role(role, primary_ip, enable)
+
+        # Save Secondary Pis.
+        network_settings = load_network_settings()
+        network_settings["secondary_pis"] = new_secondary_pis
+        save_network_settings(network_settings)
+
+        # Configure MQTT according to the selected role and setting.
+        configure_mosquitto(role, enable)
+
+        # First video upload.
+        setup_video = request.files.get("video")
+
+        if not videos and (not setup_video or setup_video.filename == ""):
+            flash("Please upload at least one MP4 video before completing setup.", "danger")
+            return render_template(
+                "setup.html",
+                role=role,
+                enable=enable,
+                primary_ip=primary_ip,
+                secondary_pis=new_secondary_pis,
+                videos=videos
+            )
+
+        if setup_video and setup_video.filename:
+            if not setup_video.filename.lower().endswith(".mp4"):
+                flash("Only .mp4 files are allowed for the initial video.", "danger")
+                return render_template(
+                    "setup.html",
+                    role=role,
+                    enable=enable,
+                    primary_ip=primary_ip,
+                    secondary_pis=new_secondary_pis,
+                    videos=videos
+                )
+
+            filename = secure_filename(setup_video.filename)
+
+            if not filename:
+                flash("Invalid video filename.", "danger")
+                return render_template(
+                    "setup.html",
+                    role=role,
+                    enable=enable,
+                    primary_ip=primary_ip,
+                    secondary_pis=new_secondary_pis,
+                    videos=videos
+                )
+
+            save_path = VIDEO_FOLDER / filename
+            setup_video.save(save_path)
+
+            settings = load_settings()
+            order = settings.get("playlist", {}).get("order", [])
+
+            existing_video = next(
+                (
+                    item
+                    for item in order
+                    if item.get("filename") == filename
+                ),
+                None
+            )
+
+            if existing_video:
+                existing_video["active"] = True
+            else:
+                order.append({
+                    "filename": filename,
+                    "active": True
+                })
+
+            settings["playlist"]["order"] = order
+            settings["selected_video"] = filename
+            settings["pause_flag"] = False
+            save_settings(settings)
+
+            videos = sorted([f.name for f in VIDEO_FOLDER.glob("*.mp4")])
+
+        else:
+            settings = load_settings()
+
+            if videos:
+                selected_video = settings.get("selected_video", "")
+
+                if not selected_video or not (VIDEO_FOLDER / selected_video).exists():
+                    selected_video = videos[0]
+                    settings["selected_video"] = selected_video
+
+                settings["pause_flag"] = False
+                save_settings(settings)
+
+        settings = load_settings()
+        settings["setup_complete"] = True
+        save_settings(settings)
+
+        flash("LivingPortraitApp setup completed successfully.", "success")
+        return redirect(url_for("index"))
+
+    return render_template(
+        "setup.html",
+        role=role,
+        enable=enable,
+        primary_ip=primary_ip,
+        secondary_pis=secondary_pis,
+        videos=videos
     )
 
 @app.route("/select", methods=["POST"])
