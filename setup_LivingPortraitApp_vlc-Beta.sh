@@ -7,7 +7,7 @@ set -e
 # ============================================================
 
 # GitHub release to install
-RELEASE="v2.0.0-beta.6"
+RELEASE="v2.0.0-beta.7"
 BASE_URL="https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/tags/$RELEASE/pi"
 
 # ============================================================
@@ -296,6 +296,23 @@ sudo systemctl enable motion_vlc.service
 sudo systemctl restart motion_vlc.service
 
 log_success "motion_vlc service enabled and restarted"
+
+# ============================================================
+# Reboot permission
+# ============================================================
+
+echo -e "\nSetting up reboot permission..."
+
+sudo tee /etc/sudoers.d/livingportrait-reboot > /dev/null << EOF
+$USERNAME ALL=(root) NOPASSWD: /usr/sbin/reboot
+EOF
+
+sudo chmod 440 /etc/sudoers.d/livingportrait-reboot
+
+sudo visudo -cf /etc/sudoers.d/livingportrait-reboot \
+    || log_fail "Reboot sudoers configuration"
+
+log_success "Reboot permission configured"
 
 # ============================================================
 # Finished

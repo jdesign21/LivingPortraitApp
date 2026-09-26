@@ -57,10 +57,13 @@ def load_settings():
         with open(SETTINGS_FILE, "r") as f:
             settings = json.load(f)
 
+        settings_changed = False
+
         if "setup_complete" not in settings:
             existing_videos = list(VIDEO_FOLDER.glob("*.mp4"))
             settings["setup_complete"] = len(existing_videos) > 0
-            save_settings(settings)
+            settings_changed = True
+
     else:
         settings = {
             "setup_complete": False,
@@ -73,14 +76,43 @@ def load_settings():
                 "last_updated": "",
                 "order": [],
                 "triggered_flag": True,
-                "delay": 0
+                "trigger_change": False,
+                "delay": 0,
+                "secondary_start_mode": "with_primary",
+                "secondary_start_delay": 0,
+                "secondary_video_mode": "sync_tag"
             }
         }
 
+        settings_changed = True
+
     if "sync_tags" not in settings:
         settings["sync_tags"] = []
+        settings_changed = True
+
+    playlist = settings.setdefault("playlist", {})
+
+    if "trigger_change" not in playlist:
+        playlist["trigger_change"] = False
+        settings_changed = True
+
+    if "secondary_start_mode" not in playlist:
+        playlist["secondary_start_mode"] = "with_primary"
+        settings_changed = True
+
+    if "secondary_start_delay" not in playlist:
+        playlist["secondary_start_delay"] = 0
+        settings_changed = True
+
+    if "secondary_video_mode" not in playlist:
+        playlist["secondary_video_mode"] = "sync_tag"
+        settings_changed = True
 
     settings = migrate_days_slots(settings)
+
+    if settings_changed:
+        save_settings(settings)
+
     return settings
 
 
@@ -156,14 +188,44 @@ def get_triggered_flag():
     return bool(flag)
 
 
+def get_trigger_change():
+    settings = load_settings()
+    playlist = settings.get("playlist", {})
+    return bool(playlist.get("trigger_change", False))
+
+
 def get_trigger_delay_seconds():
     settings = load_settings()
     playlist = settings.get("playlist", {})
     delay = playlist.get("delay", 0)
+
     try:
         return int(delay)
     except (ValueError, TypeError):
         return 0
+
+
+def get_secondary_start_mode():
+    settings = load_settings()
+    playlist = settings.get("playlist", {})
+    return playlist.get("secondary_start_mode", "with_primary")
+
+
+def get_secondary_start_delay_seconds():
+    settings = load_settings()
+    playlist = settings.get("playlist", {})
+    delay = playlist.get("secondary_start_delay", 0)
+
+    try:
+        return int(delay)
+    except (ValueError, TypeError):
+        return 0
+
+
+def get_secondary_video_mode():
+    settings = load_settings()
+    playlist = settings.get("playlist", {})
+    return playlist.get("secondary_video_mode", "sync_tag")
 
 
 def is_schedule_enabled_now():
@@ -275,7 +337,10 @@ def get_next_start_time(settings):
     if not upcoming_slots:
         return None, None
 
-    next_start_dt, next_day, next_category = min(upcoming_slots, key=lambda x: x[0])
+    next_start_dt, next_day, next_category = min(
+        upcoming_slots,
+        key=lambda x: x[0]
+    )
 
     return next_start_dt.strftime(f"{next_day} %I:%M %p"), next_category
 
@@ -334,7 +399,11 @@ def update_playlist_settings(
     last_updated=None,
     order=None,
     triggered_flag=None,
-    delay=None
+    trigger_change=None,
+    delay=None,
+    secondary_start_mode=None,
+    secondary_start_delay=None,
+    secondary_video_mode=None
 ):
     settings = load_settings()
     playlist = settings.get("playlist", {})
@@ -349,8 +418,16 @@ def update_playlist_settings(
         playlist["order"] = order
     if triggered_flag is not None:
         playlist["triggered_flag"] = triggered_flag
+    if trigger_change is not None:
+        playlist["trigger_change"] = trigger_change
     if delay is not None:
         playlist["delay"] = delay
+    if secondary_start_mode is not None:
+        playlist["secondary_start_mode"] = secondary_start_mode
+    if secondary_start_delay is not None:
+        playlist["secondary_start_delay"] = secondary_start_delay
+    if secondary_video_mode is not None:
+        playlist["secondary_video_mode"] = secondary_video_mode
 
     settings["playlist"] = playlist
     save_settings(settings)
@@ -373,7 +450,10 @@ def update_playlist_timestamp_on_startup():
 
         if last_updated_str:
             try:
-                last_updated = datetime.strptime(last_updated_str, "%Y-%m-%d %H:%M:%S")
+                last_updated = datetime.strptime(
+                    last_updated_str,
+                    "%Y-%m-%d %H:%M:%S"
+                )
             except Exception as e:
                 log(f"Failed to parse last_updated timestamp: {e}", "ERROR")
 
@@ -458,8 +538,8 @@ def notify_selection_sync(video_name):
     Notify the Primary synchronization handler that the selected
     video changed.
 
-    The Secondary will use the Sync Tag to select its own matching
-    local video.
+    The Secondary will use the Sync Tag to select its own
+    matching local video.
     """
     if selection_sync_callback is None:
         return
@@ -470,6 +550,82 @@ def notify_selection_sync(video_name):
         selection_sync_callback(video_name, sync_tag)
     except Exception as e:
         log(f"Selection Sync callback failed for '{video_name}': {e}", "SYNC")
+
+
+def change_video_for_trigger(mode, current_video):
+    settings = load_settings()
+    playlist = settings.get("playlist", {})
+    order = playlist.get("order", [])
+
+    current_category = get_current_scheduler_category()
+    day_active = is_current_schedule_active()
+
+    if day_active:
+        active_files = [
+            item["filename"]
+            for item in order
+            if item.get("active", True)
+            and (
+                not current_category
+                or current_category in item.get("tags", [])
+            )
+        ]
+    else:
+        active_files = [
+            item["filename"]
+            for item in order
+            if item.get("active", True)
+        ]
+
+    if len(active_files) < 2:
+        return current_video
+
+    current_filename = Path(current_video).name
+
+    if mode == "random":
+        other_choices = [
+            filename
+            for filename in active_files
+            if filename != current_filename
+        ]
+
+        if not other_choices:
+            return current_video
+
+        new_video = random.choice(other_choices)
+
+    elif mode == "fixed":
+        if current_filename in active_files:
+            current_index = active_files.index(current_filename)
+            new_video = active_files[
+                (current_index + 1) % len(active_files)
+            ]
+        else:
+            new_video = active_files[0]
+
+    else:
+        return current_video
+
+    new_path = VIDEO_FOLDER / new_video
+
+    if not new_path.exists():
+        log(f"Trigger Change selected missing video: {new_video}", "ERROR")
+        return current_video
+
+    if new_video == current_filename:
+        return current_video
+
+    settings["selected_video"] = new_video
+    settings["playlist"]["last_updated"] = datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    save_settings(settings)
+
+    log(f"Trigger Change: {current_filename} -> {new_video}", "PLAYBACK")
+
+    notify_selection_sync(new_video)
+
+    return str(new_path)
 
 
 def read_pause_flag():
@@ -490,6 +646,11 @@ def write_pause_flag(is_paused):
 def playlist_updater():
     while not stop_playlist_thread.is_set():
         try:
+            settings = load_settings()
+            playlist = settings.get("playlist", {})
+            secondary_video_mode = playlist.get("secondary_video_mode", "sync_tag")
+            trigger_change = bool(playlist.get("trigger_change", False))
+
             (
                 mode,
                 interval,
@@ -508,8 +669,15 @@ def playlist_updater():
                 or interval <= 0
                 or pause_flag
                 or not schedule_enabled
+                or trigger_change
             ):
-                time.sleep(5)
+                time.sleep(1)
+                continue
+
+            # A Secondary using Match Sync Tag must not independently
+            # change its selected video. The Primary controls selection.
+            if secondary_video_mode == "sync_tag" and selection_sync_callback is None:
+                time.sleep(1)
                 continue
 
             if day_active:
@@ -536,7 +704,6 @@ def playlist_updater():
                 time.sleep(10)
                 continue
 
-            settings = load_settings()
             current_video = settings.get("selected_video", "")
             now = datetime.now()
 
@@ -573,12 +740,13 @@ def playlist_updater():
                     elif mode == "fixed":
                         if current_video in active_files:
                             idx = active_files.index(current_video)
-                            new_video = active_files[(idx + 1) % len(active_files)]
+                            new_video = active_files[
+                                (idx + 1) % len(active_files)
+                            ]
                         else:
                             new_video = active_files[0]
 
                 last_updated_str = now.strftime("%Y-%m-%d %H:%M:%S")
-
                 selection_changed = new_video != current_video
 
                 settings["selected_video"] = new_video

@@ -8,6 +8,7 @@ import os
 import json
 import time
 import uuid
+import random
 import mqtt_client
 
 from time import sleep
@@ -24,14 +25,17 @@ from shared.vlc_helper import (
     get_triggered_flag,
     get_trigger_delay_seconds,
     is_schedule_enabled_now,
-    set_selection_sync_callback
+    set_selection_sync_callback,
+    get_secondary_start_mode,
+    get_secondary_start_delay_seconds,
+    get_current_scheduler_category,
+    is_current_schedule_active
 )
 
 from shared.vlc_network_helper import (
     is_enabled,
     get_sync_start_delay_ms
 )
-
 
 HOME = Path(os.path.expanduser("~"))
 LOG_FOLDER = HOME / "logs"
@@ -43,7 +47,6 @@ last_played_path = None
 LOG_FOLDER.mkdir(parents=True, exist_ok=True)
 
 player = None
-
 
 # ============================================================
 # Sync Status Tracking
@@ -93,10 +96,8 @@ def on_sync_status_message(client, userdata, msg):
 
     if status == "ready":
         log(f"Secondary reported READY for Sync Tag '{sync_tag}' (ID: {sync_id})", "SYNC")
-
     elif status == "unavailable":
         log(f"Secondary reported UNAVAILABLE for Sync Tag '{sync_tag}' (ID: {sync_id})", "SYNC")
-
     else:
         log(f"Unknown Secondary sync status: {status}", "SYNC")
 
@@ -124,7 +125,6 @@ def on_exit():
 
 atexit.register(on_exit)
 
-
 # ============================================================
 # VLC Helpers
 # ============================================================
@@ -139,6 +139,109 @@ def load_and_pause(media_path):
 
     player.set_pause(1)
     player.set_time(0)
+
+
+# ============================================================
+# Trigger Change
+# ============================================================
+
+def change_video_on_trigger():
+    try:
+        with open(HOME / "settings.json", "r") as f:
+            settings = json.load(f)
+    except Exception as e:
+        log(f"Failed to load settings for Trigger Change: {e}", "ERROR")
+        return get_selected_video()
+
+    playlist = settings.get("playlist", {})
+
+    trigger_change = bool(
+        playlist.get("trigger_change", False)
+    )
+
+    mode = playlist.get("mode", "single")
+
+    current_video = settings.get("selected_video", "")
+
+    if not trigger_change:
+        return current_video
+
+    if mode not in ("random", "fixed"):
+        return current_video
+
+    order = playlist.get("order", [])
+
+    active_files = []
+
+    schedule_active = is_current_schedule_active()
+    current_category = None
+
+    if schedule_active:
+        current_category = get_current_scheduler_category()
+
+    for video in order:
+        filename = video.get("filename", "")
+
+        if not filename:
+            continue
+
+        if not video.get("active", True):
+            continue
+
+        video_path = VIDEO_FOLDER / filename
+
+        if not video_path.exists():
+            continue
+
+        if current_category:
+            if current_category not in video.get("tags", []):
+                continue
+
+        active_files.append(filename)
+
+    if len(active_files) < 2:
+        log("Trigger Change enabled but fewer than two active videos are available.", "PLAYBACK")
+        return current_video
+
+    current_filename = Path(current_video).name if current_video else ""
+
+    if mode == "random":
+        choices = [
+            filename
+            for filename in active_files
+            if filename != current_filename
+        ]
+
+        if not choices:
+            return current_video
+
+        new_filename = random.choice(choices)
+
+    else:
+        if current_filename in active_files:
+            current_index = active_files.index(current_filename)
+            new_filename = active_files[
+                (current_index + 1) % len(active_files)
+            ]
+        else:
+            new_filename = active_files[0]
+
+    new_path = str(VIDEO_FOLDER / new_filename)
+
+    if new_path != current_video:
+        settings["selected_video"] = new_filename
+
+        try:
+            with open(HOME / "settings.json", "w") as f:
+                json.dump(settings, f, indent=2)
+
+            log(f"Trigger Change selected '{new_filename}' using {mode} mode.", "PLAYBACK")
+
+        except Exception as e:
+            log(f"Failed to save Trigger Change selection: {e}", "ERROR")
+            return current_video
+
+    return new_path
 
 
 # ============================================================
@@ -178,10 +281,33 @@ def generate_sync_id():
     return uuid.uuid4().hex
 
 
-def prepare_secondary_for_sync(sync_tag, sync_id):
+def prepare_secondary_for_sync(sync_tag, sync_id, sync_mode=None):
     message = {
         "command": "prepare_sync",
         "sync_tag": sync_tag,
+        "sync_id": sync_id
+    }
+
+    if sync_mode:
+        message["sync_mode"] = sync_mode
+
+    result = mqtt_client.client.publish(
+        mqtt_client.TOPIC_CONTROL,
+        json.dumps(message)
+    )
+
+    if sync_mode:
+        log(f"Sent PREPARE_SYNC for Sync Tag '{sync_tag}' in {sync_mode} mode (ID: {sync_id})", "SYNC")
+    else:
+        log(f"Sent PREPARE_SYNC for Sync Tag '{sync_tag}' (ID: {sync_id})", "SYNC")
+
+    log(f"MQTT publish result: {result.rc}", "MQTT")
+
+
+def send_secondary_play_at(start_at_ms, sync_id):
+    message = {
+        "command": "play_at",
+        "start_at_ms": start_at_ms,
         "sync_id": sync_id
     }
 
@@ -190,20 +316,20 @@ def prepare_secondary_for_sync(sync_tag, sync_id):
         json.dumps(message)
     )
 
-    log(f"Sent PREPARE_SYNC for Sync Tag '{sync_tag}' (ID: {sync_id})", "SYNC")
+    log(f"Sent PLAY_AT command for {start_at_ms} ms (Sync ID: {sync_id})", "SYNC")
     log(f"MQTT publish result: {result.rc}", "MQTT")
 
 
 def sync_selected_video(video_name, sync_tag):
-    if not sync_tag:
-        log(f"Selected video '{Path(video_name).name}' has no Sync Tag. Secondary preparation skipped.", "SYNC")
-        return
-
     if not is_enabled():
         return
 
     if not mqtt_client.client.is_connected():
         log("MQTT is enabled but not connected. Selection sync skipped.", "SYNC")
+        return
+
+    if not sync_tag:
+        log(f"Selected video '{Path(video_name).name}' has no Sync Tag. Secondary preparation skipped.", "SYNC")
         return
 
     sync_id = generate_sync_id()
@@ -350,10 +476,15 @@ def play_triggered(delay_seconds):
     sync_enabled = (
         is_enabled()
         and mqtt_client.client.is_connected()
-        and sync_tag
     )
 
+    if sync_enabled and not sync_tag:
+        sync_tag = "playlist"
+        log("Primary video has no Sync Tag. Using Secondary Playlist synchronization.", "SYNC")
+
     start_at_ms = None
+    secondary_start_mode = "with_primary"
+    secondary_start_delay = 0
 
     if sync_enabled:
         sync_id = generate_sync_id()
@@ -362,30 +493,63 @@ def play_triggered(delay_seconds):
 
         log(f"Created Sync ID {sync_id} for Sync Tag '{sync_tag}'", "SYNC")
 
-        prepare_secondary_for_sync(
-            sync_tag,
-            sync_id
-        )
+        if sync_tag == "playlist":
+            prepare_secondary_for_sync(
+                sync_tag,
+                sync_id,
+                "playlist"
+            )
+        else:
+            prepare_secondary_for_sync(
+                sync_tag,
+                sync_id
+            )
+
+        secondary_start_mode = get_secondary_start_mode()
+        secondary_start_delay = get_secondary_start_delay_seconds()
+
+        if secondary_start_mode not in (
+            "with_primary",
+            "after_primary",
+            "after_delay"
+        ):
+            log(f"Invalid Secondary Start Mode '{secondary_start_mode}'. Using 'with_primary'.", "SYNC")
+            secondary_start_mode = "with_primary"
+
+        try:
+            secondary_start_delay = max(0, int(secondary_start_delay))
+        except (ValueError, TypeError):
+            secondary_start_delay = 0
+
+        log(f"Secondary Start Mode: {secondary_start_mode}", "SYNC")
+        log(f"Secondary Start Delay: {secondary_start_delay} seconds", "SYNC")
 
         sync_start_delay_ms = get_sync_start_delay_ms()
 
         start_at_ms = int(time.time() * 1000) + sync_start_delay_ms
 
-        message = {
-            "command": "play_at",
-            "start_at_ms": start_at_ms,
-            "sync_id": sync_id
-        }
+        if secondary_start_mode == "with_primary":
+            secondary_start_at_ms = start_at_ms
 
-        log(f"Scheduling playback for {start_at_ms} ms (delay: {sync_start_delay_ms} ms)", "SYNC")
+            log(f"Primary scheduled for {start_at_ms} ms. Secondary scheduled for the same time.", "SYNC")
 
-        result = mqtt_client.client.publish(
-            mqtt_client.TOPIC_CONTROL,
-            json.dumps(message)
-        )
+            send_secondary_play_at(
+                secondary_start_at_ms,
+                sync_id
+            )
 
-        log(f"MQTT publish result: {result.rc}", "MQTT")
-        log(f"Sent PLAY_AT command for {start_at_ms} ms (Sync ID: {sync_id})", "SYNC")
+        elif secondary_start_mode == "after_delay":
+            secondary_start_at_ms = start_at_ms + (secondary_start_delay * 1000)
+
+            log(f"Primary scheduled for {start_at_ms} ms. Secondary scheduled for {secondary_start_at_ms} ms.", "SYNC")
+
+            send_secondary_play_at(
+                secondary_start_at_ms,
+                sync_id
+            )
+
+        else:
+            log(f"Primary scheduled for {start_at_ms} ms. Secondary will start after Primary finishes.", "SYNC")
 
     elif is_enabled() and not mqtt_client.client.is_connected():
         log("MQTT is enabled but not connected. Playing Primary locally.", "SYNC")
@@ -421,6 +585,8 @@ def play_triggered(delay_seconds):
 
     sleep(0.5)
 
+    primary_finished_naturally = False
+
     while player.get_state() not in (
         vlc.State.Ended,
         vlc.State.Stopped
@@ -436,6 +602,38 @@ def play_triggered(delay_seconds):
             break
 
         sleep(0.1)
+
+    if player.get_state() == vlc.State.Ended:
+        primary_finished_naturally = True
+
+    if (
+        sync_enabled
+        and sync_id
+        and secondary_start_mode == "after_primary"
+        and primary_finished_naturally
+    ):
+        secondary_sync_delay_ms = get_sync_start_delay_ms()
+        secondary_start_at_ms = int(time.time() * 1000) + secondary_sync_delay_ms
+
+        log(f"Primary finished naturally. Secondary scheduled for {secondary_start_at_ms} ms.", "SYNC")
+
+        send_secondary_play_at(
+            secondary_start_at_ms,
+            sync_id
+        )
+
+    # ========================================================
+    # Trigger Change happens AFTER the current video finishes
+    # ========================================================
+
+    if primary_finished_naturally:
+        previous_path = get_selected_video()
+        new_path = change_video_on_trigger()
+
+        if new_path and new_path != previous_path:
+            log(f"Trigger Change: {Path(previous_path).name} -> {Path(new_path).name}", "PLAYBACK")
+        elif new_path:
+            log("Trigger Change did not change the selected video.", "PLAYBACK")
 
     log("Video ended or paused. Waiting delay before next motion...", "PLAYBACK")
 
@@ -510,10 +708,6 @@ def main():
 
     log(f"Loaded video {Path(media_path).name} in paused state", "PLAYBACK")
 
-
-    #mqtt_client.client.on_message = on_sync_status_message
-    #log("MQTT sync status listener registered.", "MQTT")
-
     mqtt_client.set_sync_status_handler(on_sync_status_message)
     log("MQTT sync status listener registered.", "MQTT")
 
@@ -557,14 +751,6 @@ def main():
             ):
                 log("Pause flag cleared, returning to playback mode", "PLAYBACK")
 
-                if is_enabled():
-                    mqtt_client.publish(
-                        mqtt_client.TOPIC_CONTROL,
-                        {"command": "play"}
-                    )
-
-                    log("Sent PLAY command to Secondary Pis", "MQTT")
-
                 if player.is_playing():
                     player.stop()
 
@@ -579,6 +765,22 @@ def main():
                 load_and_pause(media_path)
 
                 paused_mode = False
+
+                if is_enabled():
+                    if triggered_flag:
+                        mqtt_client.publish(
+                            mqtt_client.TOPIC_CONTROL,
+                            {"command": "resume"}
+                        )
+
+                        log("Sent RESUME command to Secondary Pis", "MQTT")
+                    else:
+                        mqtt_client.publish(
+                            mqtt_client.TOPIC_CONTROL,
+                            {"command": "play"}
+                        )
+
+                        log("Sent PLAY command to Secondary Pis", "MQTT")
 
             if not paused_mode:
                 if not triggered_flag:
@@ -602,11 +804,8 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-
     except Exception:
         import traceback
-
         log("Uncaught exception:", "ERROR")
         log(traceback.format_exc(), "ERROR")
-
         raise

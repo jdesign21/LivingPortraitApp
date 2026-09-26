@@ -217,6 +217,7 @@ pre {
    FORM CONTROLS
 ========================================================= */
 #triggeredFlag,
+#triggerChange,
 #lightSwitch,
 #pauseSystem {
   transform: scale(1.8);

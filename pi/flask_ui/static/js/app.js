@@ -413,37 +413,120 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ========================================================
-    // PLAYLIST MODE
-    // ========================================================
 
-    const modeSelect = document.getElementById('modeSelect');
-    const intervalGroup = document.getElementById('intervalGroup');
-    const intervalSelect = document.getElementById('interval');
-    const singleVideoGroup = document.getElementById('singleVideoSelectGroup');
-    const fixedPlaylistGroup = document.getElementById('fixedPlaylistGroup');
+// ========================================================
+// PLAYLIST MODE
+// ========================================================
 
-    function updateModeUI() {
-        if (!modeSelect) return;
+const modeSelect = document.getElementById('modeSelect');
+const intervalGroup = document.getElementById('intervalGroup');
+const intervalSelect = document.getElementById('interval');
+const singleVideoGroup = document.getElementById('singleVideoSelectGroup');
+const fixedPlaylistGroup = document.getElementById('fixedPlaylistGroup');
+const secondaryVideoMode = document.getElementById('secondaryVideoMode');
+const triggerChangeGroup = document.getElementById('triggerChangeGroup');
+const triggerChange = document.getElementById('triggerChange');
 
-        const mode = modeSelect.value;
+function updateModeUI() {
+    if (!modeSelect) return;
 
-        if (mode === 'random' || mode === 'fixed') {
-            intervalGroup.style.display = 'block';
-            intervalSelect.disabled = false;
-        } else {
+    const isSecondary = !!secondaryVideoMode;
+    const isSyncTag = isSecondary && secondaryVideoMode.value === 'sync_tag';
+    const isSecondaryPlaylist = isSecondary && secondaryVideoMode.value === 'playlist';
+
+    const singleOption = modeSelect.querySelector('option[value="single"]');
+    const randomOption = modeSelect.querySelector('option[value="random"]');
+    const fixedOption = modeSelect.querySelector('option[value="fixed"]');
+
+    if (isSyncTag) {
+        if (singleOption) singleOption.disabled = false;
+        if (randomOption) randomOption.disabled = true;
+        if (fixedOption) fixedOption.disabled = true;
+
+        modeSelect.value = 'single';
+    } else if (isSecondaryPlaylist) {
+        if (singleOption) singleOption.disabled = true;
+        if (randomOption) randomOption.disabled = modeSelect.dataset.videoCount < 2;
+        if (fixedOption) fixedOption.disabled = modeSelect.dataset.videoCount < 2;
+
+        if (modeSelect.value === 'single' || modeSelect.value === '') {
+            modeSelect.value = 'random';
+        }
+    } else {
+        if (singleOption) singleOption.disabled = false;
+        if (randomOption) randomOption.disabled = modeSelect.dataset.videoCount < 2;
+        if (fixedOption) fixedOption.disabled = modeSelect.dataset.videoCount < 2;
+    }
+
+    const currentMode = modeSelect.value;
+    const supportsTriggerChange = currentMode === 'random' || currentMode === 'fixed';
+
+    if (triggerChangeGroup) {
+        triggerChangeGroup.style.display = supportsTriggerChange ? 'flex' : 'none';
+    }
+
+    if (!supportsTriggerChange && triggerChange) {
+        triggerChange.checked = false;
+    }
+
+    if (supportsTriggerChange && triggerChange && triggerChange.checked) {
+        if (intervalGroup) {
             intervalGroup.style.display = 'none';
-            intervalSelect.disabled = true;
         }
 
-        singleVideoGroup.style.display = (mode === 'single') ? 'block' : 'none';
-        fixedPlaylistGroup.style.display = (mode === 'fixed') ? 'block' : 'none';
+        if (intervalSelect) {
+            intervalSelect.disabled = true;
+        }
+    } else if (currentMode === 'random' || currentMode === 'fixed') {
+        if (intervalGroup) {
+            intervalGroup.style.display = 'block';
+        }
+
+        if (intervalSelect) {
+            intervalSelect.disabled = false;
+        }
+    } else {
+        if (intervalGroup) {
+            intervalGroup.style.display = 'none';
+        }
+
+        if (intervalSelect) {
+            intervalSelect.disabled = true;
+        }
     }
 
-    if (modeSelect) {
-        modeSelect.addEventListener('change', updateModeUI);
-        updateModeUI();
+    if (singleVideoGroup) {
+        if (!isSecondary && currentMode === 'single') {
+            singleVideoGroup.style.display = 'block';
+        } else {
+            singleVideoGroup.style.display = 'none';
+        }
     }
+
+    if (fixedPlaylistGroup) {
+        fixedPlaylistGroup.style.display =
+            currentMode === 'fixed' ? 'block' : 'none';
+    }
+}
+
+if (modeSelect) {
+    modeSelect.dataset.videoCount = '{{ video_count }}';
+    modeSelect.addEventListener('change', updateModeUI);
+}
+
+if (secondaryVideoMode) {
+    secondaryVideoMode.addEventListener('change', updateModeUI);
+}
+
+if (triggerChange) {
+    triggerChange.addEventListener('change', updateModeUI);
+}
+
+updateModeUI();
+ 
+
+
+
 
     // ========================================================
     // VIDEO PREVIEW
@@ -597,7 +680,26 @@ if (savedManageTab) {
         });
     });
 
+    // ========================================================
+    // SECONDARY START
+    // ========================================================
 
+    const secondaryStartMode = document.getElementById('secondaryStartMode');
+    const secondaryStartDelayGroup = document.getElementById('secondaryStartDelayGroup');
+
+    function updateSecondaryStartUI() {
+        if (!secondaryStartMode || !secondaryStartDelayGroup) {
+            return;
+        }
+
+        secondaryStartDelayGroup.style.display =
+            secondaryStartMode.value === 'after_delay' ? 'block' : 'none';
+    }
+
+    if (secondaryStartMode) {
+        secondaryStartMode.addEventListener('change', updateSecondaryStartUI);
+        updateSecondaryStartUI();
+    }
 
     
     // ========================================================

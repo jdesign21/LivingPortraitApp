@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
 from werkzeug.utils import secure_filename
 from pathlib import Path
 import os
@@ -9,6 +9,7 @@ import sys
 import json
 import mqtt_client
 import time
+import subprocess
 
 HOME = Path(os.path.expanduser("~"))
 
@@ -27,7 +28,8 @@ from shared.vlc_helper import (
     get_days_schedule,
     update_days_schedule,
     is_schedule_enabled_now,
-    get_next_start_time
+    get_next_start_time,
+    get_secondary_video_mode
 )
 
 from shared.vlc_network_helper import (
@@ -59,8 +61,10 @@ LOG_FOLDER.mkdir(parents=True, exist_ok=True)
 VIDEO_FOLDER.mkdir(parents=True, exist_ok=True)
 IMAGES_FOLDER.mkdir(parents=True, exist_ok=True)
 
+
 def format_ampm(time_str):
     return datetime.strptime(time_str, "%H:%M").strftime("%I:%M %p")
+
 
 def get_mqtt_status():
     """
@@ -70,12 +74,16 @@ def get_mqtt_status():
     try:
         if not MQTT_STATUS_FILE.exists():
             return False
+
         with open(MQTT_STATUS_FILE, "r") as f:
             status = json.load(f)
+
         return status.get("connected", False) is True
+
     except Exception as e:
         log(f"Error reading MQTT status: {e}", "ERROR")
         return False
+
 
 @app.route("/")
 def index():
@@ -90,6 +98,7 @@ def index():
 
     selected_video = settings.get("selected_video", "")
     pause_flag = settings.get("pause_flag", False)
+    reboot_required = session.get("reboot_required", False)
 
     # Master Sync Tags
     sync_tags = settings.get("sync_tags", [])
@@ -99,7 +108,7 @@ def index():
     primary_ip = network_settings.get("primary_ip", "")
     enable = network_settings.get("enable", "0")
     sync_start_delay_ms = get_sync_start_delay_ms()
-    #secondary_pis = network_settings.get("secondary_pis", [])
+    # secondary_pis = network_settings.get("secondary_pis", [])
     secondary_pis = check_secondary_status()
 
     # Read MQTT status without importing mqtt_client.
@@ -109,19 +118,59 @@ def index():
     mode, interval, last_updated, order, triggered_flag, delay = get_playlist_settings()
     delay = delay or 0
 
+    playlist_settings = settings.get("playlist", {})
+
+    trigger_change = bool(
+        playlist_settings.get("trigger_change", False)
+    )
+
+    secondary_start_mode = playlist_settings.get(
+        "secondary_start_mode",
+        "with_primary"
+    )
+
+    secondary_start_delay = playlist_settings.get(
+        "secondary_start_delay",
+        0
+    )
+
+    try:
+        secondary_start_delay = int(secondary_start_delay)
+    except (ValueError, TypeError):
+        secondary_start_delay = 0
+
+    secondary_video_mode = playlist_settings.get(
+        "secondary_video_mode",
+        "sync_tag"
+    )
+
+    if secondary_video_mode not in ("sync_tag", "playlist"):
+        secondary_video_mode = "sync_tag"
+
     # Get days schedule
     days_schedule = settings.get("days", {})
 
     # Format times for all slots and store in a list
     for day, sched in days_schedule.items():
         slots = []
+
         for slot_key in ["slot1", "slot2"]:
             slot = sched.get(slot_key, {})
+
             if slot.get("enabled", False):
-                start_time = datetime.strptime(slot.get("start", "00:00"), "%H:%M").time()
-                end_time = datetime.strptime(slot.get("end", "23:59"), "%H:%M").time()
+                start_time = datetime.strptime(
+                    slot.get("start", "00:00"),
+                    "%H:%M"
+                ).time()
+
+                end_time = datetime.strptime(
+                    slot.get("end", "23:59"),
+                    "%H:%M"
+                ).time()
+
                 now_time = datetime.now().time()
                 is_active = start_time <= now_time < end_time
+
                 slots.append({
                     "name": slot_key,
                     "start_ampm": format_ampm(slot.get("start", "00:00")),
@@ -129,6 +178,7 @@ def index():
                     "category": slot.get("category", ""),
                     "is_active": is_active
                 })
+
         sched["slots"] = slots
 
     # Get today's name
@@ -160,6 +210,7 @@ def index():
     for video in manage_videosTags:
         if not video.get("active", False):
             continue
+
         for tag in video.get("tags", []):
             available_tags.add(tag.lower())
 
@@ -170,11 +221,16 @@ def index():
 
     if mode in ["random", "fixed"] and last_updated and interval > 0:
         try:
-            last_dt = datetime.strptime(last_updated, "%Y-%m-%d %H:%M:%S")
+            last_dt = datetime.strptime(
+                last_updated,
+                "%Y-%m-%d %H:%M:%S"
+            )
+
             next_dt = last_dt + timedelta(seconds=interval * 60)
             now = datetime.now()
             diff = (next_dt - now).total_seconds()
             time_remaining = max(0, int(diff))
+
         except Exception as e:
             log(f"Error calculating time remaining: {e}", "ERROR")
 
@@ -187,7 +243,9 @@ def index():
         for f in log_files:
             logs.append({
                 "name": f.name,
-                "mtime": datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %I:%M %p"),
+                "mtime": datetime.fromtimestamp(
+                    f.stat().st_mtime
+                ).strftime("%Y-%m-%d %I:%M %p"),
                 "size": f.stat().st_size
             })
 
@@ -210,9 +268,13 @@ def index():
                                 timestamp_text = line[1:first_end]
 
                                 try:
-                                    timestamp = datetime.fromisoformat(timestamp_text)
+                                    timestamp = datetime.fromisoformat(
+                                        timestamp_text
+                                    )
                                 except ValueError:
-                                    timestamp = datetime.fromtimestamp(f.stat().st_mtime)
+                                    timestamp = datetime.fromtimestamp(
+                                        f.stat().st_mtime
+                                    )
 
                                 remainder = line[first_end + 1:].strip()
 
@@ -221,14 +283,18 @@ def index():
 
                                     if category_end != -1:
                                         category = remainder[1:category_end]
-                                        message = remainder[category_end + 1:].strip()
+                                        message = remainder[
+                                            category_end + 1:
+                                        ].strip()
                                     else:
                                         message = remainder
                                 else:
                                     message = remainder
 
                         if timestamp is None:
-                            timestamp = datetime.fromtimestamp(f.stat().st_mtime)
+                            timestamp = datetime.fromtimestamp(
+                                f.stat().st_mtime
+                            )
 
                         recent_activity.append({
                             "time": timestamp.strftime("%I:%M %p").lstrip("0"),
@@ -236,11 +302,15 @@ def index():
                             "message": message,
                             "timestamp": timestamp
                         })
+
             except Exception as e:
                 log(f"Error reading recent activity from {f.name}: {e}", "ERROR")
 
         logs.sort(key=lambda x: x["mtime"], reverse=True)
-        recent_activity.sort(key=lambda x: x["timestamp"], reverse=True)
+        recent_activity.sort(
+            key=lambda x: x["timestamp"],
+            reverse=True
+        )
         recent_activity = recent_activity[:8]
 
     return render_template(
@@ -268,14 +338,19 @@ def index():
         next_start_time=next_start_time,
         next_category=next_category,
         triggered_flag=triggered_flag,
+        trigger_change=trigger_change,
         delay=delay,
+        secondary_start_mode=secondary_start_mode,
+        secondary_start_delay=secondary_start_delay,
+        secondary_video_mode=secondary_video_mode,
         role=role,
         primary_ip=primary_ip,
         enable=enable,
         secondary_pis=secondary_pis,
         mqtt_connected=mqtt_connected,
         sync_start_delay_ms=sync_start_delay_ms,
-        version=version
+        version=version,
+        reboot_required=reboot_required
     )
 
 
@@ -305,7 +380,11 @@ def setup():
             primary_ip = ""
 
         if role == "secondary" and enable == "1" and not primary_ip:
-            flash("Primary Pi IP Address is required when MQTT is enabled on a Secondary.", "danger")
+            flash(
+                "Primary Pi IP Address is required when MQTT is enabled on a Secondary.",
+                "danger"
+            )
+
             return render_template(
                 "setup.html",
                 role=role,
@@ -330,7 +409,11 @@ def setup():
             ip = request.form.get(ip_key, "").strip()
 
             if not name or not ip:
-                flash("Each Secondary Pi must have both a name and IP address.", "danger")
+                flash(
+                    "Each Secondary Pi must have both a name and IP address.",
+                    "danger"
+                )
+
                 return render_template(
                     "setup.html",
                     role=role,
@@ -361,8 +444,14 @@ def setup():
         # First video upload.
         setup_video = request.files.get("video")
 
-        if not videos and (not setup_video or setup_video.filename == ""):
-            flash("Please upload at least one MP4 video before completing setup.", "danger")
+        if not videos and (
+            not setup_video or setup_video.filename == ""
+        ):
+            flash(
+                "Please upload at least one MP4 video before completing setup.",
+                "danger"
+            )
+
             return render_template(
                 "setup.html",
                 role=role,
@@ -374,7 +463,11 @@ def setup():
 
         if setup_video and setup_video.filename:
             if not setup_video.filename.lower().endswith(".mp4"):
-                flash("Only .mp4 files are allowed for the initial video.", "danger")
+                flash(
+                    "Only .mp4 files are allowed for the initial video.",
+                    "danger"
+                )
+
                 return render_template(
                     "setup.html",
                     role=role,
@@ -388,6 +481,7 @@ def setup():
 
             if not filename:
                 flash("Invalid video filename.", "danger")
+
                 return render_template(
                     "setup.html",
                     role=role,
@@ -425,15 +519,24 @@ def setup():
             settings["pause_flag"] = False
             save_settings(settings)
 
-            videos = sorted([f.name for f in VIDEO_FOLDER.glob("*.mp4")])
+            videos = sorted([
+                f.name
+                for f in VIDEO_FOLDER.glob("*.mp4")
+            ])
 
         else:
             settings = load_settings()
 
             if videos:
-                selected_video = settings.get("selected_video", "")
+                selected_video = settings.get(
+                    "selected_video",
+                    ""
+                )
 
-                if not selected_video or not (VIDEO_FOLDER / selected_video).exists():
+                if (
+                    not selected_video
+                    or not (VIDEO_FOLDER / selected_video).exists()
+                ):
                     selected_video = videos[0]
                     settings["selected_video"] = selected_video
 
@@ -444,7 +547,11 @@ def setup():
         settings["setup_complete"] = True
         save_settings(settings)
 
-        flash("LivingPortraitApp setup completed successfully.", "success")
+        flash(
+            "LivingPortraitApp setup completed successfully.",
+            "success"
+        )
+
         return redirect(url_for("index"))
 
     return render_template(
@@ -456,21 +563,49 @@ def setup():
         videos=videos
     )
 
+
 @app.route("/select", methods=["POST"])
 def select():
     action = request.form.get("action", "")
     playlist_mode = request.form.get("mode", "")
     interval_str = request.form.get("interval", "0")
     triggered_flag = request.form.get("triggered_flag") == "on"
+    trigger_change = request.form.get("trigger_change") == "on"
     delay = int(request.form.get("delay", 0))
+
+    secondary_start_mode = request.form.get(
+        "secondary_start_mode",
+        "with_primary"
+    )
+
+    secondary_start_delay = int(
+        request.form.get("secondary_start_delay", 0)
+    )
+
+    secondary_video_mode = request.form.get(
+        "secondary_video_mode",
+        "sync_tag"
+    )
+
+    if secondary_video_mode not in ("sync_tag", "playlist"):
+        secondary_video_mode = "sync_tag"
 
     try:
         interval = int(interval_str)
+
         if interval < 0:
             raise ValueError()
+
     except (ValueError, TypeError):
         flash("Invalid interval value", "danger")
         return redirect(url_for("index"))
+
+    if playlist_mode == "single":
+        trigger_change = False
+        interval = 0
+
+    elif trigger_change:
+        interval = 0
 
     if action == "shuffle":
         settings = load_settings()
@@ -498,7 +633,11 @@ def select():
             last_updated=timestamp,
             order=new_order,
             triggered_flag=triggered_flag,
-            delay=delay
+            trigger_change=trigger_change,
+            delay=delay,
+            secondary_start_mode=secondary_start_mode,
+            secondary_start_delay=secondary_start_delay,
+            secondary_video_mode=secondary_video_mode
         )
 
         settings = load_settings()
@@ -510,30 +649,55 @@ def select():
         flash("Playlist order shuffled!", "success")
         return redirect(url_for("index"))
 
-    videos = sorted([f.name for f in VIDEO_FOLDER.glob("*.mp4")])
+    videos = sorted([
+        f.name
+        for f in VIDEO_FOLDER.glob("*.mp4")
+    ])
 
     if not videos:
-        flash("No videos found in the Videos folder", "danger")
+        flash(
+            "No videos found in the Videos folder",
+            "danger"
+        )
         return redirect(url_for("index"))
 
     if playlist_mode == "random":
-        if interval == 0:
-            flash("Interval must be greater than zero for random mode", "danger")
+        if not trigger_change and interval == 0:
+            flash(
+                "Interval must be greater than zero for random mode",
+                "danger"
+            )
             return redirect(url_for("index"))
 
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
 
         update_playlist_settings(
             mode="random",
             interval=interval,
             last_updated=timestamp,
             triggered_flag=triggered_flag,
-            delay=delay
+            trigger_change=trigger_change,
+            delay=delay,
+            secondary_start_mode=secondary_start_mode,
+            secondary_start_delay=secondary_start_delay,
+            secondary_video_mode=secondary_video_mode
         )
 
         settings = load_settings()
-        current_video = settings.get("selected_video", "")
-        order = settings.get("playlist", {}).get("order", [])
+        current_video = settings.get(
+            "selected_video",
+            ""
+        )
+
+        order = settings.get(
+            "playlist",
+            {}
+        ).get(
+            "order",
+            []
+        )
 
         active_files = [
             item["filename"]
@@ -542,7 +706,10 @@ def select():
         ]
 
         if not active_files:
-            flash("No active videos available for random playback", "danger")
+            flash(
+                "No active videos available for random playback",
+                "danger"
+            )
             return redirect(url_for("index"))
 
         other_choices = [
@@ -551,18 +718,38 @@ def select():
             if f != current_video
         ]
 
-        new_video = random.choice(other_choices) if other_choices else current_video
+        new_video = (
+            random.choice(other_choices)
+            if other_choices
+            else current_video
+        )
+
         settings["selected_video"] = new_video
         save_settings(settings)
 
-        flash(f"Random mode enabled with interval {interval} seconds", "success")
+        if trigger_change:
+            flash(
+                "Random mode enabled with Trigger Change",
+                "success"
+            )
+        else:
+            flash(
+                f"Random mode enabled with interval {interval} seconds",
+                "success"
+            )
 
     elif playlist_mode == "fixed":
-        if interval == 0:
-            flash("Interval must be greater than zero for fixed mode", "danger")
+        if not trigger_change and interval == 0:
+            flash(
+                "Interval must be greater than zero for fixed mode",
+                "danger"
+            )
             return redirect(url_for("index"))
 
-        order_str = request.form.get("fixed_order", "")
+        order_str = request.form.get(
+            "fixed_order",
+            ""
+        )
 
         filenames = [
             v.strip()
@@ -571,10 +758,19 @@ def select():
         ]
 
         if not filenames:
-            flash("Please provide a valid fixed order with existing videos", "danger")
+            flash(
+                "Please provide a valid fixed order with existing videos",
+                "danger"
+            )
             return redirect(url_for("index"))
 
-        existing_order = load_settings().get("playlist", {}).get("order", [])
+        existing_order = load_settings().get(
+            "playlist",
+            {}
+        ).get(
+            "order",
+            []
+        )
 
         existing_dict = {
             entry["filename"]: entry
@@ -585,19 +781,25 @@ def select():
         new_order = []
 
         for fn in filenames:
-            new_order.append({
-                "filename": fn,
-                "active": True
-            })
+            if fn in existing_dict:
+                entry = dict(existing_dict[fn])
+                entry["active"] = True
+                new_order.append(entry)
+            else:
+                new_order.append({
+                    "filename": fn,
+                    "active": True
+                })
 
         for fn, entry in existing_dict.items():
             if fn not in filenames:
-                new_order.append({
-                    "filename": fn,
-                    "active": False
-                })
+                entry = dict(entry)
+                entry["active"] = False
+                new_order.append(entry)
 
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
 
         update_playlist_settings(
             mode="fixed",
@@ -605,7 +807,11 @@ def select():
             last_updated=timestamp,
             order=new_order,
             triggered_flag=triggered_flag,
-            delay=delay
+            trigger_change=trigger_change,
+            delay=delay,
+            secondary_start_mode=secondary_start_mode,
+            secondary_start_delay=secondary_start_delay,
+            secondary_video_mode=secondary_video_mode
         )
 
         settings = load_settings()
@@ -614,24 +820,49 @@ def select():
             settings["selected_video"] = new_order[0]["filename"]
             save_settings(settings)
 
-        flash(f"Fixed playlist mode enabled with interval {interval} seconds", "success")
+        if trigger_change:
+            flash(
+                "Fixed playlist mode enabled with Trigger Change",
+                "success"
+            )
+        else:
+            flash(
+                f"Fixed playlist mode enabled with interval {interval} seconds",
+                "success"
+            )
 
     else:
         selected_video = request.form.get("video")
 
-        if selected_video and (VIDEO_FOLDER / selected_video).exists():
+        if (
+            selected_video
+            and (VIDEO_FOLDER / selected_video).exists()
+        ):
             settings = load_settings()
+
             settings["selected_video"] = selected_video
             settings["playlist"]["mode"] = "single"
             settings["playlist"]["interval"] = 0
             settings["playlist"]["last_updated"] = ""
             settings["playlist"]["triggered_flag"] = triggered_flag
+            settings["playlist"]["trigger_change"] = False
             settings["playlist"]["delay"] = delay
+            settings["playlist"]["secondary_start_mode"] = secondary_start_mode
+            settings["playlist"]["secondary_start_delay"] = secondary_start_delay
+            settings["playlist"]["secondary_video_mode"] = secondary_video_mode
+
             save_settings(settings)
 
-            flash(f"Selected single video: {selected_video}", "success")
+            flash(
+                f"Selected single video: {selected_video}",
+                "success"
+            )
+
         else:
-            flash("Invalid video selection", "danger")
+            flash(
+                "Invalid video selection",
+                "danger"
+            )
 
     return redirect(url_for("index"))
 
@@ -1062,30 +1293,86 @@ def sync_tags_to_secondaries():
 
     return redirect(url_for("index"))
 
-@app.route("/delete/<filename>", methods=["POST"])
+
+
+@app.route('/delete/<filename>', methods=['POST'])
 def delete(filename):
     filepath = VIDEO_FOLDER / filename
 
-    if filepath.exists():
-        filepath.unlink()
+    if not filepath.exists():
+        flash('File not found', 'danger')
+        return redirect(url_for('index'))
+
+    settings = load_settings()
+    playlist = settings.get("playlist", {})
+    order = playlist.get("order", [])
+
+    role = settings.get("role", "primary")
+    enable = settings.get("enable", "0")
+    secondary_video_mode = playlist.get("secondary_video_mode", "sync_tag")
+
+    active_videos = [
+        item
+        for item in order
+        if item.get("active", True) and (VIDEO_FOLDER / item["filename"]).exists()
+    ]
+
+    # Do not allow the last active video to be deleted.
+    if len(active_videos) <= 1:
+        flash("At least one active video must remain.", "danger")
+        return redirect(url_for("index"))
+
+    filepath.unlink()
+
+    # Remove from playlist order.
+    order = [
+        item
+        for item in order
+        if item["filename"] != filename
+    ]
+
+    settings["playlist"]["order"] = order
+    save_settings(settings)
+
+    # Check remaining active videos.
+    remaining_active = [
+        item
+        for item in order
+        if item.get("active", True) and (VIDEO_FOLDER / item["filename"]).exists()
+    ]
+
+    if len(remaining_active) == 1:
+        only_video = remaining_active[0]["filename"]
+
+        # Secondary must return to Match Sync Tag when only one active video remains.
+        if role == "secondary" and enable == "1":
+            update_playlist_settings(
+                mode="single",
+                interval=0,
+                last_updated="",
+                secondary_video_mode="sync_tag"
+            )
+        else:
+            update_playlist_settings(
+                mode="single",
+                interval=0,
+                last_updated=""
+            )
 
         settings = load_settings()
-        order = settings.get("playlist", {}).get("order", [])
-
-        order = [
-            item
-            for item in order
-            if item["filename"] != filename
-        ]
-
-        settings["playlist"]["order"] = order
+        settings["selected_video"] = only_video
         save_settings(settings)
 
-        flash(f"Deleted {filename}", "success")
+        flash(
+            f"Deleted {filename}. Only one active video remains. Switched to single mode with video: {only_video}",
+            "info"
+        )
     else:
-        flash("File not found", "danger")
+        flash(f"Deleted {filename}", "success")
 
     return redirect(url_for("index"))
+
+
 
 @app.route("/logs/view/<filename>")
 def view_log(filename):
@@ -1163,6 +1450,7 @@ def download_log(filename):
         download_name=safe_filename
     )
 
+
 @app.route("/network", methods=["POST"])
 def network():
     role = request.form.get("role", "primary")
@@ -1185,54 +1473,38 @@ def network():
         configure_mosquitto(role, enable)
 
         message = "Network settings updated!"
-        reboot_required = False
-
-        # Force Single mode for:
-        # - Secondary
-        # - Primary with MQTT enabled
-        if role == "secondary" or (role == "primary" and enable == "1"):
-            settings = load_settings()
-            order = settings.get("playlist", {}).get("order", [])
-
-            active_videos = [
-                v
-                for v in order
-                if v.get("active", True)
-            ]
-
-            log(f"active_videos: {active_videos}", "PLAYBACK")
-
-            if active_videos:
-                only_video = active_videos[0]["filename"]
-
-                update_playlist_settings(
-                    mode="single",
-                    interval=0,
-                    last_updated="",
-                    triggered_flag=settings.get("playlist", {}).get("triggered_flag", False),
-                    delay=settings.get("playlist", {}).get("delay", 0)
-                )
-
-                settings = load_settings()
-                settings["selected_video"] = only_video
-                save_settings(settings)
-
-                message += f" Switched to single mode with video: {only_video}"
 
         # Changing role or network configuration requires a reboot
-        reboot_required = True
+        session["reboot_required"] = True
 
-        flash(message, "success")
-
-        if reboot_required:
-            flash(
-                "Reboot required for network changes to take effect.",
-                "danger"
-            )
+        # flash(message, "success")
+        # flash("Reboot required for network changes to take effect.","danger")
 
     except Exception as e:
         log(f"Failed to update network: {e}", "ERROR")
         flash(f"Failed to update network: {e}", "danger")
+
+    return redirect(url_for("index"))
+
+
+@app.route("/reboot", methods=["POST"])
+def reboot():
+    try:
+        log("System reboot requested from Network Settings.", "SYSTEM")
+        session["reboot_required"] = False
+
+        subprocess.Popen(
+            ["sudo", "/usr/sbin/reboot"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+
+        flash("Rebooting Raspberry Pi...", "warning")
+
+    except Exception as e:
+        log(f"Failed to reboot Raspberry Pi: {e}", "ERROR")
+        session["reboot_required"] = True
+        flash(f"Failed to reboot Raspberry Pi: {e}", "danger")
 
     return redirect(url_for("index"))
 

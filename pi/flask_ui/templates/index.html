@@ -40,13 +40,13 @@
       <span class="label">Home</span>
     </a>
 
-    {% if role == "primary" or (role == "secondary" and enable != "1") %}
+    
     <a class="nav-link" data-section="mode">
       <i class="bi bi-check-square"></i>
       <span class="label">Mode</span>
     </a>
 
-
+{% if role == "primary" or (role == "secondary" and enable != "1") %}
     <a class="nav-link" data-section="schedule">
       <i class="bi bi-calendar-check"></i>
       <span class="label">Schedule</span>

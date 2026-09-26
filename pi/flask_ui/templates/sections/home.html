@@ -3,295 +3,335 @@
     <i class="bi bi-house"></i> Dashboard
   </h3>
 
-<!-- System Status + Current Playback / Playback Preview -->
-<div class="row g-3 mb-3">
-  <!-- System Status + Current Playback -->
-  <div class="col-lg-6">
-    <div class="card shadow-sm h-100">
-      <!-- System Status -->
-      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <strong>System Status</strong>
-        {% if is_schedule_enabled_now %}
-        <span class="badge bg-success">Active</span>
-        {% else %}
-        <span class="badge bg-secondary">Inactive</span>
-        {% endif %}
-      </div>
+  <!-- System Status + Current Playback / Playback Preview -->
 
-      <div class="card-body p-0">
-        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-          <span class="fw-semibold">Role</span>
-          <span class="d-flex align-items-center gap-2 text-primary fw-semibold">
-          {{ role|capitalize }}</span>
-        </div>
-
-        <div class="d-flex justify-content-between align-items-center px-3 py-2 {% if role == 'primary' %}border-bottom{% endif %}">
-          <span class="fw-semibold">MQTT</span>
-          {% if enable == "1" %}
-          <span class="d-flex align-items-center gap-2 text-success fw-semibold">
-            
-            Enabled
-          </span>
-          {% else %}
-          <span class="d-flex align-items-center gap-2 text-muted fw-semibold">
-            
-            Disabled
-          </span>
-          {% endif %}
-        </div>
-
-        {% if role == "primary" %}
-        <!-- Current Playback -->
+  <div class="row g-3 mb-3">
+    <!-- System Status + Current Playback -->
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <!-- System Status -->
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-          <strong>Current Playback</strong>
-          <span class="badge bg-light text-dark">
-            {% if playlist_mode == 'random' %}
-            Random
-            {% elif playlist_mode == 'fixed' %}
-            Fixed Order
-            {% elif playlist_mode == 'single' %}
-            Single
-            {% else %}
-            None
-            {% endif %}
-          </span>
-        </div>
-
-        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-          <span class="fw-semibold">Selected Video</span>
-          <span class="text-end ms-3 fw-semibold">
-            {% if selected %}
-            {{ selected }}
-            {% else %}
-            <span class="text-muted">None</span>
-            {% endif %}
-          </span>
-        </div>
-
-        {% if playlist_mode == 'random' or (playlist_mode == 'fixed' and fixed_order) %}
-        {% if time_remaining is not none %}
-        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-          <span class="fw-semibold">Next Switch</span>
-          <span class="badge bg-primary">
-            <span id="countdown">{{ time_remaining }}</span> sec
-          </span>
-        </div>
-        {% endif %}
-        {% endif %}
-
-        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-          <span class="fw-semibold">Triggered Mode</span>
-          {% if triggered_flag %}
-          <span class="d-flex align-items-center gap-2 text-success fw-semibold">
-            
-            Enabled
-          </span>
+          <strong>System Status</strong>
+          {% if is_schedule_enabled_now %}
+          <span class="badge bg-success">Active</span>
           {% else %}
-          <span class="d-flex align-items-center gap-2 text-muted fw-semibold">
-            
-            Disabled
-          </span>
+          <span class="badge bg-secondary">Inactive</span>
           {% endif %}
         </div>
 
-        {% if triggered_flag %}
-        {% set minutes = (delay or 0) // 60 %}
-        {% set seconds = (delay or 0) % 60 %}
-        <div class="d-flex justify-content-between align-items-center px-3 py-2">
-          <span class="fw-semibold">Trigger Delay</span>
-          <span>{{ minutes }}m {{ seconds }}s</span>
-        </div>
-        {% endif %}
 
-        {% if playlist_mode == 'fixed' and fixed_order %}
-        <div class="px-3 pt-2">
-          <div class="fw-semibold mb-1">Playlist</div>
-          <ol class="mb-2 ps-4">
-            {% for video in fixed_order %}
-            <li class="mb-1">{{ video.filename }}</li>
-            {% endfor %}
-          </ol>
-        </div>
-        {% endif %}
-        {% endif %}
-      </div>
-    </div>
-  </div>
-
-  <!-- Playback Preview -->
-  <div class="col-lg-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <strong>Playback Preview</strong>
-        {% if selected %}
-        <span class="badge bg-light text-dark">Preview</span>
-        {% endif %}
+    <div class="card-body p-0">
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+        <span class="fw-semibold">Role</span>
+        <span class="d-flex align-items-center gap-2 text-primary fw-semibold">
+          {{ role|capitalize }}</span>
       </div>
 
-      <div class="card-body d-flex align-items-center justify-content-center p-3">
-        {% if selected and not pause and is_schedule_enabled_now %}
-        <video id="videoPreview" controls autoplay muted class="w-100" style="max-width:360px;">
-          <source src="{{ url_for('video_file', filename=selected) }}" type="video/mp4">
-          Your browser does not support the video tag.
-        </video>
-        {% elif selected %}
-        <div class="text-center py-5">
-          <div class="rounded-circle bg-light d-inline-flex align-items-center justify-content-center mb-3" style="width:60px;height:60px;">
-            <span class="text-muted fs-4">Ⅱ</span>
-          </div>
-          <div class="fw-semibold text-muted mb-1">Playback Paused</div>
-          <div class="small text-muted">
-            Playback is currently paused or outside the active schedule.
-          </div>
-        </div>
+      <div
+        class="d-flex justify-content-between align-items-center px-3 py-2 {% if role == 'primary' %}border-bottom{% endif %}">
+        <span class="fw-semibold">MQTT</span>
+        {% if enable == "1" %}
+        <span class="d-flex align-items-center gap-2 text-success fw-semibold">Enabled</span>
         {% else %}
-        <div class="text-center py-5">
-          <div class="rounded-circle bg-light d-inline-flex align-items-center justify-content-center mb-3" style="width:60px;height:60px;">
-            <span class="text-muted fs-4">▶</span>
-          </div>
-          <div class="fw-semibold text-muted mb-1">No Video Selected</div>
-          <div class="small text-muted">
-            Select a video to preview playback.
-          </div>
-        </div>
+        <span class="d-flex align-items-center gap-2 text-muted fw-semibold">Disabled</span>
         {% endif %}
       </div>
+
+      {% if role == "primary" or role == "secondary" %}
+      <!-- Current Playback -->
+      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <strong>Current Playback</strong>
+        <span class="badge bg-light text-dark">
+          {% if playlist_mode == 'random' %}
+          Random
+          {% elif playlist_mode == 'fixed' %}
+          Fixed Order
+          {% elif playlist_mode == 'single' %}
+          Single
+          {% else %}
+          None
+          {% endif %}
+        </span>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+        <span class="fw-semibold">Selected Video</span>
+        <span class="text-end ms-3 fw-semibold">
+          {% if selected %}
+          {{ selected }}
+          {% else %}
+          <span class="text-muted">None</span>
+          {% endif %}
+        </span>
+      </div>
+
+      {% if playlist_mode == 'random' or (playlist_mode == 'fixed' and fixed_order) %}
+      {% if time_remaining is not none %}
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+        <span class="fw-semibold">Next Switch</span>
+        <span class="badge bg-primary">
+          <span id="countdown">{{ time_remaining }}</span> sec
+        </span>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+        <span class="fw-semibold">Triggered Mode</span>
+        {% if triggered_flag %}
+        <span class="d-flex align-items-center gap-2 text-success fw-semibold">
+          Enabled
+        </span>
+        {% else %}
+        <span class="d-flex align-items-center gap-2 text-muted fw-semibold">
+          Disabled
+        </span>
+        {% endif %}
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+        <span class="fw-semibold">Trigger Change</span>
+        {% if trigger_change %}
+        <span class="d-flex align-items-center gap-2 text-success fw-semibold">
+          Enabled
+        </span>
+        {% else %}
+        <span class="d-flex align-items-center gap-2 text-muted fw-semibold">
+          Disabled
+        </span>
+        {% endif %}
+      </div>
+
+      {% if role == "primary" %}
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+        <span class="fw-semibold">Secondary Start Mode</span>
+        <span class="text-end">
+          {% if secondary_start_mode == "with_primary" %}
+          Start with Primary
+          {% elif secondary_start_mode == "after_primary" %}
+          Start after Primary finishes
+          {% elif secondary_start_mode == "after_delay" %}
+          Start after delay
+          {% if secondary_start_delay is not none %}
+          ({{ secondary_start_delay }} seconds)
+          {% endif %}
+          {% endif %}
+        </span>
+      </div>
+      {% endif %}
+
+      {% if triggered_flag %}
+      {% set minutes = (delay or 0) // 60 %}
+      {% set seconds = (delay or 0) % 60 %}
+      <div class="d-flex justify-content-between align-items-center px-3 py-2">
+        <span class="fw-semibold">Trigger Delay</span>
+        <span>{{ minutes }}m {{ seconds }}s</span>
+      </div>
+      {% endif %}
+
+      {% if playlist_mode == 'fixed' and fixed_order %}
+      <div class="px-3 pt-2">
+        <div class="fw-semibold mb-1">Playlist</div>
+        <ol class="mb-2 ps-4">
+          {% for video in fixed_order %}
+          <li class="mb-1">{{ video.filename }}</li>
+          {% endfor %}
+        </ol>
+      </div>
+      {% endif %}
+      {% endif %}
     </div>
   </div>
 </div>
+
+<!-- Playback Preview -->
+<div class="col-lg-6">
+  <div class="card shadow-sm h-100">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <strong>Playback Preview</strong>
+      {% if selected %}
+      <span class="badge bg-light text-dark">Preview</span>
+      {% endif %}
+    </div>
+
+    <div class="card-body d-flex align-items-center justify-content-center p-3">
+      {% if selected and not pause and is_schedule_enabled_now %}
+      <video id="videoPreview" controls autoplay muted class="w-100" style="max-width:360px;">
+        <source src="{{ url_for('video_file', filename=selected) }}" type="video/mp4">
+        Your browser does not support the video tag.
+      </video>
+      {% elif selected %}
+      <div class="text-center py-5">
+        <div class="rounded-circle bg-light d-inline-flex align-items-center justify-content-center mb-3"
+          style="width:60px;height:60px;">
+          <span class="text-muted fs-4">Ⅱ</span>
+        </div>
+        <div class="fw-semibold text-muted mb-1">Playback Paused</div>
+        <div class="small text-muted">
+          Playback is currently paused or outside the active schedule.
+        </div>
+      </div>
+      {% else %}
+      <div class="text-center py-5">
+        <div class="rounded-circle bg-light d-inline-flex align-items-center justify-content-center mb-3"
+          style="width:60px;height:60px;">
+          <span class="text-muted fs-4">▶</span>
+        </div>
+        <div class="fw-semibold text-muted mb-1">No Video Selected</div>
+        <div class="small text-muted">
+          Select a video to preview playback.
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+
+  </div>
 
 {% if role == "primary" %}
-<!-- Today's Schedule + Secondary Pis -->
-<div class="row g-3 mb-3">
-  <!-- Today's Schedule -->
-  <div class="col-lg-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <strong>Today's Schedule</strong>
-        <span class="badge bg-light text-dark">{{ today }}</span>
-      </div>
 
-      <div class="card-body p-0">
-        {% if today_schedule.enabled and today_schedule.slots %}
-        {% for slot in today_schedule.slots %}
-        <div class="d-flex align-items-center justify-content-between px-3 py-2 {% if not loop.last %}border-bottom{% endif %}">
-          <div class="d-flex align-items-center gap-2">
-            {% if slot.is_active %}
-            <span class="d-flex align-items-center gap-2 text-success fw-semibold">
-              <span class="rounded-circle bg-success" style="width:8px;height:8px;"></span>
-            </span>
-            {% else %}
-            <span class="d-flex align-items-center gap-2 text-muted fw-semibold">
-              <span class="rounded-circle bg-secondary" style="width:8px;height:8px;"></span>
-            </span>
-            {% endif %}
+  <!-- Today's Schedule + Secondary Pis -->
 
-            <span class="fw-semibold">
-              {{ "Time Slot 1" if slot.name == "slot1" else "Time Slot 2" if slot.name == "slot2" else slot.name }}
-            </span>
-
-            <span class="text-muted">{{ slot.start_ampm }} - {{ slot.end_ampm }}</span>
-          </div>
-
-          <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-light text-dark border">
-              {{ "Kid-Friendly" if slot.category=="kid" else "Scary" if slot.category=="scary" else (slot.category or "None") }}
-            </span>
-
-            {% if slot.is_active %}
-            <span class="text-success fw-semibold">Active</span>
-            {% else %}
-            <span class="text-muted fw-semibold">Inactive</span>
-            {% endif %}
-          </div>
+  <div class="row g-3 mb-3">
+    <!-- Today's Schedule -->
+    <div class="col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <strong>Today's Schedule</strong>
+          <span class="badge bg-light text-dark">{{ today }}</span>
         </div>
-        {% endfor %}
-        {% else %}
-        <div class="text-center py-3">
-          <span class="fw-semibold text-muted">No schedule set for today</span>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
 
-  <!-- Secondary Pis -->
-  <div class="col-lg-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <strong>Secondary Pis</strong>
-        {% if secondary_pis %}
-        <span class="badge bg-light text-dark">{{ secondary_pis|length }}</span>
-        {% endif %}
-      </div>
 
-      <div class="card-body p-0">
-        {% if secondary_pis %}
-        {% for pi in secondary_pis %}
-        <div class="d-flex align-items-center justify-content-between px-3 py-2 {% if not loop.last %}border-bottom{% endif %}">
-          <div class="d-flex align-items-center gap-3">
-            <span class="fw-semibold">{{ pi.name }}</span>
-            <span class="small text-muted">{{ pi.ip }}</span>
-            {% if pi.last_checked %}
-            <span class="small text-muted">{{ pi.last_checked }}</span>
-            {% endif %}
-          </div>
-
-          {% if pi.status == "online" %}
+    <div class="card-body p-0">
+      {% if today_schedule.enabled and today_schedule.slots %}
+      {% for slot in today_schedule.slots %}
+      <div
+        class="d-flex align-items-center justify-content-between px-3 py-2 {% if not loop.last %}border-bottom{% endif %}">
+        <div class="d-flex align-items-center gap-2">
+          {% if slot.is_active %}
           <span class="d-flex align-items-center gap-2 text-success fw-semibold">
-            
-            Online
+            <span class="rounded-circle bg-success" style="width:8px;height:8px;"></span>
           </span>
           {% else %}
-          <span class="d-flex align-items-center gap-2 text-danger fw-semibold">
-            
-            Offline
+          <span class="d-flex align-items-center gap-2 text-muted fw-semibold">
+            <span class="rounded-circle bg-secondary" style="width:8px;height:8px;"></span>
           </span>
           {% endif %}
+
+          <span class="fw-semibold">
+            {{ "Time Slot 1" if slot.name == "slot1" else "Time Slot 2" if slot.name == "slot2" else slot.name }}
+          </span>
+
+          <span class="text-muted">{{ slot.start_ampm }} - {{ slot.end_ampm }}</span>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge bg-light text-dark border">
+            {{ "Kid-Friendly" if slot.category=="kid" else "Scary" if slot.category=="scary" else (slot.category or
+            "None") }}
+          </span>
+
+          {% if slot.is_active %}
+          <span class="text-success fw-semibold">Active</span>
+          {% else %}
+          <span class="text-muted fw-semibold">Inactive</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="text-center py-3">
+        <span class="fw-semibold text-muted">No schedule set for today</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Secondary Pis -->
+<div class="col-lg-6">
+  <div class="card shadow-sm h-100">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <strong>Secondary Pis</strong>
+      {% if secondary_pis %}
+      <span class="badge bg-light text-dark">{{ secondary_pis|length }}</span>
+      {% endif %}
+    </div>
+
+    <div class="card-body p-0">
+      {% if secondary_pis %}
+      {% for pi in secondary_pis %}
+      <div
+        class="d-flex align-items-center justify-content-between px-3 py-2 {% if not loop.last %}border-bottom{% endif %}">
+        <div class="d-flex align-items-center gap-3">
+          <span class="fw-semibold">{{ pi.name }}</span>
+          <span class="small text-muted">{{ pi.ip }}</span>
+          {% if pi.last_checked %}
+          <span class="small text-muted">{{ pi.last_checked }}</span>
+          {% endif %}
+        </div>
+
+        {% if pi.status == "online" %}
+        <span class="d-flex align-items-center gap-2 text-success fw-semibold">
+          Online
+        </span>
+        {% else %}
+        <span class="d-flex align-items-center gap-2 text-danger fw-semibold">
+          Offline
+        </span>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="text-center py-3">
+        <span class="fw-semibold text-muted">No Secondary Pis</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+
+  </div>
+  {% endif %}
+
+  <!-- Recent Activity -->
+
+  <div class="row g-3">
+    <div class="col-lg-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <strong>Recent Activity</strong>
+          {% if recent_activity %}
+          <span class="badge bg-light text-dark">{{ recent_activity|length }}</span>
+          {% endif %}
+        </div>
+
+
+    <div class="card-body p-0">
+      {% if recent_activity %}
+      <div class="list-group list-group-flush">
+        {% for activity in recent_activity %}
+        <div class="list-group-item px-3 py-2">
+          <div class="d-flex align-items-center gap-3 flex-nowrap">
+            <small class="text-muted text-nowrap">[{{ activity.timestamp.strftime("%Y-%m-%dT%H:%M:%S") }}]</small>
+            <span class="badge bg-light text-dark border text-nowrap">{{ activity.category }}</span>
+            <span class="small text-break">{{ activity.message }}</span>
+          </div>
         </div>
         {% endfor %}
-        {% else %}
-        <div class="text-center py-3">
-          <span class="fw-semibold text-muted">No Secondary Pis</span>
-        </div>
-        {% endif %}
       </div>
+      {% else %}
+      <div class="text-center py-3">
+        <div class="fw-semibold text-muted">No Recent Activity</div>
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>
-{% endif %}
 
-<!-- Recent Activity -->
-<div class="row g-3">
-  <div class="col-lg-12">
-    <div class="card shadow-sm">
-      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <strong>Recent Activity</strong>
-        {% if recent_activity %}
-        <span class="badge bg-light text-dark">{{ recent_activity|length }}</span>
-        {% endif %}
-      </div>
 
-      <div class="card-body p-0">
-        {% if recent_activity %}
-        <div class="list-group list-group-flush">
-          {% for activity in recent_activity %}
-          <div class="list-group-item px-3 py-2">
-            <div class="d-flex align-items-center gap-3 flex-nowrap">
-              <small class="text-muted text-nowrap">[{{ activity.timestamp.strftime("%Y-%m-%dT%H:%M:%S") }}]</small>
-              <span class="badge bg-light text-dark border text-nowrap">{{ activity.category }}</span>
-              <span class="small text-break">{{ activity.message }}</span>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="text-center py-3">
-          <div class="fw-semibold text-muted">No Recent Activity</div>
-        </div>
-        {% endif %}
-      </div>
-    </div>
   </div>
-</div>
 </section>
