@@ -1,18 +1,46 @@
+
+
+
+
 // ============================================================
 // CLOCK
 // ============================================================
 
 function updateClock() {
     const now = new Date();
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const days = [
+        'Sunday',
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday'
+    ];
+
     const dayName = days[now.getDay()];
-    const timeString = now.toLocaleTimeString('en-US', {
-        hour12: true,
-        hour: 'numeric',
-        minute: '2-digit',
-        second: '2-digit'
-    });
+    const timeFormat = window.timeFormat || "12";
+
+    let timeString;
+
+    if (timeFormat === "24") {
+        timeString = now.toLocaleTimeString('en-US', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    } else {
+        timeString = now.toLocaleTimeString('en-US', {
+            hour12: true,
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    }
+
     const dateTimeElement = document.getElementById('currentDateTime');
+
     if (dateTimeElement) {
         dateTimeElement.textContent = `${dayName} ${timeString}`;
     }
@@ -20,6 +48,11 @@ function updateClock() {
 
 updateClock();
 setInterval(updateClock, 1000);
+
+
+
+
+
 
 // ============================================================
 // TOM SELECT

@@ -101,6 +101,57 @@
 </div>
 
 
+<!-- Time Format -->
+
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-primary text-white">
+    <strong>Time Format</strong>
+  </div>
+
+  <div class="card-body">
+    <p class="text-muted small mb-4">
+      Choose how times are displayed throughout the application.
+    </p>
+
+    <form method="POST" action="{{ url_for('save_time_format') }}">
+
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="radio"
+          name="timeFormat" id="timeFormat12" value="12"
+          {% if time_format == "12" %}checked{% endif %}>
+
+        <label class="form-check-label" for="timeFormat12">
+          <span class="fw-semibold">12-hour</span>
+          <span class="text-muted small ms-2">Example: 4:30 PM</span>
+        </label>
+      </div>
+
+      <div class="form-check">
+        <input class="form-check-input" type="radio"
+          name="timeFormat" id="timeFormat24" value="24"
+          {% if time_format == "24" %}checked{% endif %}>
+
+        <label class="form-check-label" for="timeFormat24">
+          <span class="fw-semibold">24-hour</span>
+          <span class="text-muted small ms-2">Example: 16:30</span>
+        </label>
+      </div>
+
+      <div class="form-text mt-3">
+        This setting only changes how times are displayed. Schedule times and
+        playback timing are not affected.
+      </div>
+
+      <div class="mt-4">
+        <button type="submit" class="btn btn-success">
+          Save Time Format
+        </button>
+      </div>
+
+    </form>
+  </div>
+</div>
+
 
 
 

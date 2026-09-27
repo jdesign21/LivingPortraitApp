@@ -4,7 +4,7 @@ import os
 import subprocess
 from pathlib import Path
 from datetime import datetime
-from shared.vlc_helper import log
+from shared.vlc_helper import log, get_time_format
 
 HOME = Path(os.path.expanduser("~"))
 NETWORK_FILE = HOME / "network_pis.json"
@@ -109,9 +109,15 @@ def get_sync_start_delay_ms():
         log("Invalid sync start delay setting. Using 1000 ms.", "ERROR")
         return 1000
 
+
 def check_secondary_status():
     settings = load_network_settings()
-    current_time = datetime.now().strftime("%m/%d/%Y %I:%M %p")
+    time_format = get_time_format()
+
+    if time_format == "24":
+        current_time = datetime.now().strftime("%m/%d/%Y %H:%M:%S")
+    else:
+        current_time = datetime.now().strftime("%m/%d/%Y %I:%M:%S %p")
 
     for pi in settings.get("secondary_pis", []):
         name = pi.get("name", "Unknown")
@@ -140,12 +146,15 @@ def check_secondary_status():
 
         except (subprocess.TimeoutExpired, OSError) as e:
             pi["status"] = "offline"
-            log(f"Unable to check Secondary Pi {name} ({ip}): {e}", "NETWORK")
+            log(f"Unable to check Secondary Pi {name} ({ip}): {e}", "ERROR")
 
         pi["last_checked"] = current_time
 
     save_network_settings(settings)
     return settings.get("secondary_pis", [])
+
+
+
 
 def configure_mosquitto(role, enable):
     try:

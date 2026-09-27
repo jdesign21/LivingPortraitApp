@@ -69,7 +69,12 @@ def load_settings():
             "setup_complete": False,
             "selected_video": "",
             "pause_flag": True,
+            "time_format": "12",
             "sync_tags": [],
+            "schedule_tags": [
+                {"id": "kid", "name": "Kid-Friendly"},
+                {"id": "scary", "name": "Scary"}
+            ],
             "playlist": {
                 "mode": "single",
                 "interval": 0,
@@ -86,8 +91,23 @@ def load_settings():
 
         settings_changed = True
 
+    if "time_format" not in settings:
+        settings["time_format"] = "12"
+        settings_changed = True
+
+    if settings.get("time_format") not in ("12", "24"):
+        settings["time_format"] = "12"
+        settings_changed = True
+
     if "sync_tags" not in settings:
         settings["sync_tags"] = []
+        settings_changed = True
+
+    if "schedule_tags" not in settings:
+        settings["schedule_tags"] = [
+            {"id": "kid", "name": "Kid-Friendly"},
+            {"id": "scary", "name": "Scary"}
+        ]
         settings_changed = True
 
     playlist = settings.setdefault("playlist", {})
@@ -134,6 +154,23 @@ def update_days_schedule(days_schedule):
     settings = load_settings()
     settings["days"] = days_schedule
     save_settings(settings)
+
+
+def get_time_format():
+    """
+    Return the configured display time format.
+
+    Returns:
+        "12" for 12-hour display.
+        "24" for 24-hour display.
+    """
+    settings = load_settings()
+    time_format = settings.get("time_format", "12")
+
+    if time_format not in ("12", "24"):
+        return "12"
+
+    return time_format
 
 
 def migrate_days_slots(settings):
@@ -342,7 +379,14 @@ def get_next_start_time(settings):
         key=lambda x: x[0]
     )
 
-    return next_start_dt.strftime(f"{next_day} %I:%M %p"), next_category
+    time_format = get_time_format()
+
+    if time_format == "24":
+        formatted_time = next_start_dt.strftime("%H:%M")
+    else:
+        formatted_time = next_start_dt.strftime("%I:%M %p")
+
+    return f"{next_day} {formatted_time}", next_category
 
 
 def get_current_scheduler_category():

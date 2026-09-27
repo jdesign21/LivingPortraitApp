@@ -18,6 +18,12 @@
       </button>
     </li>
     <li class="nav-item" role="presentation">
+      <button class="nav-link" id="schedule-tags-tab" data-bs-toggle="tab" data-bs-target="#schedule-tags-pane"
+        type="button" role="tab" aria-controls="schedule-tags-pane" aria-selected="false">
+        Schedule Tags
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
       <button class="nav-link" id="sync-tags-tab" data-bs-toggle="tab" data-bs-target="#sync-tags-pane"
         type="button" role="tab" aria-controls="sync-tags-pane" aria-selected="false">
         Sync Tags
@@ -37,9 +43,8 @@
           <div class="card-body">
             <p class="text-muted small mb-4">
               Enable or disable videos in the playlist, and use schedule tags
-              to categorize them as Kid-Friendly or Scary. Schedule tags can
-              be used by playback modes and schedules to determine which
-              videos are available for playback.
+              to categorize them. Schedule tags can be used by playback modes
+              and schedules to determine which videos are available for playback.
             </p>
 
             <ul class="list-group">
@@ -64,12 +69,11 @@
                       Schedule Tags
                     </label>
                     <select name="videos[{{ loop.index0 }}][tags][]" class="form-select form-select-sm tomselect" multiple>
-                      <option value="kid" {% if 'kid' in video.get('tags', []) %}selected{% endif %}>
-                        Kid-Friendly
+                      {% for tag in schedule_tags %}
+                      <option value="{{ tag.id }}" {% if tag.id in video.get('tags', []) %}selected{% endif %}>
+                        {{ tag.name }}
                       </option>
-                      <option value="scary" {% if 'scary' in video.get('tags', []) %}selected{% endif %}>
-                        Scary
-                      </option>
+                      {% endfor %}
                     </select>
                   </div>
 
@@ -151,6 +155,97 @@
               </div>
             </form>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Schedule Tags Tab -->
+    <div class="tab-pane fade" id="schedule-tags-pane" role="tabpanel" aria-labelledby="schedule-tags-tab">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+          <strong>Schedule Tags</strong>
+        </div>
+
+        <div class="card-body">
+          <p class="text-muted small mb-3">
+            Schedule Tags are used to categorize videos for scheduled playback.
+            A video can have multiple Schedule Tags.
+          </p>
+
+          <!-- Add Schedule Tag -->
+          <div class="row g-2 align-items-end mb-4">
+            <form method="POST" action="{{ url_for('add_schedule_tag') }}" class="col-12 col-md-7">
+              <label for="newScheduleTag" class="form-label small text-muted mb-1">
+                Add Schedule Tag
+              </label>
+
+              <div class="input-group">
+                <input type="text" class="form-control" id="newScheduleTag" name="schedule_tag"
+                  placeholder="Enter a Schedule Tag" maxlength="50" required>
+
+                <button type="submit" class="btn btn-success">
+                  <i class="bi bi-plus-lg me-1"></i>
+                  Add Schedule Tag
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Available Schedule Tags -->
+          <div class="d-flex align-items-center mb-2">
+            <i class="bi bi-tags text-primary me-2"></i>
+            <strong>Available Schedule Tags</strong>
+          </div>
+
+          {% if schedule_tags %}
+          <div class="border rounded">
+            {% for tag in schedule_tags %}
+            {% set tag_video_count = namespace(count=0) %}
+
+            {% for video in manage_videos %}
+            {% if tag.id in video.get('tags', []) %}
+            {% set tag_video_count.count = tag_video_count.count + 1 %}
+            {% endif %}
+            {% endfor %}
+
+            <div class="d-flex align-items-center justify-content-between px-3 py-2 {% if not loop.last %}border-bottom{% endif %}">
+              <div class="d-flex align-items-center">
+                <i class="bi bi-tag text-primary me-2"></i>
+
+                <span class="fw-semibold me-3">
+                  {{ tag.name }}
+                </span>
+
+                <span class="text-muted small">
+                  {% if tag_video_count.count == 0 %}
+                  Not assigned
+                  {% elif tag_video_count.count == 1 %}
+                  1 video assigned
+                  {% else %}
+                  {{ tag_video_count.count }} videos assigned
+                  {% endif %}
+                </span>
+              </div>
+
+              <form method="POST" action="{{ url_for('delete_schedule_tag') }}"
+                onsubmit="return confirm('Delete Schedule Tag {{ tag.name }}?');">
+                <input type="hidden" name="schedule_tag" value="{{ tag.id }}">
+
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                  <i class="bi bi-trash me-1"></i>
+                  Delete
+                </button>
+              </form>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="border rounded text-center text-muted p-3">
+            <div class="small">
+              No Schedule Tags have been created yet.
+            </div>
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>

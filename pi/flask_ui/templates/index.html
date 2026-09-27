@@ -129,9 +129,10 @@
 
     {% if role == "secondary" and not mqtt_connected %}
     <div class="alert alert-danger text-center">
-      <strong>Waiting for Primary MQTT connection...</strong>
+      <strong>Waiting for {{ primary_ip }} Primary MQTT connection...</strong>
       <br>
-      The video is running locally. This Secondary will connect automatically when the Primary is available.
+      This Secondary will connect automatically when the Primary is available.
+      {% if enable != '1' %}<br><br>MQTT must be enabled in Network Settings to connect to the Primary Pi.{% endif %}
     </div>
     {% endif %}
 
@@ -203,6 +204,8 @@
       enabled: {{ 'true' if playlist_mode in ['random', 'fixed'] and time_remaining is not none and time_remaining > 0 else 'false' }},
     timeRemaining: {{ time_remaining if time_remaining is not none else 0 }}
     };
+
+    window.timeFormat = "{{ time_format }}";
   </script>
 
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>

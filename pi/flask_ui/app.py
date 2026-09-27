@@ -29,7 +29,8 @@ from shared.vlc_helper import (
     update_days_schedule,
     is_schedule_enabled_now,
     get_next_start_time,
-    get_secondary_video_mode
+    get_secondary_video_mode,
+    get_time_format
 )
 
 from shared.vlc_network_helper import (
@@ -62,8 +63,22 @@ VIDEO_FOLDER.mkdir(parents=True, exist_ok=True)
 IMAGES_FOLDER.mkdir(parents=True, exist_ok=True)
 
 
-def format_ampm(time_str):
-    return datetime.strptime(time_str, "%H:%M").strftime("%I:%M %p")
+def format_ampm(time_str, time_format="12"):
+    try:
+        if time_format == "24":
+            return datetime.strptime(
+                time_str,
+                "%H:%M"
+            ).strftime("%H:%M")
+
+        return datetime.strptime(
+            time_str,
+            "%H:%M"
+        ).strftime("%I:%M %p")
+
+    except (ValueError, TypeError):
+        return time_str
+
 
 
 def get_mqtt_status():
@@ -85,16 +100,32 @@ def get_mqtt_status():
         return False
 
 
+
+
 @app.route("/")
 def index():
-    current_time = datetime.now().strftime("%A %I:%M:%S %p")
-    theme = request.cookies.get("themeMode", "light")
-    version = get_version()
-    videos = sorted([f.name for f in VIDEO_FOLDER.glob("*.mp4")])
     settings = load_settings()
 
     if not settings.get("setup_complete", False):
         return redirect(url_for("setup"))
+
+    time_format = get_time_format()
+
+    if time_format not in ("12", "24"):
+        time_format = "12"
+
+    if time_format == "24":
+        current_time = datetime.now().strftime(
+            "%A %H:%M:%S"
+        )
+    else:
+        current_time = datetime.now().strftime(
+            "%A %I:%M:%S %p"
+        )
+
+    theme = request.cookies.get("themeMode", "light")
+    version = get_version()
+    videos = sorted([f.name for f in VIDEO_FOLDER.glob("*.mp4")])
 
     selected_video = settings.get("selected_video", "")
     pause_flag = settings.get("pause_flag", False)
@@ -103,12 +134,14 @@ def index():
     # Master Sync Tags
     sync_tags = settings.get("sync_tags", [])
 
+    # Master Schedule Tags
+    schedule_tags = settings.get("schedule_tags", [])
+
     network_settings = load_network_settings()
     role = network_settings.get("role", "")
     primary_ip = network_settings.get("primary_ip", "")
     enable = network_settings.get("enable", "0")
     sync_start_delay_ms = get_sync_start_delay_ms()
-    # secondary_pis = network_settings.get("secondary_pis", [])
     secondary_pis = check_secondary_status()
 
     # Read MQTT status without importing mqtt_client.
@@ -173,8 +206,14 @@ def index():
 
                 slots.append({
                     "name": slot_key,
-                    "start_ampm": format_ampm(slot.get("start", "00:00")),
-                    "end_ampm": format_ampm(slot.get("end", "23:59")),
+                    "start_ampm": format_ampm(
+                        slot.get("start", "00:00"),
+                        time_format
+                    ),
+                    "end_ampm": format_ampm(
+                        slot.get("end", "23:59"),
+                        time_format
+                    ),
                     "category": slot.get("category", ""),
                     "is_active": is_active
                 })
@@ -204,7 +243,14 @@ def index():
         and entry.get("filename") in videos
     ]
 
-    manage_videosTags = settings.get("playlist", {}).get("order", [])
+    manage_videosTags = settings.get(
+        "playlist",
+        {}
+    ).get(
+        "order",
+        []
+    )
+
     available_tags = set()
 
     for video in manage_videosTags:
@@ -226,13 +272,23 @@ def index():
                 "%Y-%m-%d %H:%M:%S"
             )
 
-            next_dt = last_dt + timedelta(seconds=interval * 60)
+            next_dt = last_dt + timedelta(
+                seconds=interval * 60
+            )
+
             now = datetime.now()
             diff = (next_dt - now).total_seconds()
-            time_remaining = max(0, int(diff))
+
+            time_remaining = max(
+                0,
+                int(diff)
+            )
 
         except Exception as e:
-            log(f"Error calculating time remaining: {e}", "ERROR")
+            log(
+                f"Error calculating time remaining: {e}",
+                "ERROR"
+            )
 
     logs = []
     recent_activity = []
@@ -241,16 +297,28 @@ def index():
         log_files = list(LOG_FOLDER.glob("*.txt"))
 
         for f in log_files:
+            if time_format == "24":
+                log_mtime = datetime.fromtimestamp(
+                    f.stat().st_mtime
+                ).strftime("%Y-%m-%d %H:%M")
+            else:
+                log_mtime = datetime.fromtimestamp(
+                    f.stat().st_mtime
+                ).strftime("%Y-%m-%d %I:%M %p")
+
             logs.append({
                 "name": f.name,
-                "mtime": datetime.fromtimestamp(
-                    f.stat().st_mtime
-                ).strftime("%Y-%m-%d %I:%M %p"),
+                "mtime": log_mtime,
                 "size": f.stat().st_size
             })
 
             try:
-                with open(f, "r", errors="replace") as log_file:
+                with open(
+                    f,
+                    "r",
+                    errors="replace"
+                ) as log_file:
+
                     for line in log_file:
                         line = line.strip()
 
@@ -276,13 +344,18 @@ def index():
                                         f.stat().st_mtime
                                     )
 
-                                remainder = line[first_end + 1:].strip()
+                                remainder = line[
+                                    first_end + 1:
+                                ].strip()
 
                                 if remainder.startswith("["):
                                     category_end = remainder.find("]")
 
                                     if category_end != -1:
-                                        category = remainder[1:category_end]
+                                        category = remainder[
+                                            1:category_end
+                                        ]
+
                                         message = remainder[
                                             category_end + 1:
                                         ].strip()
@@ -296,21 +369,38 @@ def index():
                                 f.stat().st_mtime
                             )
 
+                        if time_format == "24":
+                            activity_time = timestamp.strftime(
+                                "%H:%M"
+                            )
+                        else:
+                            activity_time = timestamp.strftime(
+                                "%I:%M %p"
+                            ).lstrip("0")
+
                         recent_activity.append({
-                            "time": timestamp.strftime("%I:%M %p").lstrip("0"),
+                            "time": activity_time,
                             "category": category,
                             "message": message,
                             "timestamp": timestamp
                         })
 
             except Exception as e:
-                log(f"Error reading recent activity from {f.name}: {e}", "ERROR")
+                log(
+                    f"Error reading recent activity from {f.name}: {e}",
+                    "ERROR"
+                )
 
-        logs.sort(key=lambda x: x["mtime"], reverse=True)
+        logs.sort(
+            key=lambda x: x["mtime"],
+            reverse=True
+        )
+
         recent_activity.sort(
             key=lambda x: x["timestamp"],
             reverse=True
         )
+
         recent_activity = recent_activity[:8]
 
     return render_template(
@@ -326,6 +416,7 @@ def index():
         manage_videos=manage_videos,
         time_remaining=time_remaining,
         available_tags=available_tags,
+        schedule_tags=schedule_tags,
         sync_tags=sync_tags,
         pause=pause_flag,
         video_count=len(fixed_order),
@@ -334,6 +425,7 @@ def index():
         today_schedule=today_schedule,
         today=today,
         current_time=current_time,
+        time_format=time_format,
         is_schedule_enabled_now=schedule_enabled,
         next_start_time=next_start_time,
         next_category=next_category,
@@ -352,7 +444,6 @@ def index():
         version=version,
         reboot_required=reboot_required
     )
-
 
 @app.route("/setup", methods=["GET", "POST"])
 def setup():
@@ -932,16 +1023,13 @@ def save_schedule():
     current_days = settings.get("days", {})
     days = {}
 
-    manage_videosTags = settings.get("playlist", {}).get("order", [])
-    available_tags = set()
+    schedule_tags = settings.get("schedule_tags", [])
 
-    for video in manage_videosTags:
-        if not video.get("active", False):
-            continue
-        for tag in video.get("tags", []):
-            available_tags.add(tag.lower())
-
-    available_tags = list(available_tags)
+    valid_tag_ids = {
+        tag.get("id", "").lower()
+        for tag in schedule_tags
+        if tag.get("id")
+    }
 
     for day in [
         "Monday",
@@ -966,7 +1054,7 @@ def save_schedule():
         else:
             slot1_category = current_days.get(day, {}).get("slot1", {}).get("category", "")
 
-        if slot1_category and slot1_category.lower() not in available_tags:
+        if slot1_category and slot1_category.lower() not in valid_tag_ids:
             slot1_category = ""
 
         # SLOT 2
@@ -980,7 +1068,7 @@ def save_schedule():
         else:
             slot2_category = current_days.get(day, {}).get("slot2", {}).get("category", "")
 
-        if slot2_category and slot2_category.lower() not in available_tags:
+        if slot2_category and slot2_category.lower() not in valid_tag_ids:
             slot2_category = ""
 
         days[day] = {
@@ -1081,19 +1169,19 @@ def update_all():
 
     settings["playlist"]["order"] = order
 
-    active_tags = set()
-
-    for v in order:
-        if v.get("active", True):
-            for tag in v.get("tags", []):
-                active_tags.add(tag.lower())
+    # Validate schedule categories against the master Schedule Tags.
+    valid_schedule_tags = {
+        tag.get("id", "").lower()
+        for tag in settings.get("schedule_tags", [])
+        if tag.get("id")
+    }
 
     for day, sched in settings.get("days", {}).items():
         for slot_name in ["slot1", "slot2"]:
             slot = sched.get(slot_name, {})
             category = slot.get("category", "")
 
-            if category and category.lower() not in active_tags:
+            if category and category.lower() not in valid_schedule_tags:
                 slot["category"] = ""
 
     save_settings(settings)
@@ -1120,7 +1208,6 @@ def update_all():
         flash("All videos updated successfully.", "success")
 
     return redirect(url_for("index"))
-
 @app.route("/add_sync_tag", methods=["POST"])
 def add_sync_tag():
     """
@@ -1293,8 +1380,6 @@ def sync_tags_to_secondaries():
 
     return redirect(url_for("index"))
 
-
-
 @app.route('/delete/<filename>', methods=['POST'])
 def delete(filename):
     filepath = VIDEO_FOLDER / filename
@@ -1371,8 +1456,6 @@ def delete(filename):
         flash(f"Deleted {filename}", "success")
 
     return redirect(url_for("index"))
-
-
 
 @app.route("/logs/view/<filename>")
 def view_log(filename):
@@ -1485,7 +1568,6 @@ def network():
         flash(f"Failed to update network: {e}", "danger")
 
     return redirect(url_for("index"))
-
 
 @app.route("/reboot", methods=["POST"])
 def reboot():
@@ -1650,6 +1732,157 @@ def update_status():
             "message": str(e),
             "error": True
         })
+
+@app.route("/add_schedule_tag", methods=["POST"])
+def add_schedule_tag():
+    settings = load_settings()
+    schedule_tags = settings.get("schedule_tags", [])
+
+    new_tag = request.form.get("schedule_tag", "").strip()
+
+    if not new_tag:
+        flash("Schedule Tag cannot be blank.", "danger")
+        return redirect(url_for("index"))
+
+    new_tag = new_tag[:50]
+
+    tag_id = new_tag.lower().strip()
+    tag_id = "".join(
+        char if char.isalnum() or char in "-_" else "-"
+        for char in tag_id
+    )
+
+    tag_id = "-".join(
+        part for part in tag_id.split("-") if part
+    )
+
+    if not tag_id:
+        flash("Invalid Schedule Tag name.", "danger")
+        return redirect(url_for("index"))
+
+    existing_ids = {
+        tag.get("id", "").lower()
+        for tag in schedule_tags
+    }
+
+    existing_names = {
+        tag.get("name", "").lower()
+        for tag in schedule_tags
+    }
+
+    if tag_id.lower() in existing_ids or new_tag.lower() in existing_names:
+        flash(f'Schedule Tag "{new_tag}" already exists.', "warning")
+        return redirect(url_for("index"))
+
+    schedule_tags.append({
+        "id": tag_id,
+        "name": new_tag
+    })
+
+    schedule_tags.sort(
+        key=lambda tag: tag.get("name", "").lower()
+    )
+
+    settings["schedule_tags"] = schedule_tags
+    save_settings(settings)
+
+    flash(f'Schedule Tag "{new_tag}" added.', "success")
+    return redirect(url_for("index"))
+
+@app.route("/delete_schedule_tag", methods=["POST"])
+def delete_schedule_tag():
+    settings = load_settings()
+    schedule_tags = settings.get("schedule_tags", [])
+
+    tag_to_delete = request.form.get("schedule_tag", "").strip()
+
+    if not tag_to_delete:
+        flash("No Schedule Tag was specified.", "danger")
+        return redirect(url_for("index"))
+
+    tag_key = tag_to_delete.lower()
+
+    matching_tag = next(
+        (
+            tag
+            for tag in schedule_tags
+            if tag.get("id", "").lower() == tag_key
+        ),
+        None
+    )
+
+    if matching_tag is None:
+        flash(f'Schedule Tag "{tag_to_delete}" was not found.', "warning")
+        return redirect(url_for("index"))
+
+    tag_id = matching_tag.get("id", "")
+
+    order = settings.get("playlist", {}).get("order", [])
+
+    video_count = 0
+
+    for video in order:
+        video_tags = video.get("tags", [])
+
+        if any(
+            str(video_tag).lower() == tag_id.lower()
+            for video_tag in video_tags
+        ):
+            video_count += 1
+
+    schedule_count = 0
+
+    for day, sched in settings.get("days", {}).items():
+        for slot_name in ["slot1", "slot2"]:
+            slot = sched.get(slot_name, {})
+            category = slot.get("category", "")
+
+            if category and category.lower() == tag_id.lower():
+                schedule_count += 1
+
+    if video_count > 0 or schedule_count > 0:
+        flash(
+            f'Cannot delete Schedule Tag "{matching_tag.get("name", tag_id)}" '
+            f'because it is currently in use.',
+            "danger"
+        )
+        return redirect(url_for("index"))
+
+    settings["schedule_tags"] = [
+        tag
+        for tag in schedule_tags
+        if tag.get("id", "").lower() != tag_key
+    ]
+
+    save_settings(settings)
+
+    flash(
+        f'Schedule Tag "{matching_tag.get("name", tag_id)}" deleted.',
+        "success"
+    )
+
+    return redirect(url_for("index"))
+
+@app.route("/save_time_format", methods=["POST"])
+def save_time_format():
+    time_format = request.form.get("timeFormat", "12").strip()
+
+    if time_format not in ("12", "24"):
+        flash("Invalid time format.", "danger")
+        return redirect(url_for("index"))
+
+    settings = load_settings()
+    settings["time_format"] = time_format
+    save_settings(settings)
+
+    if time_format == "24":
+        flash("Time format changed to 24-hour.", "success")
+    else:
+        flash("Time format changed to 12-hour.", "success")
+
+    return redirect(url_for("index"))
+
+
 
 if __name__ == "__main__":
     app.run(
