@@ -30,7 +30,8 @@ from shared.vlc_helper import (
     is_schedule_enabled_now,
     get_next_start_time,
     get_secondary_video_mode,
-    get_time_format
+    get_time_format,
+
 )
 
 from shared.vlc_network_helper import (
@@ -130,6 +131,7 @@ def index():
     selected_video = settings.get("selected_video", "")
     pause_flag = settings.get("pause_flag", False)
     reboot_required = session.get("reboot_required", False)
+    mute_audio = bool(settings.get("mute_audio", True))
 
     # Master Sync Tags
     sync_tags = settings.get("sync_tags", [])
@@ -442,7 +444,8 @@ def index():
         mqtt_connected=mqtt_connected,
         sync_start_delay_ms=sync_start_delay_ms,
         version=version,
-        reboot_required=reboot_required
+        reboot_required=reboot_required,
+        mute_audio=mute_audio
     )
 
 @app.route("/setup", methods=["GET", "POST"])
@@ -1534,6 +1537,7 @@ def download_log(filename):
     )
 
 
+
 @app.route("/network", methods=["POST"])
 def network():
     role = request.form.get("role", "primary")
@@ -1543,9 +1547,6 @@ def network():
     try:
         # Save Sync Start Delay
         sync_start_delay_ms = int(request.form.get("sync_start_delay_ms", "1000"))
-
-        if sync_start_delay_ms < 0:
-            raise ValueError("Sync Start Delay cannot be negative.")
 
         network_settings = load_network_settings()
         network_settings["sync_start_delay_ms"] = sync_start_delay_ms
@@ -1882,7 +1883,23 @@ def save_time_format():
 
     return redirect(url_for("index"))
 
+@app.route("/save_mute_audio", methods=["POST"])
+def save_mute_audio():
+    settings = load_settings()
+    settings["mute_audio"] = "mute_audio" in request.form
+    save_settings(settings)
 
+    subprocess.run(
+        ["sudo", "systemctl", "restart", "motion_vlc.service"],
+        check=False
+    )
+
+    flash(
+        "Audio setting saved. Playback restarted.",
+        "success"
+    )
+
+    return redirect(url_for("index"))
 
 if __name__ == "__main__":
     app.run(

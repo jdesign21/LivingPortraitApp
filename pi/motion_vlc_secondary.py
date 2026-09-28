@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# motion_vlc_secondary.py
 
 import vlc
 import sys
@@ -9,8 +10,10 @@ import json
 import time
 import random
 import mqtt_client
+
 from time import sleep
 from pathlib import Path
+
 from shared.vlc_helper import (
     log,
     playlist_updater,
@@ -22,14 +25,21 @@ from shared.vlc_helper import (
     write_pause_flag,
     is_schedule_enabled_now,
     is_current_schedule_active,
-    get_current_scheduler_category
+    get_current_scheduler_category,
+    get_mute_audio
+)
+
+from shared.vlc_network_helper import (
+    get_sync_start_delay_ms
 )
 
 HOME = Path(os.path.expanduser("~"))
 LOG_FOLDER = HOME / "logs"
 VIDEO_FOLDER = HOME / "videos"
 PAUSE_VIDEO = HOME / "pause_video" / "paused_rotated.mp4"
+
 LOG_FOLDER.mkdir(parents=True, exist_ok=True)
+
 player = None
 instance = None
 scheduled_play_timer = None
@@ -44,6 +54,7 @@ current_playback_path = None
 def load_and_pause(media_path):
     media = instance.media_new(media_path)
     player.set_media(media)
+    player.audio_set_mute(get_mute_audio())
     player.play()
     sleep(0.5)
     player.set_pause(1)
@@ -52,7 +63,76 @@ def load_and_pause(media_path):
 
 def prepare_media_for_sync(media_path):
     with playback_lock:
-        load_and_pause(media_path)
+        media = instance.media_new(media_path)
+        player.set_media(media)
+        player.audio_set_mute(get_mute_audio())
+        player.play()
+
+        log(f"Waiting for VLC to open sync media: {Path(media_path).name}", "SYNC")
+
+        start_time = time.monotonic()
+        timeout = 10.0
+        ready_state = False
+
+        while time.monotonic() - start_time < timeout:
+            state = player.get_state()
+
+            if state == vlc.State.Playing:
+                ready_state = True
+                break
+
+            if state == vlc.State.Error:
+                log(f"VLC reported an error while opening sync media: {Path(media_path).name}", "ERROR")
+                raise RuntimeError("VLC failed to open sync media")
+
+            time.sleep(0.05)
+
+        if not ready_state:
+            state = player.get_state()
+            log(
+                f"VLC did not reach Playing state within {timeout:.1f} seconds. "
+                f"Current state: {state}",
+                "ERROR"
+            )
+            raise RuntimeError("VLC sync media preparation timed out")
+
+        log(
+            f"VLC opened sync media. State={player.get_state()}",
+            "SYNC"
+        )
+
+        player.set_pause(1)
+
+        pause_start = time.monotonic()
+        paused = False
+
+        while time.monotonic() - pause_start < 2.0:
+            state = player.get_state()
+
+            if state == vlc.State.Paused:
+                paused = True
+                break
+
+            if state == vlc.State.Error:
+                log(f"VLC reported an error while pausing sync media: {Path(media_path).name}", "ERROR")
+                raise RuntimeError("VLC failed while pausing sync media")
+
+            time.sleep(0.02)
+
+        if not paused:
+            state = player.get_state()
+            log(
+                f"VLC did not reach Paused state. Current state: {state}",
+                "ERROR"
+            )
+            raise RuntimeError("VLC failed to reach Paused state")
+
+        player.set_time(0)
+
+        log(
+            f"Sync media prepared and paused at 0 ms. State={player.get_state()}",
+            "SYNC"
+        )
 
 
 # ============================================================
@@ -240,6 +320,7 @@ def play_selected_video():
     with playback_lock:
         media = instance.media_new(str(media_path))
         player.set_media(media)
+        player.audio_set_mute(get_mute_audio())
         player.play()
         current_playback_path = str(media_path)
 
@@ -522,8 +603,21 @@ def scheduled_play(start_at_ms, sync_id):
     log(f"Secondary target reached. Actual: {actual_ms:.3f} ms Difference: {actual_ms - start_at_ms:+.3f} ms", "SYNC")
 
     with playback_lock:
+        before_system_ms = time.time() * 1000
+        before_state = player.get_state()
+        before_time = player.get_time()
+
+        log(f"Secondary VLC before PLAY: State={before_state} Time={before_time} ms System={before_system_ms:.3f}", "SYNC")
+
+        player.audio_set_mute(get_mute_audio())
         player.play()
         current_playback_path = media_path
+
+        after_system_ms = time.time() * 1000
+        after_state = player.get_state()
+        after_time = player.get_time()
+
+        log(f"Secondary VLC after PLAY: State={after_state} Time={after_time} ms System={after_system_ms:.3f}", "SYNC")
 
     log(f"Secondary VLC PLAY command executed for Sync ID {sync_id}.", "SYNC")
 
@@ -583,7 +677,11 @@ def on_message(client, userdata, msg):
             log(f"Invalid start_at_ms: {start_at_ms}", "ERROR")
             return
 
+        sync_adjustment_ms = get_sync_start_delay_ms()
+        adjusted_start_at_ms = start_at_ms + sync_adjustment_ms
+
         log(f"Received scheduled PLAY for {start_at_ms:.3f} ms (Sync ID: {sync_id})", "SYNC")
+        log(f"Secondary Sync Start Delay: {sync_adjustment_ms:+d} ms. Adjusted target: {adjusted_start_at_ms:.3f} ms", "SYNC")
 
         with scheduled_play_lock:
             if scheduled_play_timer is not None:
@@ -594,13 +692,13 @@ def on_message(client, userdata, msg):
 
             delay_seconds = max(
                 0,
-                (start_at_ms - time.time() * 1000) / 1000
+                (adjusted_start_at_ms - time.time() * 1000) / 1000
             )
 
             scheduled_play_timer = threading.Timer(
                 delay_seconds,
                 scheduled_play,
-                args=(start_at_ms, sync_id)
+                args=(adjusted_start_at_ms, sync_id)
             )
 
             scheduled_play_timer.daemon = True
@@ -675,6 +773,8 @@ def main():
 
     instance = vlc.Instance()
     player = instance.media_player_new()
+
+    player.audio_set_mute(get_mute_audio())
 
     pause_flag = read_pause_flag()
     schedule_enabled = is_schedule_enabled_now()

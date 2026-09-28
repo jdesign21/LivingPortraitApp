@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# motion_vlc_primary.py
 
 import vlc
 import sys
@@ -29,7 +30,8 @@ from shared.vlc_helper import (
     get_secondary_start_mode,
     get_secondary_start_delay_seconds,
     get_current_scheduler_category,
-    is_current_schedule_active
+    is_current_schedule_active,
+    get_mute_audio
 )
 
 from shared.vlc_network_helper import (
@@ -133,12 +135,63 @@ def load_and_pause(media_path):
     media = vlc.Media(media_path)
 
     player.set_media(media)
+    player.audio_set_mute(get_mute_audio())
     player.play()
 
     sleep(0.5)
 
     player.set_pause(1)
     player.set_time(0)
+
+
+def prepare_media_for_sync(media_path):
+    log(f"Waiting for VLC to open sync media: {Path(media_path).name}", "SYNC")
+
+    media = vlc.Media(media_path)
+    player.set_media(media)
+    player.audio_set_mute(get_mute_audio())
+    player.play()
+
+    open_deadline = time.time() + 10
+
+    while time.time() < open_deadline:
+        state = player.get_state()
+
+        if state == vlc.State.Playing:
+            log(f"VLC opened sync media. State={state}", "SYNC")
+            break
+
+        if state == vlc.State.Error:
+            log("VLC failed to open sync media.", "ERROR")
+            return False
+
+        time.sleep(0.05)
+    else:
+        state = player.get_state()
+        log(f"Timed out waiting for VLC to open sync media. State={state}", "ERROR")
+        return False
+
+    player.set_pause(1)
+
+    pause_deadline = time.time() + 2
+
+    while time.time() < pause_deadline:
+        state = player.get_state()
+
+        if state == vlc.State.Paused:
+            player.set_time(0)
+            log(f"Sync media prepared and paused at 0 ms. State={player.get_state()}", "SYNC")
+            return True
+
+        if state == vlc.State.Error:
+            log("VLC entered an error state while pausing sync media.", "ERROR")
+            return False
+
+        time.sleep(0.05)
+
+    state = player.get_state()
+    log(f"Timed out waiting for VLC to pause sync media. State={state}", "ERROR")
+    return False
 
 
 # ============================================================
@@ -358,6 +411,7 @@ def play_endless():
         media = vlc.Media(last_played_path)
 
         player.set_media(media)
+        player.audio_set_mute(get_mute_audio())
         player.play()
 
         sleep(0.5)
@@ -493,6 +547,10 @@ def play_triggered(delay_seconds):
 
         log(f"Created Sync ID {sync_id} for Sync Tag '{sync_tag}'", "SYNC")
 
+        # ====================================================
+        # Prepare Secondary first.
+        # ====================================================
+
         if sync_tag == "playlist":
             prepare_secondary_for_sync(
                 sync_tag,
@@ -505,51 +563,66 @@ def play_triggered(delay_seconds):
                 sync_id
             )
 
-        secondary_start_mode = get_secondary_start_mode()
-        secondary_start_delay = get_secondary_start_delay_seconds()
+        # ====================================================
+        # Prepare Primary sync media.
+        # This fully opens the video and pauses it at 0 ms
+        # before the synchronization target is calculated.
+        # ====================================================
 
-        if secondary_start_mode not in (
-            "with_primary",
-            "after_primary",
-            "after_delay"
-        ):
-            log(f"Invalid Secondary Start Mode '{secondary_start_mode}'. Using 'with_primary'.", "SYNC")
-            secondary_start_mode = "with_primary"
+        if not prepare_media_for_sync(media_path):
+            log("Primary sync media could not be prepared. Playing locally without synchronized start.", "ERROR")
+            sync_enabled = False
+            sync_id = None
 
-        try:
-            secondary_start_delay = max(0, int(secondary_start_delay))
-        except (ValueError, TypeError):
-            secondary_start_delay = 0
+        if sync_enabled:
+            secondary_start_mode = get_secondary_start_mode()
+            secondary_start_delay = get_secondary_start_delay_seconds()
 
-        log(f"Secondary Start Mode: {secondary_start_mode}", "SYNC")
-        log(f"Secondary Start Delay: {secondary_start_delay} seconds", "SYNC")
+            if secondary_start_mode not in (
+                "with_primary",
+                "after_primary",
+                "after_delay"
+            ):
+                log(f"Invalid Secondary Start Mode '{secondary_start_mode}'. Using 'with_primary'.", "SYNC")
+                secondary_start_mode = "with_primary"
 
-        sync_start_delay_ms = get_sync_start_delay_ms()
+            try:
+                secondary_start_delay = max(0, int(secondary_start_delay))
+            except (ValueError, TypeError):
+                secondary_start_delay = 0
 
-        start_at_ms = int(time.time() * 1000) + sync_start_delay_ms
+            log(f"Secondary Start Mode: {secondary_start_mode}", "SYNC")
+            log(f"Secondary Start Delay: {secondary_start_delay} seconds", "SYNC")
 
-        if secondary_start_mode == "with_primary":
-            secondary_start_at_ms = start_at_ms
+            sync_start_delay_ms = get_sync_start_delay_ms()
 
-            log(f"Primary scheduled for {start_at_ms} ms. Secondary scheduled for the same time.", "SYNC")
+            # Base timestamp is shared with Secondary.
+            # Primary's Sync Start Delay is applied only to Primary.
+            base_start_at_ms = int(time.time() * 1000)
+            start_at_ms = base_start_at_ms + sync_start_delay_ms
 
-            send_secondary_play_at(
-                secondary_start_at_ms,
-                sync_id
-            )
+            if secondary_start_mode == "with_primary":
+                secondary_start_at_ms = base_start_at_ms
 
-        elif secondary_start_mode == "after_delay":
-            secondary_start_at_ms = start_at_ms + (secondary_start_delay * 1000)
+                log(f"Primary scheduled for {start_at_ms} ms. Secondary scheduled for {secondary_start_at_ms} ms.", "SYNC")
 
-            log(f"Primary scheduled for {start_at_ms} ms. Secondary scheduled for {secondary_start_at_ms} ms.", "SYNC")
+                send_secondary_play_at(
+                    secondary_start_at_ms,
+                    sync_id
+                )
 
-            send_secondary_play_at(
-                secondary_start_at_ms,
-                sync_id
-            )
+            elif secondary_start_mode == "after_delay":
+                secondary_start_at_ms = base_start_at_ms + (secondary_start_delay * 1000)
 
-        else:
-            log(f"Primary scheduled for {start_at_ms} ms. Secondary will start after Primary finishes.", "SYNC")
+                log(f"Primary scheduled for {start_at_ms} ms. Secondary scheduled for {secondary_start_at_ms} ms.", "SYNC")
+
+                send_secondary_play_at(
+                    secondary_start_at_ms,
+                    sync_id
+                )
+
+            else:
+                log(f"Primary scheduled for {start_at_ms} ms. Secondary will start after Primary finishes.", "SYNC")
 
     elif is_enabled() and not mqtt_client.client.is_connected():
         log("MQTT is enabled but not connected. Playing Primary locally.", "SYNC")
@@ -557,8 +630,10 @@ def play_triggered(delay_seconds):
     elif is_enabled() and not sync_tag:
         log("Video has no Sync Tag. Playing Primary locally without synchronized playback.", "SYNC")
 
-    media = vlc.Media(media_path)
-    player.set_media(media)
+    if not sync_enabled:
+        media = vlc.Media(media_path)
+        player.set_media(media)
+        player.audio_set_mute(get_mute_audio())
 
     if start_at_ms is not None:
         now_ms = time.time() * 1000
@@ -576,6 +651,7 @@ def play_triggered(delay_seconds):
 
         log(f"Primary target reached. Actual: {actual_ms:.3f} ms Difference: {actual_ms - start_at_ms:+.3f} ms", "SYNC")
 
+    player.audio_set_mute(get_mute_audio())
     player.play()
 
     if sync_id:
@@ -612,8 +688,9 @@ def play_triggered(delay_seconds):
         and secondary_start_mode == "after_primary"
         and primary_finished_naturally
     ):
-        secondary_sync_delay_ms = get_sync_start_delay_ms()
-        secondary_start_at_ms = int(time.time() * 1000) + secondary_sync_delay_ms
+        # Secondary receives the current base time.
+        # Its own Sync Start Delay is applied on the Secondary.
+        secondary_start_at_ms = int(time.time() * 1000)
 
         log(f"Primary finished naturally. Secondary scheduled for {secondary_start_at_ms} ms.", "SYNC")
 
@@ -701,6 +778,8 @@ def main():
     instance = vlc.Instance()
     player = instance.media_player_new()
 
+    player.audio_set_mute(get_mute_audio())
+
     pause_media = instance.media_new(str(PAUSE_VIDEO))
     paused_mode = False
 
@@ -733,6 +812,7 @@ def main():
                     player.stop()
 
                 player.set_media(pause_media)
+                player.audio_set_mute(get_mute_audio())
                 player.play()
 
                 sleep(0.5)

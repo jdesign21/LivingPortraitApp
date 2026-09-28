@@ -1,5 +1,3 @@
-# vlc_helper.py
-
 import json
 import random
 import threading
@@ -69,6 +67,7 @@ def load_settings():
             "setup_complete": False,
             "selected_video": "",
             "pause_flag": True,
+            "mute_audio": True,
             "time_format": "12",
             "sync_tags": [],
             "schedule_tags": [
@@ -101,6 +100,10 @@ def load_settings():
 
     if "sync_tags" not in settings:
         settings["sync_tags"] = []
+        settings_changed = True
+
+    if "mute_audio" not in settings:
+        settings["mute_audio"] = True
         settings_changed = True
 
     if "schedule_tags" not in settings:
@@ -143,6 +146,11 @@ def save_settings(settings):
         f.flush()
         os.fsync(f.fileno())
     os.replace(temp_file, SETTINGS_FILE)
+
+
+def get_mute_audio():
+    settings = load_settings()
+    return bool(settings.get("mute_audio", False))
 
 
 def get_days_schedule():
@@ -797,7 +805,11 @@ def playlist_updater():
                 settings["playlist"]["last_updated"] = last_updated_str
                 save_settings(settings)
 
-                log(f"Mode: {mode}, New video: {new_video}, Updated at: {last_updated_str}", "PLAYBACK")
+                log(
+                    f"Mode: {mode}, New video: {new_video}, "
+                    f"Updated at: {last_updated_str}",
+                    "PLAYBACK"
+                )
 
                 if selection_changed:
                     notify_selection_sync(new_video)

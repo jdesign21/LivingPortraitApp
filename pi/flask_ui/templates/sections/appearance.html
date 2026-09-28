@@ -100,6 +100,59 @@
   </div>
 </div>
 
+<!-- Audio -->
+
+<div class="card mb-4 shadow-sm">
+  <div class="card-header bg-primary text-white">
+    <strong>Audio</strong>
+  </div>
+
+  <div class="card-body">
+    <p class="text-muted small mb-4">
+      Control whether audio is played during video playback.
+    </p>
+
+    <form method="POST" action="{{ url_for('save_mute_audio') }}">
+
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-volume-mute fs-4 me-3"></i>
+
+          <div>
+            <div class="fw-semibold">Mute Audio</div>
+            <div class="text-muted small">
+              Mute the audio from video playback on this screen only.
+            </div>
+          </div>
+        </div>
+
+        <div class="form-check form-switch m-0">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            role="switch"
+            id="muteAudio"
+            name="mute_audio"
+            {% if mute_audio %}checked{% endif %}
+          >
+        </div>
+      </div>
+
+      <div class="form-text mt-3">
+        This setting only affects audio. Video playback and synchronization
+        timing are not affected.
+      </div>
+
+      <div class="mt-4">
+        <button type="submit" class="btn btn-success">
+          Save Audio Setting
+        </button>
+      </div>
+
+    </form>
+  </div>
+</div>
+
 
 <!-- Time Format -->
 

@@ -21,7 +21,7 @@ def load_network_settings():
         "role": "primary",
         "primary_ip": "",
         "enable": "0",
-        "sync_start_delay_ms": 1000,
+        "sync_start_delay_ms": 0,
         "secondary_pis": []
     }
     save_network_settings(settings)

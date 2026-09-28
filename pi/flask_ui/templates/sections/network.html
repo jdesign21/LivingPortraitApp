@@ -74,18 +74,21 @@
                         </div>
                     </div>
 
-                    <!-- Sync Start Delay -->
-                    <div class="col-md-4" style="display: {{ 'none' if role == 'secondary' else 'block' }}">
+                    <div class="col-md-4">
                         <label class="form-label fw-semibold">Sync Start Delay</label>
 
                         <div class="input-group">
                             <input type="number" class="form-control" name="sync_start_delay_ms"
-                                value="{{ sync_start_delay_ms }}" min="0" step="100">
+                                value="{{ sync_start_delay_ms }}" step="50">
                             <span class="input-group-text">ms</span>
                         </div>
 
                         <div class="form-text">
-                            Time given to Secondary Pis before synchronized playback starts.
+                            {% if role == 'primary' %}
+                            Delay before the Primary starts synchronized playback.
+                            {% else %}
+                            Adjusts when this Secondary starts synchronized playback.
+                            {% endif %}
                         </div>
                     </div>
                 </div>
