@@ -153,6 +153,38 @@ def get_mute_audio():
     return bool(settings.get("mute_audio", False))
 
 
+def get_video_mute_audio(video_name):
+    """
+    Return the per-video mute setting.
+
+    Videos that do not have the new mute_audio field
+    default to False so their audio remains enabled.
+    """
+    if not video_name:
+        return False
+
+    filename = Path(video_name).name
+
+    try:
+        settings = load_settings()
+        order = settings.get("playlist", {}).get("order", [])
+
+        for video in order:
+            if video.get("filename", "") != filename:
+                continue
+
+            return bool(video.get("mute_audio", False))
+
+    except Exception as e:
+        log(
+            f"Failed to get per-video audio setting for "
+            f"'{filename}': {e}",
+            "ERROR"
+        )
+
+    return False
+
+
 def get_days_schedule():
     settings = load_settings()
     return settings.get("days", {})
@@ -304,7 +336,11 @@ def is_schedule_enabled_now():
             start_time = datetime.strptime(start_str, "%H:%M").time()
             end_time = datetime.strptime(end_str, "%H:%M").time()
         except Exception as e:
-            log(f"Failed to parse times for {current_day} {slot_key}: {e}", "SCHEDULE")
+            log(
+                f"Failed to parse times for "
+                f"{current_day} {slot_key}: {e}",
+                "SCHEDULE"
+            )
             continue
 
         if start_time <= now_time < end_time:
@@ -337,7 +373,11 @@ def is_current_schedule_active():
             start_time = datetime.strptime(start_str, "%H:%M").time()
             end_time = datetime.strptime(end_str, "%H:%M").time()
         except Exception as e:
-            log(f"Failed to parse start/end times for {current_day} {slot_key}: {e}", "SCHEDULE")
+            log(
+                f"Failed to parse start/end times for "
+                f"{current_day} {slot_key}: {e}",
+                "SCHEDULE"
+            )
             continue
 
         if start_time <= now_time < end_time:
@@ -370,14 +410,28 @@ def get_next_start_time(settings):
             category = slot.get("category")
 
             try:
-                start_time = datetime.strptime(start_str, "%H:%M").time()
-                start_dt = datetime.combine(check_date, start_time)
+                start_time = datetime.strptime(
+                    start_str,
+                    "%H:%M"
+                ).time()
+
+                start_dt = datetime.combine(
+                    check_date,
+                    start_time
+                )
+
             except Exception as e:
-                log(f"Failed to parse start time for {day_name} {slot_key}: {e}", "SCHEDULE")
+                log(
+                    f"Failed to parse start time for "
+                    f"{day_name} {slot_key}: {e}",
+                    "SCHEDULE"
+                )
                 continue
 
             if start_dt > now:
-                upcoming_slots.append((start_dt, day_name, category))
+                upcoming_slots.append(
+                    (start_dt, day_name, category)
+                )
 
     if not upcoming_slots:
         return None, None
@@ -419,10 +473,22 @@ def get_current_scheduler_category():
         category = slot.get("category", None)
 
         try:
-            start_time = datetime.strptime(start_str, "%H:%M").time()
-            end_time = datetime.strptime(end_str, "%H:%M").time()
+            start_time = datetime.strptime(
+                start_str,
+                "%H:%M"
+            ).time()
+
+            end_time = datetime.strptime(
+                end_str,
+                "%H:%M"
+            ).time()
+
         except Exception as e:
-            log(f"Failed to parse start/end times for {current_day} {slot_key}: {e}", "SCHEDULE")
+            log(
+                f"Failed to parse start/end times for "
+                f"{current_day} {slot_key}: {e}",
+                "SCHEDULE"
+            )
             continue
 
         if start_time <= now_time < end_time:
@@ -494,7 +560,11 @@ def update_playlist_timestamp_on_startup():
         last_updated_str = playlist.get("last_updated", "")
 
         if mode not in ("random", "fixed"):
-            log(f"Playlist mode '{mode}' does not require timestamp update.", "SYSTEM")
+            log(
+                f"Playlist mode '{mode}' does not require "
+                f"timestamp update.",
+                "SYSTEM"
+            )
             return
 
         now = datetime.now()
@@ -507,38 +577,66 @@ def update_playlist_timestamp_on_startup():
                     "%Y-%m-%d %H:%M:%S"
                 )
             except Exception as e:
-                log(f"Failed to parse last_updated timestamp: {e}", "ERROR")
+                log(
+                    f"Failed to parse last_updated timestamp: {e}",
+                    "ERROR"
+                )
 
         if interval > 0 and (
             not last_updated
             or (now - last_updated) >= timedelta(minutes=interval)
         ):
-            new_timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+            new_timestamp = now.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+
             playlist["last_updated"] = new_timestamp
             settings["playlist"] = playlist
             save_settings(settings)
-            log(f"Playlist mode '{mode}' detected. Updated last_updated to: {new_timestamp}", "PLAYBACK")
+
+            log(
+                f"Playlist mode '{mode}' detected. "
+                f"Updated last_updated to: {new_timestamp}",
+                "PLAYBACK"
+            )
         else:
-            log("Playlist timestamp still valid or interval is zero, no update needed.", "SYSTEM")
+            log(
+                "Playlist timestamp still valid or interval is zero, "
+                "no update needed.",
+                "SYSTEM"
+            )
 
     except Exception as e:
-        log(f"Failed to update playlist timestamp: {e}", "ERROR")
+        log(
+            f"Failed to update playlist timestamp: {e}",
+            "ERROR"
+        )
 
 
 def get_selected_video():
     try:
         settings = load_settings()
-        selected_name = settings.get("selected_video", "").strip()
+        selected_name = settings.get(
+            "selected_video",
+            ""
+        ).strip()
+
         video_path = VIDEO_FOLDER / selected_name
 
         if video_path.exists():
             return str(video_path)
 
-        log(f"Selected video {selected_name} not found in folder", "VIDEO")
+        log(
+            f"Selected video {selected_name} not found in folder",
+            "VIDEO"
+        )
         return None
 
     except Exception as e:
-        log(f"Failed to read selected_video from settings.json: {e}", "ERROR")
+        log(
+            f"Failed to read selected_video from settings.json: {e}",
+            "ERROR"
+        )
         return None
 
 
@@ -554,20 +652,30 @@ def get_sync_tag_for_video(video_name):
 
     try:
         settings = load_settings()
-        order = settings.get("playlist", {}).get("order", [])
+        order = settings.get(
+            "playlist",
+            {}
+        ).get(
+            "order",
+            []
+        )
 
         for video in order:
             if video.get("filename", "") != filename:
                 continue
 
             sync_tag = video.get("sync_tag", "")
+
             if isinstance(sync_tag, str):
                 sync_tag = sync_tag.strip()
 
             return sync_tag or None
 
     except Exception as e:
-        log(f"Failed to get Sync Tag for '{filename}': {e}", "ERROR")
+        log(
+            f"Failed to get Sync Tag for '{filename}': {e}",
+            "ERROR"
+        )
 
     return None
 
@@ -599,9 +707,16 @@ def notify_selection_sync(video_name):
     sync_tag = get_sync_tag_for_video(video_name)
 
     try:
-        selection_sync_callback(video_name, sync_tag)
+        selection_sync_callback(
+            video_name,
+            sync_tag
+        )
     except Exception as e:
-        log(f"Selection Sync callback failed for '{video_name}': {e}", "SYNC")
+        log(
+            f"Selection Sync callback failed for "
+            f"'{video_name}': {e}",
+            "SYNC"
+        )
 
 
 def change_video_for_trigger(mode, current_video):
@@ -648,7 +763,10 @@ def change_video_for_trigger(mode, current_video):
 
     elif mode == "fixed":
         if current_filename in active_files:
-            current_index = active_files.index(current_filename)
+            current_index = active_files.index(
+                current_filename
+            )
+
             new_video = active_files[
                 (current_index + 1) % len(active_files)
             ]
@@ -661,7 +779,10 @@ def change_video_for_trigger(mode, current_video):
     new_path = VIDEO_FOLDER / new_video
 
     if not new_path.exists():
-        log(f"Trigger Change selected missing video: {new_video}", "ERROR")
+        log(
+            f"Trigger Change selected missing video: {new_video}",
+            "ERROR"
+        )
         return current_video
 
     if new_video == current_filename:
@@ -673,7 +794,10 @@ def change_video_for_trigger(mode, current_video):
     )
     save_settings(settings)
 
-    log(f"Trigger Change: {current_filename} -> {new_video}", "PLAYBACK")
+    log(
+        f"Trigger Change: {current_filename} -> {new_video}",
+        "PLAYBACK"
+    )
 
     notify_selection_sync(new_video)
 
@@ -685,7 +809,10 @@ def read_pause_flag():
         settings = load_settings()
         return settings.get("pause_flag", False)
     except Exception as e:
-        log(f"Failed to read pause_flag from settings.json: {e}", "ERROR")
+        log(
+            f"Failed to read pause_flag from settings.json: {e}",
+            "ERROR"
+        )
         return False
 
 
@@ -700,8 +827,16 @@ def playlist_updater():
         try:
             settings = load_settings()
             playlist = settings.get("playlist", {})
-            secondary_video_mode = playlist.get("secondary_video_mode", "sync_tag")
-            trigger_change = bool(playlist.get("trigger_change", False))
+            secondary_video_mode = playlist.get(
+                "secondary_video_mode",
+                "sync_tag"
+            )
+            trigger_change = bool(
+                playlist.get(
+                    "trigger_change",
+                    False
+                )
+            )
 
             (
                 mode,
@@ -728,7 +863,10 @@ def playlist_updater():
 
             # A Secondary using Match Sync Tag must not independently
             # change its selected video. The Primary controls selection.
-            if secondary_video_mode == "sync_tag" and selection_sync_callback is None:
+            if (
+                secondary_video_mode == "sync_tag"
+                and selection_sync_callback is None
+            ):
                 time.sleep(1)
                 continue
 
@@ -752,31 +890,49 @@ def playlist_updater():
                 ]
 
             if not active_files:
-                log(f"No active files. schedule_enabled={schedule_enabled}", "PLAYBACK")
+                log(
+                    f"No active files. "
+                    f"schedule_enabled={schedule_enabled}",
+                    "PLAYBACK"
+                )
                 time.sleep(10)
                 continue
 
-            current_video = settings.get("selected_video", "")
+            current_video = settings.get(
+                "selected_video",
+                ""
+            )
+
             now = datetime.now()
 
             try:
                 last_dt = (
-                    datetime.strptime(last_updated, "%Y-%m-%d %H:%M:%S")
+                    datetime.strptime(
+                        last_updated,
+                        "%Y-%m-%d %H:%M:%S"
+                    )
                     if last_updated
                     else None
                 )
             except Exception as e:
-                log(f"Error parsing last_updated '{last_updated}': {e}", "ERROR")
+                log(
+                    f"Error parsing last_updated "
+                    f"'{last_updated}': {e}",
+                    "ERROR"
+                )
                 last_dt = None
 
             if (
                 not last_dt
-                or (now - last_dt) >= timedelta(minutes=interval)
+                or (now - last_dt) >= timedelta(
+                    minutes=interval
+                )
             ):
                 new_video = current_video
 
                 if mode == "single" or len(active_files) == 1:
                     new_video = active_files[0]
+
                 else:
                     if mode == "random":
                         other_choices = [
@@ -784,25 +940,38 @@ def playlist_updater():
                             for v in active_files
                             if v != current_video
                         ]
+
                         new_video = (
                             random.choice(other_choices)
                             if other_choices
                             else current_video
                         )
+
                     elif mode == "fixed":
                         if current_video in active_files:
-                            idx = active_files.index(current_video)
+                            idx = active_files.index(
+                                current_video
+                            )
+
                             new_video = active_files[
                                 (idx + 1) % len(active_files)
                             ]
                         else:
                             new_video = active_files[0]
 
-                last_updated_str = now.strftime("%Y-%m-%d %H:%M:%S")
-                selection_changed = new_video != current_video
+                last_updated_str = now.strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+
+                selection_changed = (
+                    new_video != current_video
+                )
 
                 settings["selected_video"] = new_video
-                settings["playlist"]["last_updated"] = last_updated_str
+                settings["playlist"]["last_updated"] = (
+                    last_updated_str
+                )
+
                 save_settings(settings)
 
                 log(
@@ -815,6 +984,10 @@ def playlist_updater():
                     notify_selection_sync(new_video)
 
         except Exception as e:
-            log(f"Playlist updater error: {type(e).__name__}: {e}", "ERROR")
+            log(
+                f"Playlist updater error: "
+                f"{type(e).__name__}: {e}",
+                "ERROR"
+            )
 
         time.sleep(1)

@@ -4,20 +4,16 @@
   </h3>
 
   <!-- Theme -->
-  <div class="card mb-4 shadow-sm">
+  <div class="card mb-3 shadow-sm">
     <div class="card-header bg-primary text-white">
       <strong>Theme</strong>
     </div>
-    <div class="card-body">
-      <p class="text-muted small mb-4">
-        Customize the appearance of the application.
-      </p>
-
+    <div class="card-body py-3">
       <div class="d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center">
           <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25"
             fill="currentColor" class="bi bi-brightness-high me-3" viewBox="0 0 16 16">
-            <path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z" />
+            <path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 .707.707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z" />
           </svg>
 
           <div>
@@ -35,177 +31,167 @@
     </div>
   </div>
 
-
-
-
-<!-- Theme Colors -->
-<div class="card mb-4 shadow-sm">
-  <div class="card-header bg-primary text-white">
-    <strong>Theme Colors</strong>
-  </div>
-
-  <div class="card-body">
-    <p class="text-muted small mb-4">
-      Choose the colors used throughout the application.
-    </p>
-
-
-<div class="row g-3">
-  <div class="col-12 col-sm-auto">
-    <label for="primaryColor" class="form-label fw-semibold">
-      Primary Color
-    </label>
-    <input type="color" class="form-control form-control-color"
-      id="primaryColor" value="#0d6efd"
-      title="Choose primary color">
-  </div>
-
-  <div class="col-12 col-sm-auto">
-    <label for="secondaryColor" class="form-label fw-semibold">
-      Secondary Color
-    </label>
-    <input type="color" class="form-control form-control-color"
-      id="secondaryColor" value="#084298"
-      title="Choose secondary color">
-  </div>
-
-  <div class="col-12 col-sm-auto">
-    <label for="fontColor" class="form-label fw-semibold">
-      Font Color
-    </label>
-    <input type="color" class="form-control form-control-color"
-      id="fontColor" value="#212529"
-      title="Choose font color">
-  </div>
-</div>
-
-
-
-    <div class="form-text mt-3">
-      Primary is used for headers and main controls. Secondary is used for
-      accents and supporting elements. Font Color controls the main text color.
+  <!-- Theme Colors -->
+  <div class="card mb-3 shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <strong>Theme Colors</strong>
     </div>
 
-    <div class="mt-4">
-      <button type="button" class="btn btn-outline-secondary" id="resetThemeColors">
-        Reset to Default Colors
-      </button>
-    </div>
-
-    <div class="alert alert-info mt-4 mb-0 small">
-      <strong>Color Limitations:</strong>
-      Very light or very dark colors may reduce text readability or contrast
-      with other interface elements. Choose colors that maintain good contrast.
-    </div>
-  </div>
-</div>
-
-<!-- Audio -->
-
-<div class="card mb-4 shadow-sm">
-  <div class="card-header bg-primary text-white">
-    <strong>Audio</strong>
-  </div>
-
-  <div class="card-body">
-    <p class="text-muted small mb-4">
-      Control whether audio is played during video playback.
-    </p>
-
-    <form method="POST" action="{{ url_for('save_mute_audio') }}">
-
-      <div class="d-flex justify-content-between align-items-center">
-        <div class="d-flex align-items-center">
-          <i class="bi bi-volume-mute fs-4 me-3"></i>
-
-          <div>
-            <div class="fw-semibold">Mute Audio</div>
-            <div class="text-muted small">
-              Mute the audio from video playback on this screen only.
-            </div>
-          </div>
+    <div class="card-body py-3">
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-sm-4">
+          <label for="primaryColor" class="form-label fw-semibold mb-1">
+            Primary Color
+          </label>
+          <input
+            type="color"
+            class="form-control form-control-color"
+            id="primaryColor"
+            value="#0d6efd"
+            title="Choose primary color"
+          >
         </div>
 
-        <div class="form-check form-switch m-0">
+        <div class="col-12 col-sm-4">
+          <label for="secondaryColor" class="form-label fw-semibold mb-1">
+            Secondary Color
+          </label>
           <input
-            class="form-check-input"
-            type="checkbox"
-            role="switch"
-            id="muteAudio"
-            name="mute_audio"
-            {% if mute_audio %}checked{% endif %}
+            type="color"
+            class="form-control form-control-color"
+            id="secondaryColor"
+            value="#084298"
+            title="Choose secondary color"
+          >
+        </div>
+
+        <div class="col-12 col-sm-4">
+          <label for="fontColor" class="form-label fw-semibold mb-1">
+            Font Color
+          </label>
+          <input
+            type="color"
+            class="form-control form-control-color"
+            id="fontColor"
+            value="#212529"
+            title="Choose font color"
           >
         </div>
       </div>
 
-      <div class="form-text mt-3">
-        This setting only affects audio. Video playback and synchronization
-        timing are not affected.
-      </div>
+      <div class="d-flex justify-content-between align-items-center mt-3">
+        <div class="form-text">
+          Primary, secondary, and main text colors.
+        </div>
 
-      <div class="mt-4">
-        <button type="submit" class="btn btn-success">
-          Save Audio Setting
+        <button
+          type="button"
+          class="btn btn-outline-secondary btn-sm"
+          id="resetThemeColors">
+          Reset Colors
         </button>
       </div>
 
-    </form>
-  </div>
-</div>
-
-
-<!-- Time Format -->
-
-<div class="card mb-4 shadow-sm">
-  <div class="card-header bg-primary text-white">
-    <strong>Time Format</strong>
+      <div class="alert alert-info mt-3 mb-0 py-2 small">
+        <strong>Color Limitations:</strong>
+        Very light or very dark colors may reduce readability or contrast.
+      </div>
+    </div>
   </div>
 
-  <div class="card-body">
-    <p class="text-muted small mb-4">
-      Choose how times are displayed throughout the application.
-    </p>
+  <!-- Audio -->
+  <div class="card mb-3 shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <strong>Audio</strong>
+    </div>
 
-    <form method="POST" action="{{ url_for('save_time_format') }}">
+    <div class="card-body py-3">
+      <form method="POST" action="{{ url_for('save_mute_audio') }}">
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-volume-mute fs-4 me-3"></i>
 
-      <div class="form-check mb-3">
-        <input class="form-check-input" type="radio"
-          name="timeFormat" id="timeFormat12" value="12"
-          {% if time_format == "12" %}checked{% endif %}>
+            <div>
+              <div class="fw-semibold">Mute Audio</div>
+              <div class="text-muted small">
+                Mute video audio on this screen only.
+              </div>
+            </div>
+          </div>
 
-        <label class="form-check-label" for="timeFormat12">
-          <span class="fw-semibold">12-hour</span>
-          <span class="text-muted small ms-2">Example: 4:30 PM</span>
-        </label>
-      </div>
+          <div class="d-flex align-items-center gap-3">
+            <div class="form-check form-switch m-0">
+              <input
+                class="form-check-input"
+                type="checkbox"
+                role="switch"
+                id="muteAudio"
+                name="mute_audio"
+                {% if mute_audio %}checked{% endif %}
+              >
+            </div>
 
-      <div class="form-check">
-        <input class="form-check-input" type="radio"
-          name="timeFormat" id="timeFormat24" value="24"
-          {% if time_format == "24" %}checked{% endif %}>
-
-        <label class="form-check-label" for="timeFormat24">
-          <span class="fw-semibold">24-hour</span>
-          <span class="text-muted small ms-2">Example: 16:30</span>
-        </label>
-      </div>
-
-      <div class="form-text mt-3">
-        This setting only changes how times are displayed. Schedule times and
-        playback timing are not affected.
-      </div>
-
-      <div class="mt-4">
-        <button type="submit" class="btn btn-success">
-          Save Time Format
-        </button>
-      </div>
-
-    </form>
+            <button type="submit" class="btn btn-success btn-sm">
+              Save
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
   </div>
-</div>
 
+  <!-- Time Format -->
+  <div class="card mb-3 shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <strong>Time Format</strong>
+    </div>
 
+    <div class="card-body py-3">
+      <form method="POST" action="{{ url_for('save_time_format') }}">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+          <div class="d-flex align-items-center gap-4">
+            <div class="form-check mb-0">
+              <input
+                class="form-check-input"
+                type="radio"
+                name="timeFormat"
+                id="timeFormat12"
+                value="12"
+                {% if time_format == "12" %}checked{% endif %}
+              >
+              <label class="form-check-label" for="timeFormat12">
+                <span class="fw-semibold">12-hour</span>
+                <span class="text-muted small ms-1">4:30 PM</span>
+              </label>
+            </div>
+
+            <div class="form-check mb-0">
+              <input
+                class="form-check-input"
+                type="radio"
+                name="timeFormat"
+                id="timeFormat24"
+                value="24"
+                {% if time_format == "24" %}checked{% endif %}
+              >
+              <label class="form-check-label" for="timeFormat24">
+                <span class="fw-semibold">24-hour</span>
+                <span class="text-muted small ms-1">16:30</span>
+              </label>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-success btn-sm">
+            Save
+          </button>
+        </div>
+
+        <div class="form-text mt-2">
+          Changes how times are displayed. Schedule and playback timing are not affected.
+        </div>
+      </form>
+    </div>
+  </div>
 
 
   <!-- Font -->

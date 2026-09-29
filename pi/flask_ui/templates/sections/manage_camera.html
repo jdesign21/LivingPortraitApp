@@ -34,91 +34,108 @@
   <div class="tab-content" id="manageTabsContent">
 
     <!-- Videos Tab -->
-    <div class="tab-pane fade show active" id="videos-pane" role="tabpanel" aria-labelledby="videos-tab">
-      <form method="POST" action="{{ url_for('update_all') }}">
-        <div class="card shadow-sm">
-          <div class="card-header bg-primary text-white">
-            <strong>Videos</strong>
-          </div>
-          <div class="card-body">
-            <p class="text-muted small mb-4">
-              Enable or disable videos in the playlist, and use schedule tags
-              to categorize them. Schedule tags can be used by playback modes
-              and schedules to determine which videos are available for playback.
-            </p>
+<div class="tab-pane fade show active" id="videos-pane" role="tabpanel" aria-labelledby="videos-tab">
+  <form method="POST" action="{{ url_for('update_all') }}">
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <strong>Videos</strong>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-4">
+          Enable or disable videos in the playlist, and use schedule tags
+          to categorize them. Schedule tags can be used by playback modes
+          and schedules to determine which videos are available for playback.
+        </p>
 
-            <ul class="list-group">
-              {% for video in manage_videos %}
-              <li class="list-group-item">
-                <div class="row g-3 align-items-center">
-                  <!-- Video / Enable -->
-                  <div class="col-12 col-lg-4">
-                    <input type="hidden" name="videos[{{ loop.index0 }}][filename]" value="{{ video.filename }}">
-                    <div class="form-check form-switch">
-                      <input class="form-check-input" type="checkbox" id="activeSwitch-{{ loop.index0 }}"
-                        name="videos[{{ loop.index0 }}][active]" value="true" {% if video.active %}checked{% endif %}>
-                      <label class="form-check-label fw-semibold" for="activeSwitch-{{ loop.index0 }}">
-                        {{ video.filename }}
-                      </label>
-                    </div>
-                  </div>
-
-                  <!-- Schedule Tags -->
-                  <div class="col-12 col-lg-4">
-                    <label class="form-label small text-muted mb-1">
-                      Schedule Tags
-                    </label>
-                    <select name="videos[{{ loop.index0 }}][tags][]" class="form-select form-select-sm tomselect" multiple>
-                      {% for tag in schedule_tags %}
-                      <option value="{{ tag.id }}" {% if tag.id in video.get('tags', []) %}selected{% endif %}>
-                        {{ tag.name }}
-                      </option>
-                      {% endfor %}
-                    </select>
-                  </div>
-
-                  <!-- Sync Tag -->
-                  <div class="col-12 col-lg-3">
-                    <label class="form-label small text-muted mb-1" for="syncTag-{{ loop.index0 }}">
-                      Sync Tag
-                    </label>
-                    <select class="form-select form-select-sm" id="syncTag-{{ loop.index0 }}"
-                      name="videos[{{ loop.index0 }}][sync_tag]">
-                      <option value="">None</option>
-                      {% for tag in sync_tags %}
-                      <option value="{{ tag }}" {% if video.get('sync_tag', '').lower() == tag.lower() %}selected{% endif %}>
-                        {{ tag }}
-                      </option>
-                      {% endfor %}
-                    </select>
-                  </div>
-
-                  <!-- Delete Video -->
-                  <div class="col-12 col-lg-1">
-                    <button type="button" class="btn btn-danger btn-sm w-100"
-                      onclick="deleteVideo('{{ video.filename }}')">
-                      Delete
-                    </button>
-                  </div>
+        <ul class="list-group">
+          {% for video in manage_videos %}
+          <li class="list-group-item">
+            <div class="row g-3 align-items-center">
+              <!-- Video / Enable -->
+              <div class="col-12 col-lg-4">
+                <input type="hidden" name="videos[{{ loop.index0 }}][filename]" value="{{ video.filename }}">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="activeSwitch-{{ loop.index0 }}"
+                    name="videos[{{ loop.index0 }}][active]" value="true" {% if video.active %}checked{% endif %}>
+                  <label class="form-check-label fw-semibold" for="activeSwitch-{{ loop.index0 }}">
+                    {{ video.filename }}
+                  </label>
                 </div>
-              </li>
-              {% else %}
-              <li class="list-group-item text-muted">
-                No videos found.
-              </li>
-              {% endfor %}
-            </ul>
-          </div>
-        </div>
+              </div>
 
-        <div class="text-end mt-3">
-          <button type="submit" class="btn btn-success">
-            <i class="bi bi-save me-1"></i>
-            Save Videos
-          </button>
-        </div>
-      </form>
+              <!-- Schedule Tags -->
+              <div class="col-12 col-lg-3">
+                <label class="form-label small text-muted mb-1">
+                  Schedule Tags
+                </label>
+                <select name="videos[{{ loop.index0 }}][tags][]" class="form-select form-select-sm tomselect" multiple>
+                  {% for tag in schedule_tags %}
+                  <option value="{{ tag.id }}" {% if tag.id in video.get('tags', []) %}selected{% endif %}>
+                    {{ tag.name }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <!-- Sync Tag -->
+              <div class="col-12 col-lg-2">
+                <label class="form-label small text-muted mb-1" for="syncTag-{{ loop.index0 }}">
+                  Sync Tag
+                </label>
+                <select class="form-select form-select-sm" id="syncTag-{{ loop.index0 }}"
+                  name="videos[{{ loop.index0 }}][sync_tag]">
+                  <option value="">None</option>
+                  {% for tag in sync_tags %}
+                  <option value="{{ tag }}" {% if video.get('sync_tag', '').lower() == tag.lower() %}selected{% endif %}>
+                    {{ tag }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <!-- Mute Audio -->
+              <div class="col-12 col-lg-2">
+                <label class="form-label small text-muted mb-1 d-block">
+                  Mute Audio
+                </label>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox"
+                    id="muteAudio-{{ loop.index0 }}"
+                    name="videos[{{ loop.index0 }}][mute_audio]"
+                    value="true"
+                    {% if video.get('mute_audio', False) %}checked{% endif %}>
+                  <label class="form-check-label" for="muteAudio-{{ loop.index0 }}">
+                    Mute
+                  </label>
+                </div>
+              </div>
+
+              <!-- Delete Video -->
+              <div class="col-12 col-lg-1">
+                <button type="button" class="btn btn-danger btn-sm w-100"
+                  onclick="deleteVideo('{{ video.filename }}')">
+                  Delete
+                </button>
+              </div>
+            </div>
+          </li>
+          {% else %}
+          <li class="list-group-item text-muted">
+            No videos found.
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
     </div>
+
+    <div class="text-end mt-3">
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-save me-1"></i>
+        Save Videos
+      </button>
+    </div>
+  </form>
+</div>
 
     <!-- Upload Tab -->
     <div class="tab-pane fade" id="upload-pane" role="tabpanel" aria-labelledby="upload-tab">
@@ -365,20 +382,3 @@
   </div>
 </section>
 
-<!-- Sync Tags Loading Overlay -->
-<div id="syncTagsLoading" style="
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.65);
-    z-index: 9999;
-    align-items: center;
-    justify-content: center;">
-  <div class="text-center text-white">
-    <div class="spinner-border mb-3" role="status" style="width: 3rem; height: 3rem;">
-      <span class="visually-hidden">Syncing...</span>
-    </div>
-    <h5>Syncing Tags...</h5>
-    <p>Please wait while the Secondary Pis are updated.</p>
-  </div>
-</div>

@@ -31,7 +31,8 @@ from shared.vlc_helper import (
     get_secondary_start_delay_seconds,
     get_current_scheduler_category,
     is_current_schedule_active,
-    get_mute_audio
+    get_mute_audio,
+    get_video_mute_audio
 )
 
 from shared.vlc_network_helper import (
@@ -84,7 +85,11 @@ def on_sync_status_message(client, userdata, msg):
 
     with sync_status_lock:
         if sync_id != current_sync_id:
-            log(f"Ignoring stale status message. Received ID: {sync_id}, Current ID: {current_sync_id}", "SYNC")
+            log(
+                f"Ignoring stale status message. Received ID: {sync_id}, "
+                f"Current ID: {current_sync_id}",
+                "SYNC"
+            )
             return
 
         sender = getattr(msg, "mid", None)
@@ -94,12 +99,24 @@ def on_sync_status_message(client, userdata, msg):
 
         sync_secondary_status[str(sender)] = status
 
-    log(f"Secondary status received: {status.upper()} Sync Tag '{sync_tag}' (ID: {sync_id})", "SYNC")
+    log(
+        f"Secondary status received: {status.upper()} "
+        f"Sync Tag '{sync_tag}' (ID: {sync_id})",
+        "SYNC"
+    )
 
     if status == "ready":
-        log(f"Secondary reported READY for Sync Tag '{sync_tag}' (ID: {sync_id})", "SYNC")
+        log(
+            f"Secondary reported READY for Sync Tag "
+            f"'{sync_tag}' (ID: {sync_id})",
+            "SYNC"
+        )
     elif status == "unavailable":
-        log(f"Secondary reported UNAVAILABLE for Sync Tag '{sync_tag}' (ID: {sync_id})", "SYNC")
+        log(
+            f"Secondary reported UNAVAILABLE for Sync Tag "
+            f"'{sync_tag}' (ID: {sync_id})",
+            "SYNC"
+        )
     else:
         log(f"Unknown Secondary sync status: {status}", "SYNC")
 
@@ -113,7 +130,10 @@ def register_sync_event(sync_tag, sync_id):
         current_sync_tag = sync_tag
         sync_secondary_status.clear()
 
-    log(f"Registered Sync ID {sync_id} for Sync Tag '{sync_tag}'", "SYNC")
+    log(
+        f"Registered Sync ID {sync_id} for Sync Tag '{sync_tag}'",
+        "SYNC"
+    )
 
 
 def on_exit():
@@ -135,7 +155,10 @@ def load_and_pause(media_path):
     media = vlc.Media(media_path)
 
     player.set_media(media)
-    player.audio_set_mute(get_mute_audio())
+
+    mute = get_mute_audio() or get_video_mute_audio(media_path)
+    player.audio_set_mute(mute)
+
     player.play()
 
     sleep(0.5)
@@ -145,11 +168,18 @@ def load_and_pause(media_path):
 
 
 def prepare_media_for_sync(media_path):
-    log(f"Waiting for VLC to open sync media: {Path(media_path).name}", "SYNC")
+    log(
+        f"Waiting for VLC to open sync media: "
+        f"{Path(media_path).name}",
+        "SYNC"
+    )
 
     media = vlc.Media(media_path)
     player.set_media(media)
-    player.audio_set_mute(get_mute_audio())
+
+    mute = get_mute_audio() or get_video_mute_audio(media_path)
+    player.audio_set_mute(mute)
+
     player.play()
 
     open_deadline = time.time() + 10
@@ -158,17 +188,27 @@ def prepare_media_for_sync(media_path):
         state = player.get_state()
 
         if state == vlc.State.Playing:
-            log(f"VLC opened sync media. State={state}", "SYNC")
+            log(
+                f"VLC opened sync media. State={state}",
+                "SYNC"
+            )
             break
 
         if state == vlc.State.Error:
-            log("VLC failed to open sync media.", "ERROR")
+            log(
+                "VLC failed to open sync media.",
+                "ERROR"
+            )
             return False
 
         time.sleep(0.05)
     else:
         state = player.get_state()
-        log(f"Timed out waiting for VLC to open sync media. State={state}", "ERROR")
+        log(
+            f"Timed out waiting for VLC to open sync media. "
+            f"State={state}",
+            "ERROR"
+        )
         return False
 
     player.set_pause(1)
@@ -180,17 +220,29 @@ def prepare_media_for_sync(media_path):
 
         if state == vlc.State.Paused:
             player.set_time(0)
-            log(f"Sync media prepared and paused at 0 ms. State={player.get_state()}", "SYNC")
+            log(
+                f"Sync media prepared and paused at 0 ms. "
+                f"State={player.get_state()}",
+                "SYNC"
+            )
             return True
 
         if state == vlc.State.Error:
-            log("VLC entered an error state while pausing sync media.", "ERROR")
+            log(
+                "VLC entered an error state while pausing "
+                "sync media.",
+                "ERROR"
+            )
             return False
 
         time.sleep(0.05)
 
     state = player.get_state()
-    log(f"Timed out waiting for VLC to pause sync media. State={state}", "ERROR")
+    log(
+        f"Timed out waiting for VLC to pause sync media. "
+        f"State={state}",
+        "ERROR"
+    )
     return False
 
 
@@ -203,7 +255,10 @@ def change_video_on_trigger():
         with open(HOME / "settings.json", "r") as f:
             settings = json.load(f)
     except Exception as e:
-        log(f"Failed to load settings for Trigger Change: {e}", "ERROR")
+        log(
+            f"Failed to load settings for Trigger Change: {e}",
+            "ERROR"
+        )
         return get_selected_video()
 
     playlist = settings.get("playlist", {})
@@ -253,10 +308,18 @@ def change_video_on_trigger():
         active_files.append(filename)
 
     if len(active_files) < 2:
-        log("Trigger Change enabled but fewer than two active videos are available.", "PLAYBACK")
+        log(
+            "Trigger Change enabled but fewer than two "
+            "active videos are available.",
+            "PLAYBACK"
+        )
         return current_video
 
-    current_filename = Path(current_video).name if current_video else ""
+    current_filename = (
+        Path(current_video).name
+        if current_video
+        else ""
+    )
 
     if mode == "random":
         choices = [
@@ -272,7 +335,9 @@ def change_video_on_trigger():
 
     else:
         if current_filename in active_files:
-            current_index = active_files.index(current_filename)
+            current_index = active_files.index(
+                current_filename
+            )
             new_filename = active_files[
                 (current_index + 1) % len(active_files)
             ]
@@ -288,10 +353,17 @@ def change_video_on_trigger():
             with open(HOME / "settings.json", "w") as f:
                 json.dump(settings, f, indent=2)
 
-            log(f"Trigger Change selected '{new_filename}' using {mode} mode.", "PLAYBACK")
+            log(
+                f"Trigger Change selected '{new_filename}' "
+                f"using {mode} mode.",
+                "PLAYBACK"
+            )
 
         except Exception as e:
-            log(f"Failed to save Trigger Change selection: {e}", "ERROR")
+            log(
+                f"Failed to save Trigger Change selection: {e}",
+                "ERROR"
+            )
             return current_video
 
     return new_path
@@ -311,7 +383,13 @@ def get_video_sync_tag(media_path):
         with open(HOME / "settings.json", "r") as f:
             settings = json.load(f)
 
-        order = settings.get("playlist", {}).get("order", [])
+        order = settings.get(
+            "playlist",
+            {}
+        ).get(
+            "order",
+            []
+        )
 
         for video in order:
             if video.get("filename", "") != filename:
@@ -325,7 +403,10 @@ def get_video_sync_tag(media_path):
             return None
 
     except Exception as e:
-        log(f"Failed to get Sync Tag for '{filename}': {e}", "ERROR")
+        log(
+            f"Failed to get Sync Tag for '{filename}': {e}",
+            "ERROR"
+        )
 
     return None
 
@@ -334,7 +415,11 @@ def generate_sync_id():
     return uuid.uuid4().hex
 
 
-def prepare_secondary_for_sync(sync_tag, sync_id, sync_mode=None):
+def prepare_secondary_for_sync(
+    sync_tag,
+    sync_id,
+    sync_mode=None
+):
     message = {
         "command": "prepare_sync",
         "sync_tag": sync_tag,
@@ -350,11 +435,22 @@ def prepare_secondary_for_sync(sync_tag, sync_id, sync_mode=None):
     )
 
     if sync_mode:
-        log(f"Sent PREPARE_SYNC for Sync Tag '{sync_tag}' in {sync_mode} mode (ID: {sync_id})", "SYNC")
+        log(
+            f"Sent PREPARE_SYNC for Sync Tag '{sync_tag}' "
+            f"in {sync_mode} mode (ID: {sync_id})",
+            "SYNC"
+        )
     else:
-        log(f"Sent PREPARE_SYNC for Sync Tag '{sync_tag}' (ID: {sync_id})", "SYNC")
+        log(
+            f"Sent PREPARE_SYNC for Sync Tag '{sync_tag}' "
+            f"(ID: {sync_id})",
+            "SYNC"
+        )
 
-    log(f"MQTT publish result: {result.rc}", "MQTT")
+    log(
+        f"MQTT publish result: {result.rc}",
+        "MQTT"
+    )
 
 
 def send_secondary_play_at(start_at_ms, sync_id):
@@ -369,8 +465,15 @@ def send_secondary_play_at(start_at_ms, sync_id):
         json.dumps(message)
     )
 
-    log(f"Sent PLAY_AT command for {start_at_ms} ms (Sync ID: {sync_id})", "SYNC")
-    log(f"MQTT publish result: {result.rc}", "MQTT")
+    log(
+        f"Sent PLAY_AT command for {start_at_ms} ms "
+        f"(Sync ID: {sync_id})",
+        "SYNC"
+    )
+    log(
+        f"MQTT publish result: {result.rc}",
+        "MQTT"
+    )
 
 
 def sync_selected_video(video_name, sync_tag):
@@ -378,20 +481,35 @@ def sync_selected_video(video_name, sync_tag):
         return
 
     if not mqtt_client.client.is_connected():
-        log("MQTT is enabled but not connected. Selection sync skipped.", "SYNC")
+        log(
+            "MQTT is enabled but not connected. "
+            "Selection sync skipped.",
+            "SYNC"
+        )
         return
 
     if not sync_tag:
-        log(f"Selected video '{Path(video_name).name}' has no Sync Tag. Secondary preparation skipped.", "SYNC")
+        log(
+            f"Selected video '{Path(video_name).name}' has "
+            f"no Sync Tag. Secondary preparation skipped.",
+            "SYNC"
+        )
         return
 
     sync_id = generate_sync_id()
 
     register_sync_event(sync_tag, sync_id)
 
-    log(f"Selection changed to '{Path(video_name).name}' with Sync Tag '{sync_tag}'. Sync ID: {sync_id}", "SYNC")
+    log(
+        f"Selection changed to '{Path(video_name).name}' "
+        f"with Sync Tag '{sync_tag}'. Sync ID: {sync_id}",
+        "SYNC"
+    )
 
-    prepare_secondary_for_sync(sync_tag, sync_id)
+    prepare_secondary_for_sync(
+        sync_tag,
+        sync_id
+    )
 
 
 # ============================================================
@@ -401,17 +519,29 @@ def sync_selected_video(video_name, sync_tag):
 def play_endless():
     global last_played_path
 
-    log("Triggered mode OFF — playing video endlessly.", "PLAYBACK")
+    log(
+        "Triggered mode OFF — playing video endlessly.",
+        "PLAYBACK"
+    )
 
     if not last_played_path:
-        log("No video selected to play.", "VIDEO")
+        log(
+            "No video selected to play.",
+            "VIDEO"
+        )
         return
 
     while True:
         media = vlc.Media(last_played_path)
 
         player.set_media(media)
-        player.audio_set_mute(get_mute_audio())
+
+        mute = (
+            get_mute_audio()
+            or get_video_mute_audio(last_played_path)
+        )
+        player.audio_set_mute(mute)
+
         player.play()
 
         sleep(0.5)
@@ -421,19 +551,35 @@ def play_endless():
             vlc.State.Stopped
         ):
             if read_pause_flag() or not is_schedule_enabled_now():
-                log("Pause detected mid-playback. Stopping video.", "PLAYBACK")
+                log(
+                    "Pause detected mid-playback. "
+                    "Stopping video.",
+                    "PLAYBACK"
+                )
                 player.stop()
                 return
 
             if get_triggered_flag():
-                log("Triggered flag changed to ON during endless loop. Switching mode.", "PLAYBACK")
+                log(
+                    "Triggered flag changed to ON during "
+                    "endless loop. Switching mode.",
+                    "PLAYBACK"
+                )
                 player.stop()
                 return
 
             selected_path = get_selected_video()
 
-            if selected_path and selected_path != last_played_path:
-                log(f"Video change detected: {Path(last_played_path).name} -> {Path(selected_path).name}", "PLAYBACK")
+            if (
+                selected_path
+                and selected_path != last_played_path
+            ):
+                log(
+                    f"Video change detected: "
+                    f"{Path(last_played_path).name} -> "
+                    f"{Path(selected_path).name}",
+                    "PLAYBACK"
+                )
 
                 last_played_path = selected_path
 
@@ -453,8 +599,16 @@ def play_endless():
         ):
             selected_path = get_selected_video()
 
-            if selected_path and selected_path != last_played_path:
-                log(f"Video change detected: {Path(last_played_path).name} -> {Path(selected_path).name}", "PLAYBACK")
+            if (
+                selected_path
+                and selected_path != last_played_path
+            ):
+                log(
+                    f"Video change detected: "
+                    f"{Path(last_played_path).name} -> "
+                    f"{Path(selected_path).name}",
+                    "PLAYBACK"
+                )
 
                 last_played_path = selected_path
 
@@ -473,7 +627,10 @@ def play_endless():
 def play_triggered(delay_seconds):
     global last_played_path
 
-    log("Waiting for motion...", "MOTION")
+    log(
+        "Waiting for motion...",
+        "MOTION"
+    )
 
     if pir.is_active:
         pir.wait_for_no_motion()
@@ -481,14 +638,26 @@ def play_triggered(delay_seconds):
     while True:
         selected_path = get_selected_video()
 
-        if selected_path and selected_path != last_played_path:
-            log(f"Video change detected while waiting: {Path(last_played_path).name} -> {Path(selected_path).name}", "PLAYBACK")
+        if (
+            selected_path
+            and selected_path != last_played_path
+        ):
+            log(
+                f"Video change detected while waiting: "
+                f"{Path(last_played_path).name} -> "
+                f"{Path(selected_path).name}",
+                "PLAYBACK"
+            )
 
             last_played_path = selected_path
 
             load_and_pause(selected_path)
 
-            log(f"Loaded video {Path(selected_path).name} in paused state", "PLAYBACK")
+            log(
+                f"Loaded video {Path(selected_path).name} "
+                f"in paused state",
+                "PLAYBACK"
+            )
 
             sync_selected_video(
                 selected_path,
@@ -496,11 +665,19 @@ def play_triggered(delay_seconds):
             )
 
         if read_pause_flag() or not is_schedule_enabled_now():
-            log("Pause or schedule disabled while waiting for motion.", "PLAYBACK")
+            log(
+                "Pause or schedule disabled while waiting "
+                "for motion.",
+                "PLAYBACK"
+            )
             return
 
         if not get_triggered_flag():
-            log("Triggered flag turned OFF while waiting for motion.", "PLAYBACK")
+            log(
+                "Triggered flag turned OFF while waiting "
+                "for motion.",
+                "PLAYBACK"
+            )
             return
 
         if pir.is_active:
@@ -508,12 +685,18 @@ def play_triggered(delay_seconds):
 
         sleep(0.1)
 
-    log("Motion detected!", "MOTION")
+    log(
+        "Motion detected!",
+        "MOTION"
+    )
 
     media_path = get_selected_video()
 
     if not media_path:
-        log("No video selected to play.", "VIDEO")
+        log(
+            "No video selected to play.",
+            "VIDEO"
+        )
         return
 
     last_played_path = media_path
@@ -523,9 +706,17 @@ def play_triggered(delay_seconds):
     sync_id = None
 
     if sync_tag:
-        log(f"Video '{Path(media_path).name}' has Sync Tag '{sync_tag}'", "SYNC")
+        log(
+            f"Video '{Path(media_path).name}' has "
+            f"Sync Tag '{sync_tag}'",
+            "SYNC"
+        )
     else:
-        log(f"Video '{Path(media_path).name}' has no Sync Tag.", "SYNC")
+        log(
+            f"Video '{Path(media_path).name}' has "
+            f"no Sync Tag.",
+            "SYNC"
+        )
 
     sync_enabled = (
         is_enabled()
@@ -534,7 +725,11 @@ def play_triggered(delay_seconds):
 
     if sync_enabled and not sync_tag:
         sync_tag = "playlist"
-        log("Primary video has no Sync Tag. Using Secondary Playlist synchronization.", "SYNC")
+        log(
+            "Primary video has no Sync Tag. "
+            "Using Secondary Playlist synchronization.",
+            "SYNC"
+        )
 
     start_at_ms = None
     secondary_start_mode = "with_primary"
@@ -543,9 +738,16 @@ def play_triggered(delay_seconds):
     if sync_enabled:
         sync_id = generate_sync_id()
 
-        register_sync_event(sync_tag, sync_id)
+        register_sync_event(
+            sync_tag,
+            sync_id
+        )
 
-        log(f"Created Sync ID {sync_id} for Sync Tag '{sync_tag}'", "SYNC")
+        log(
+            f"Created Sync ID {sync_id} for "
+            f"Sync Tag '{sync_tag}'",
+            "SYNC"
+        )
 
         # ====================================================
         # Prepare Secondary first.
@@ -570,41 +772,76 @@ def play_triggered(delay_seconds):
         # ====================================================
 
         if not prepare_media_for_sync(media_path):
-            log("Primary sync media could not be prepared. Playing locally without synchronized start.", "ERROR")
+            log(
+                "Primary sync media could not be prepared. "
+                "Playing locally without synchronized start.",
+                "ERROR"
+            )
             sync_enabled = False
             sync_id = None
 
         if sync_enabled:
             secondary_start_mode = get_secondary_start_mode()
-            secondary_start_delay = get_secondary_start_delay_seconds()
+            secondary_start_delay = (
+                get_secondary_start_delay_seconds()
+            )
 
             if secondary_start_mode not in (
                 "with_primary",
                 "after_primary",
                 "after_delay"
             ):
-                log(f"Invalid Secondary Start Mode '{secondary_start_mode}'. Using 'with_primary'.", "SYNC")
+                log(
+                    f"Invalid Secondary Start Mode "
+                    f"'{secondary_start_mode}'. "
+                    f"Using 'with_primary'.",
+                    "SYNC"
+                )
                 secondary_start_mode = "with_primary"
 
             try:
-                secondary_start_delay = max(0, int(secondary_start_delay))
+                secondary_start_delay = max(
+                    0,
+                    int(secondary_start_delay)
+                )
             except (ValueError, TypeError):
                 secondary_start_delay = 0
 
-            log(f"Secondary Start Mode: {secondary_start_mode}", "SYNC")
-            log(f"Secondary Start Delay: {secondary_start_delay} seconds", "SYNC")
+            log(
+                f"Secondary Start Mode: "
+                f"{secondary_start_mode}",
+                "SYNC"
+            )
+            log(
+                f"Secondary Start Delay: "
+                f"{secondary_start_delay} seconds",
+                "SYNC"
+            )
 
-            sync_start_delay_ms = get_sync_start_delay_ms()
+            sync_start_delay_ms = (
+                get_sync_start_delay_ms()
+            )
 
             # Base timestamp is shared with Secondary.
             # Primary's Sync Start Delay is applied only to Primary.
-            base_start_at_ms = int(time.time() * 1000)
-            start_at_ms = base_start_at_ms + sync_start_delay_ms
+            base_start_at_ms = int(
+                time.time() * 1000
+            )
+            start_at_ms = (
+                base_start_at_ms
+                + sync_start_delay_ms
+            )
 
             if secondary_start_mode == "with_primary":
                 secondary_start_at_ms = base_start_at_ms
 
-                log(f"Primary scheduled for {start_at_ms} ms. Secondary scheduled for {secondary_start_at_ms} ms.", "SYNC")
+                log(
+                    f"Primary scheduled for "
+                    f"{start_at_ms} ms. "
+                    f"Secondary scheduled for "
+                    f"{secondary_start_at_ms} ms.",
+                    "SYNC"
+                )
 
                 send_secondary_play_at(
                     secondary_start_at_ms,
@@ -612,9 +849,18 @@ def play_triggered(delay_seconds):
                 )
 
             elif secondary_start_mode == "after_delay":
-                secondary_start_at_ms = base_start_at_ms + (secondary_start_delay * 1000)
+                secondary_start_at_ms = (
+                    base_start_at_ms
+                    + (secondary_start_delay * 1000)
+                )
 
-                log(f"Primary scheduled for {start_at_ms} ms. Secondary scheduled for {secondary_start_at_ms} ms.", "SYNC")
+                log(
+                    f"Primary scheduled for "
+                    f"{start_at_ms} ms. "
+                    f"Secondary scheduled for "
+                    f"{secondary_start_at_ms} ms.",
+                    "SYNC"
+                )
 
                 send_secondary_play_at(
                     secondary_start_at_ms,
@@ -622,42 +868,90 @@ def play_triggered(delay_seconds):
                 )
 
             else:
-                log(f"Primary scheduled for {start_at_ms} ms. Secondary will start after Primary finishes.", "SYNC")
+                log(
+                    f"Primary scheduled for "
+                    f"{start_at_ms} ms. "
+                    f"Secondary will start after "
+                    f"Primary finishes.",
+                    "SYNC"
+                )
 
-    elif is_enabled() and not mqtt_client.client.is_connected():
-        log("MQTT is enabled but not connected. Playing Primary locally.", "SYNC")
+    elif (
+        is_enabled()
+        and not mqtt_client.client.is_connected()
+    ):
+        log(
+            "MQTT is enabled but not connected. "
+            "Playing Primary locally.",
+            "SYNC"
+        )
 
     elif is_enabled() and not sync_tag:
-        log("Video has no Sync Tag. Playing Primary locally without synchronized playback.", "SYNC")
+        log(
+            "Video has no Sync Tag. Playing Primary locally "
+            "without synchronized playback.",
+            "SYNC"
+        )
 
     if not sync_enabled:
         media = vlc.Media(media_path)
         player.set_media(media)
-        player.audio_set_mute(get_mute_audio())
+
+        mute = (
+            get_mute_audio()
+            or get_video_mute_audio(media_path)
+        )
+        player.audio_set_mute(mute)
 
     if start_at_ms is not None:
         now_ms = time.time() * 1000
         delay_ms = start_at_ms - now_ms
 
-        log(f"Primary waiting {max(0, delay_ms):.3f} ms", "SYNC")
+        log(
+            f"Primary waiting "
+            f"{max(0, delay_ms):.3f} ms",
+            "SYNC"
+        )
 
         if delay_ms > 10:
-            time.sleep((delay_ms - 5) / 1000)
+            time.sleep(
+                (delay_ms - 5) / 1000
+            )
 
         while time.time() * 1000 < start_at_ms:
             time.sleep(0.0005)
 
         actual_ms = time.time() * 1000
 
-        log(f"Primary target reached. Actual: {actual_ms:.3f} ms Difference: {actual_ms - start_at_ms:+.3f} ms", "SYNC")
+        log(
+            f"Primary target reached. Actual: "
+            f"{actual_ms:.3f} ms Difference: "
+            f"{actual_ms - start_at_ms:+.3f} ms",
+            "SYNC"
+        )
 
-    player.audio_set_mute(get_mute_audio())
+    # The media has already been assigned its per-video
+    # audio setting before the synchronized start.
+    # Reapply it here so the setting is active when VLC plays.
+    mute = (
+        get_mute_audio()
+        or get_video_mute_audio(media_path)
+    )
+    player.audio_set_mute(mute)
+
     player.play()
 
     if sync_id:
-        log(f"Primary VLC PLAY command executed for Sync ID {sync_id}.", "PLAYBACK")
+        log(
+            f"Primary VLC PLAY command executed "
+            f"for Sync ID {sync_id}.",
+            "PLAYBACK"
+        )
     else:
-        log("Primary VLC PLAY command executed.", "PLAYBACK")
+        log(
+            "Primary VLC PLAY command executed.",
+            "PLAYBACK"
+        )
 
     sleep(0.5)
 
@@ -668,12 +962,20 @@ def play_triggered(delay_seconds):
         vlc.State.Stopped
     ):
         if read_pause_flag() or not is_schedule_enabled_now():
-            log("Pause detected mid-playback. Stopping video.", "PLAYBACK")
+            log(
+                "Pause detected mid-playback. "
+                "Stopping video.",
+                "PLAYBACK"
+            )
             player.stop()
             break
 
         if not get_triggered_flag():
-            log("Triggered flag turned OFF during playback. Stopping video.", "PLAYBACK")
+            log(
+                "Triggered flag turned OFF during "
+                "playback. Stopping video.",
+                "PLAYBACK"
+            )
             player.stop()
             break
 
@@ -690,9 +992,16 @@ def play_triggered(delay_seconds):
     ):
         # Secondary receives the current base time.
         # Its own Sync Start Delay is applied on the Secondary.
-        secondary_start_at_ms = int(time.time() * 1000)
+        secondary_start_at_ms = int(
+            time.time() * 1000
+        )
 
-        log(f"Primary finished naturally. Secondary scheduled for {secondary_start_at_ms} ms.", "SYNC")
+        log(
+            f"Primary finished naturally. "
+            f"Secondary scheduled for "
+            f"{secondary_start_at_ms} ms.",
+            "SYNC"
+        )
 
         send_secondary_play_at(
             secondary_start_at_ms,
@@ -708,17 +1017,34 @@ def play_triggered(delay_seconds):
         new_path = change_video_on_trigger()
 
         if new_path and new_path != previous_path:
-            log(f"Trigger Change: {Path(previous_path).name} -> {Path(new_path).name}", "PLAYBACK")
+            log(
+                f"Trigger Change: "
+                f"{Path(previous_path).name} -> "
+                f"{Path(new_path).name}",
+                "PLAYBACK"
+            )
         elif new_path:
-            log("Trigger Change did not change the selected video.", "PLAYBACK")
+            log(
+                "Trigger Change did not change "
+                "the selected video.",
+                "PLAYBACK"
+            )
 
-    log("Video ended or paused. Waiting delay before next motion...", "PLAYBACK")
+    log(
+        "Video ended or paused. Waiting delay "
+        "before next motion...",
+        "PLAYBACK"
+    )
 
     player.pause()
     player.set_time(0)
 
     if delay_seconds > 0:
-        log(f"Waiting {delay_seconds} seconds before listening for motion again.", "MOTION")
+        log(
+            f"Waiting {delay_seconds} seconds before "
+            f"listening for motion again.",
+            "MOTION"
+        )
         sleep(delay_seconds)
 
 
@@ -731,30 +1057,49 @@ def main():
     global pir
     global last_played_path
 
-    log("SYSTEM HAS STARTED", "SYSTEM")
+    log(
+        "SYSTEM HAS STARTED",
+        "SYSTEM"
+    )
 
     if not VIDEO_FOLDER.exists():
-        log(f"Folder {VIDEO_FOLDER} not found", "ERROR")
+        log(
+            f"Folder {VIDEO_FOLDER} not found",
+            "ERROR"
+        )
         sys.exit(1)
 
-    video_files = sorted(VIDEO_FOLDER.glob("*.mp4"))
+    video_files = sorted(
+        VIDEO_FOLDER.glob("*.mp4")
+    )
     no_videos_logged = False
 
     while not video_files:
         if not no_videos_logged:
-            log("No videos found. Waiting for a video to be uploaded...", "VIDEO")
+            log(
+                "No videos found. Waiting for a video "
+                "to be uploaded...",
+                "VIDEO"
+            )
             no_videos_logged = True
 
         time.sleep(5)
 
-        video_files = sorted(VIDEO_FOLDER.glob("*.mp4"))
+        video_files = sorted(
+            VIDEO_FOLDER.glob("*.mp4")
+        )
 
-    log(f"Found {len(video_files)} video(s)", "VIDEO")
+    log(
+        f"Found {len(video_files)} video(s)",
+        "VIDEO"
+    )
 
     pir = MotionSensor(4)
 
     update_playlist_timestamp_on_startup()
-    set_selection_sync_callback(sync_selected_video)
+    set_selection_sync_callback(
+        sync_selected_video
+    )
 
     global playlist_thread
 
@@ -765,30 +1110,50 @@ def main():
 
     playlist_thread.start()
 
-    log("Started playlist updater thread", "SYSTEM")
+    log(
+        "Started playlist updater thread",
+        "SYSTEM"
+    )
 
     media_path = get_selected_video()
 
     if not media_path:
         media_path = str(video_files[0])
-        log(f"Falling back to {media_path}", "VIDEO")
+        log(
+            f"Falling back to {media_path}",
+            "VIDEO"
+        )
 
     last_played_path = media_path
 
     instance = vlc.Instance()
     player = instance.media_player_new()
 
-    player.audio_set_mute(get_mute_audio())
+    player.audio_set_mute(
+        get_mute_audio()
+    )
 
-    pause_media = instance.media_new(str(PAUSE_VIDEO))
+    pause_media = instance.media_new(
+        str(PAUSE_VIDEO)
+    )
     paused_mode = False
 
     load_and_pause(media_path)
 
-    log(f"Loaded video {Path(media_path).name} in paused state", "PLAYBACK")
+    log(
+        f"Loaded video {Path(media_path).name} "
+        f"in paused state",
+        "PLAYBACK"
+    )
 
-    mqtt_client.set_sync_status_handler(on_sync_status_message)
-    log("MQTT sync status listener registered.", "MQTT")
+    mqtt_client.set_sync_status_handler(
+        on_sync_status_message
+    )
+
+    log(
+        "MQTT sync status listener registered.",
+        "MQTT"
+    )
 
     try:
         while True:
@@ -797,8 +1162,15 @@ def main():
             delay_seconds = get_trigger_delay_seconds()
             schedule_enabled = is_schedule_enabled_now()
 
-            if (pause_flag or not schedule_enabled) and not paused_mode:
-                log("Pause flag detected ON. Switching to pause screen.", "PLAYBACK")
+            if (
+                pause_flag
+                or not schedule_enabled
+            ) and not paused_mode:
+                log(
+                    "Pause flag detected ON. "
+                    "Switching to pause screen.",
+                    "PLAYBACK"
+                )
 
                 if is_enabled():
                     mqtt_client.publish(
@@ -806,13 +1178,23 @@ def main():
                         {"command": "pause"}
                     )
 
-                    log("Sent PAUSE command to Secondary Pis", "MQTT")
+                    log(
+                        "Sent PAUSE command "
+                        "to Secondary Pis",
+                        "MQTT"
+                    )
 
                 if player.is_playing():
                     player.stop()
 
                 player.set_media(pause_media)
-                player.audio_set_mute(get_mute_audio())
+
+                # Pause video only uses the existing global
+                # mute setting. It is not a playlist video.
+                player.audio_set_mute(
+                    get_mute_audio()
+                )
+
                 player.play()
 
                 sleep(0.5)
@@ -820,7 +1202,11 @@ def main():
                 player.set_pause(1)
                 player.set_time(0)
 
-                log(f"Loaded pause screen: {PAUSE_VIDEO.name}", "PLAYBACK")
+                log(
+                    f"Loaded pause screen: "
+                    f"{PAUSE_VIDEO.name}",
+                    "PLAYBACK"
+                )
 
                 paused_mode = True
 
@@ -829,7 +1215,11 @@ def main():
                 and schedule_enabled
                 and paused_mode
             ):
-                log("Pause flag cleared, returning to playback mode", "PLAYBACK")
+                log(
+                    "Pause flag cleared, returning "
+                    "to playback mode",
+                    "PLAYBACK"
+                )
 
                 if player.is_playing():
                     player.stop()
@@ -838,7 +1228,11 @@ def main():
 
                 if new_path:
                     media_path = new_path
-                    log(f"Updated video selection to {Path(media_path).name}", "VIDEO")
+                    log(
+                        f"Updated video selection to "
+                        f"{Path(media_path).name}",
+                        "VIDEO"
+                    )
 
                 last_played_path = media_path
 
@@ -853,25 +1247,38 @@ def main():
                             {"command": "resume"}
                         )
 
-                        log("Sent RESUME command to Secondary Pis", "MQTT")
+                        log(
+                            "Sent RESUME command "
+                            "to Secondary Pis",
+                            "MQTT"
+                        )
                     else:
                         mqtt_client.publish(
                             mqtt_client.TOPIC_CONTROL,
                             {"command": "play"}
                         )
 
-                        log("Sent PLAY command to Secondary Pis", "MQTT")
+                        log(
+                            "Sent PLAY command "
+                            "to Secondary Pis",
+                            "MQTT"
+                        )
 
             if not paused_mode:
                 if not triggered_flag:
                     play_endless()
                 else:
-                    play_triggered(delay_seconds)
+                    play_triggered(
+                        delay_seconds
+                    )
             else:
                 sleep(1)
 
     except KeyboardInterrupt:
-        log("Exiting", "SYSTEM")
+        log(
+            "Exiting",
+            "SYSTEM"
+        )
 
         player.stop()
 
@@ -886,6 +1293,13 @@ if __name__ == "__main__":
         main()
     except Exception:
         import traceback
-        log("Uncaught exception:", "ERROR")
-        log(traceback.format_exc(), "ERROR")
+
+        log(
+            "Uncaught exception:",
+            "ERROR"
+        )
+        log(
+            traceback.format_exc(),
+            "ERROR"
+        )
         raise

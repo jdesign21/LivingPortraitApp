@@ -94,15 +94,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const triggerToggle = document.getElementById("triggeredFlag");
     const delayDropdown = document.getElementById("delay");
 
-    // ========================================================
-    // BOOTSTRAP VALIDATION MODAL
-    // ========================================================
+// ========================================================
+// BOOTSTRAP VALIDATION MODAL
+// ========================================================
 
-    const validationModalElement = document.getElementById('validationModal');
-    const validationModal = validationModalElement
-        ? new bootstrap.Modal(validationModalElement)
-        : null;
-    const modalBody = document.getElementById('validationModalBody');
+const validationModalElement = document.getElementById('validationModal');
+const validationModal = validationModalElement
+    ? bootstrap.Modal.getOrCreateInstance(validationModalElement)
+    : null;
+
+const modalBody = document.getElementById('validationModalBody');
+
+const copyScheduleModalElement =
+    document.getElementById('copyScheduleModal');
+
+const copyScheduleModal = copyScheduleModalElement
+    ? bootstrap.Modal.getOrCreateInstance(copyScheduleModalElement)
+    : null;
 
     // ========================================================
     // LOG VIEWER
@@ -346,6 +354,98 @@ document.addEventListener('DOMContentLoaded', () => {
             slotObj.toggle.addEventListener('change', validateTimes);
         });
     });
+
+// ========================================================
+// COPY SCHEDULE SETTINGS TO ALL DAYS
+// ========================================================
+
+document.querySelectorAll('.copy-to-all-btn').forEach(button => {
+    button.addEventListener('click', () => {
+        const sourceDay = button.dataset.day;
+
+        const sourceSlot1Enabled =
+            document.getElementById(`${sourceDay}Slot1Enabled`);
+        const sourceSlot1Start =
+            document.getElementById(`${sourceDay}Slot1Start`);
+        const sourceSlot1End =
+            document.getElementById(`${sourceDay}Slot1End`);
+        const sourceSlot1Category =
+            document.getElementById(`${sourceDay}Slot1Category`);
+
+        const sourceSlot2Enabled =
+            document.getElementById(`${sourceDay}Slot2Enabled`);
+        const sourceSlot2Start =
+            document.getElementById(`${sourceDay}Slot2Start`);
+        const sourceSlot2End =
+            document.getElementById(`${sourceDay}Slot2End`);
+        const sourceSlot2Category =
+            document.getElementById(`${sourceDay}Slot2Category`);
+
+        days.forEach(day => {
+            if (day === sourceDay) {
+                return;
+            }
+
+            const slot1Enabled =
+                document.getElementById(`${day}Slot1Enabled`);
+            const slot1Start =
+                document.getElementById(`${day}Slot1Start`);
+            const slot1End =
+                document.getElementById(`${day}Slot1End`);
+            const slot1Category =
+                document.getElementById(`${day}Slot1Category`);
+
+            const slot2Enabled =
+                document.getElementById(`${day}Slot2Enabled`);
+            const slot2Start =
+                document.getElementById(`${day}Slot2Start`);
+            const slot2End =
+                document.getElementById(`${day}Slot2End`);
+            const slot2Category =
+                document.getElementById(`${day}Slot2Category`);
+
+            // SLOT 1
+            if (slot1Enabled && sourceSlot1Enabled) {
+                slot1Enabled.checked = sourceSlot1Enabled.checked;
+                slot1Enabled.dispatchEvent(new Event('change'));
+            }
+
+            if (slot1Start && sourceSlot1Start) {
+                slot1Start.value = sourceSlot1Start.value;
+            }
+
+            if (slot1End && sourceSlot1End) {
+                slot1End.value = sourceSlot1End.value;
+            }
+
+            if (slot1Category && sourceSlot1Category) {
+                slot1Category.value = sourceSlot1Category.value;
+            }
+
+            // SLOT 2
+            if (slot2Enabled && sourceSlot2Enabled) {
+                slot2Enabled.checked = sourceSlot2Enabled.checked;
+                slot2Enabled.dispatchEvent(new Event('change'));
+            }
+
+            if (slot2Start && sourceSlot2Start) {
+                slot2Start.value = sourceSlot2Start.value;
+            }
+
+            if (slot2End && sourceSlot2End) {
+                slot2End.value = sourceSlot2End.value;
+            }
+
+            if (slot2Category && sourceSlot2Category) {
+                slot2Category.value = sourceSlot2Category.value;
+            }
+        });
+
+        if (copyScheduleModal) {
+            copyScheduleModal.show();
+        }
+    });
+});
 
     // ========================================================
     // SCHEDULE FORM VALIDATION

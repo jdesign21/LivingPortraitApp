@@ -1114,13 +1114,20 @@ def update_all():
         # Existing videos without a sync_tag will simply use "".
         sync_tag = request.form.get(f"videos[{index}][sync_tag]", "").strip()
 
+        # Per-video audio mute setting.
+        # If the checkbox is not checked, it will not be submitted.
+        mute_audio = request.form.get(
+            f"videos[{index}][mute_audio]"
+        ) == "true"
+
         log(f"{filename} sync_tag = '{sync_tag}'", "SYNC TAGS")
 
         videos.append({
             "filename": filename,
             "active": active,
             "tags": tags,
-            "sync_tag": sync_tag
+            "sync_tag": sync_tag,
+            "mute_audio": mute_audio
         })
 
         index += 1

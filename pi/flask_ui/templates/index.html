@@ -188,6 +188,50 @@
     </div>
   </div>
 
+
+  <div class="modal fade" id="copyScheduleModal" tabindex="-1" aria-labelledby="copyScheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="copyScheduleModalLabel">
+            Schedule Settings Copied
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          The schedule settings were copied to all other days.
+          <br><br>
+          <strong>Don't forget to click "Save Schedule" at the bottom of the page to save your changes.</strong>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sync Tags Loading Overlay -->
+<div id="syncTagsLoading" style="
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;">
+  <div class="text-center text-white">
+    <div class="spinner-border mb-3" role="status" style="width: 3rem; height: 3rem;">
+      <span class="visually-hidden">Syncing...</span>
+    </div>
+    <h5>Syncing Tags...</h5>
+    <p>Please wait while the Secondary Pis are updated.</p>
+  </div>
+</div>
+
   <div id="loadingOverlay"
     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(255,255,255,0.8); z-index:1050; justify-content:center; align-items:center;">
     <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;">
