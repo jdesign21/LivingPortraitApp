@@ -11,9 +11,10 @@
     <div class="card-body py-3">
       <div class="d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25"
-            fill="currentColor" class="bi bi-brightness-high me-3" viewBox="0 0 16 16">
-            <path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 .707.707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z" />
+          <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor"
+            class="bi bi-brightness-high me-3" viewBox="0 0 16 16">
+            <path
+              d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 .707.707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z" />
           </svg>
 
           <div>
@@ -43,39 +44,24 @@
           <label for="primaryColor" class="form-label fw-semibold mb-1">
             Primary Color
           </label>
-          <input
-            type="color"
-            class="form-control form-control-color"
-            id="primaryColor"
-            value="#0d6efd"
-            title="Choose primary color"
-          >
+          <input type="color" class="form-control form-control-color" id="primaryColor" value="#0d6efd"
+            title="Choose primary color">
         </div>
 
         <div class="col-12 col-sm-4">
           <label for="secondaryColor" class="form-label fw-semibold mb-1">
             Secondary Color
           </label>
-          <input
-            type="color"
-            class="form-control form-control-color"
-            id="secondaryColor"
-            value="#084298"
-            title="Choose secondary color"
-          >
+          <input type="color" class="form-control form-control-color" id="secondaryColor" value="#084298"
+            title="Choose secondary color">
         </div>
 
         <div class="col-12 col-sm-4">
           <label for="fontColor" class="form-label fw-semibold mb-1">
             Font Color
           </label>
-          <input
-            type="color"
-            class="form-control form-control-color"
-            id="fontColor"
-            value="#212529"
-            title="Choose font color"
-          >
+          <input type="color" class="form-control form-control-color" id="fontColor" value="#212529"
+            title="Choose font color">
         </div>
       </div>
 
@@ -84,10 +70,7 @@
           Primary, secondary, and main text colors.
         </div>
 
-        <button
-          type="button"
-          class="btn btn-outline-secondary btn-sm"
-          id="resetThemeColors">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="resetThemeColors">
           Reset Colors
         </button>
       </div>
@@ -99,99 +82,119 @@
     </div>
   </div>
 
-  <!-- Audio -->
-  <div class="card mb-3 shadow-sm">
-    <div class="card-header bg-primary text-white">
-      <strong>Audio</strong>
-    </div>
 
-    <div class="card-body py-3">
-      <form method="POST" action="{{ url_for('save_mute_audio') }}">
-        <div class="d-flex justify-content-between align-items-center">
-          <div class="d-flex align-items-center">
-            <i class="bi bi-volume-mute fs-4 me-3"></i>
-
-            <div>
-              <div class="fw-semibold">Mute Audio</div>
-              <div class="text-muted small">
-                Mute video audio on this screen only.
-              </div>
-            </div>
-          </div>
-
-          <div class="d-flex align-items-center gap-3">
-            <div class="form-check form-switch m-0">
-              <input
-                class="form-check-input"
-                type="checkbox"
-                role="switch"
-                id="muteAudio"
-                name="mute_audio"
-                {% if mute_audio %}checked{% endif %}
-              >
-            </div>
-
-            <button type="submit" class="btn btn-success btn-sm">
-              Save
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
+<!-- Audio & Time Settings -->
+<div class="card mb-3 shadow-sm">
+  <div class="card-header bg-primary text-white">
+    <strong>Audio & Time</strong>
   </div>
 
-  <!-- Time Format -->
-  <div class="card mb-3 shadow-sm">
-    <div class="card-header bg-primary text-white">
-      <strong>Time Format</strong>
-    </div>
+  <div class="card-body py-3">
+    <form method="POST" action="{{ url_for('save_appearance_settings') }}">
 
-    <div class="card-body py-3">
-      <form method="POST" action="{{ url_for('save_time_format') }}">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-          <div class="d-flex align-items-center gap-4">
-            <div class="form-check mb-0">
-              <input
-                class="form-check-input"
-                type="radio"
-                name="timeFormat"
-                id="timeFormat12"
-                value="12"
-                {% if time_format == "12" %}checked{% endif %}
-              >
-              <label class="form-check-label" for="timeFormat12">
-                <span class="fw-semibold">12-hour</span>
-                <span class="text-muted small ms-1">4:30 PM</span>
-              </label>
-            </div>
+      <!-- Mute Audio -->
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-volume-mute fs-4 me-3"></i>
 
-            <div class="form-check mb-0">
-              <input
-                class="form-check-input"
-                type="radio"
-                name="timeFormat"
-                id="timeFormat24"
-                value="24"
-                {% if time_format == "24" %}checked{% endif %}
-              >
-              <label class="form-check-label" for="timeFormat24">
-                <span class="fw-semibold">24-hour</span>
-                <span class="text-muted small ms-1">16:30</span>
-              </label>
+          <div>
+            <div class="fw-semibold">Mute Audio</div>
+            <div class="text-muted small">
+              Mute video audio on this screen only.
             </div>
           </div>
-
-          <button type="submit" class="btn btn-success btn-sm">
-            Save
-          </button>
         </div>
 
-        <div class="form-text mt-2">
-          Changes how times are displayed. Schedule and playback timing are not affected.
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input"
+                 type="checkbox"
+                 role="switch"
+                 id="muteAudio"
+                 name="mute_audio"
+                 {% if mute_audio %}checked{% endif %}>
         </div>
-      </form>
-    </div>
+      </div>
+
+      <hr class="my-3">
+
+      <!-- Audio Output -->
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-volume-up fs-4 me-3"></i>
+
+          <div>
+            <div class="fw-semibold">Audio Output</div>
+            <div class="text-muted small">
+              Select where video audio should play.
+            </div>
+          </div>
+        </div>
+
+        <select class="form-select form-select-sm"
+                name="audio_output"
+                id="audioOutput"
+                style="max-width: 250px;">
+          {% for output in audio_outputs %}
+          <option value="{{ output.id }}"
+                  {% if output.id == audio_output %}selected{% endif %}>
+            {{ output.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <hr class="my-3">
+
+      <!-- Time Format -->
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-clock fs-4 me-3"></i>
+
+          <div>
+            <div class="fw-semibold">Time Format</div>
+            <div class="text-muted small">
+              Changes how times are displayed. Schedule and playback timing are not affected.
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-3">
+          <div class="form-check mb-0">
+            <input class="form-check-input"
+                   type="radio"
+                   name="timeFormat"
+                   id="timeFormat12"
+                   value="12"
+                   {% if time_format == "12" %}checked{% endif %}>
+            <label class="form-check-label" for="timeFormat12">
+              12-hour
+            </label>
+          </div>
+
+          <div class="form-check mb-0">
+            <input class="form-check-input"
+                   type="radio"
+                   name="timeFormat"
+                   id="timeFormat24"
+                   value="24"
+                   {% if time_format == "24" %}checked{% endif %}>
+            <label class="form-check-label" for="timeFormat24">
+              24-hour
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end mt-3">
+        <button type="submit" class="btn btn-success btn-sm">
+          Save
+        </button>
+      </div>
+
+    </form>
   </div>
+</div>
+
 
 
   <!-- Font -->
@@ -206,88 +209,74 @@
       </p>
 
       <div class="form-check mb-3">
-        <input class="form-check-input" type="radio" name="font"
-          id="fontRoboto" value="'Roboto', sans-serif" checked>
-        <label class="form-check-label" for="fontRoboto"
-          style="font-family: 'Roboto', sans-serif;">
+        <input class="form-check-input" type="radio" name="font" id="fontRoboto" value="'Roboto', sans-serif" checked>
+        <label class="form-check-label" for="fontRoboto" style="font-family: 'Roboto', sans-serif;">
           <span class="fw-semibold">Roboto</span>
           <span class="text-muted small ms-2">Clean & Modern</span>
         </label>
       </div>
 
       <div class="form-check mb-3">
-        <input class="form-check-input" type="radio" name="font"
-          id="fontPoppins" value="'Poppins', sans-serif">
-        <label class="form-check-label" for="fontPoppins"
-          style="font-family: 'Poppins', sans-serif;">
+        <input class="form-check-input" type="radio" name="font" id="fontPoppins" value="'Poppins', sans-serif">
+        <label class="form-check-label" for="fontPoppins" style="font-family: 'Poppins', sans-serif;">
           <span class="fw-semibold">Poppins</span>
           <span class="text-muted small ms-2">Friendly & Rounded</span>
         </label>
       </div>
 
       <div class="form-check mb-3">
-        <input class="form-check-input" type="radio" name="font"
-          id="fontInter" value="'Inter', sans-serif">
-        <label class="form-check-label" for="fontInter"
-          style="font-family: 'Inter', sans-serif;">
+        <input class="form-check-input" type="radio" name="font" id="fontInter" value="'Inter', sans-serif">
+        <label class="form-check-label" for="fontInter" style="font-family: 'Inter', sans-serif;">
           <span class="fw-semibold">Inter</span>
           <span class="text-muted small ms-2">Simple & Professional</span>
         </label>
       </div>
 
       <div class="form-check mb-3">
-        <input class="form-check-input" type="radio" name="font"
-          id="fontCreepster" value="'Creepster', cursive">
-        <label class="form-check-label" for="fontCreepster"
-          style="font-family: 'Creepster', cursive;">
+        <input class="form-check-input" type="radio" name="font" id="fontCreepster" value="'Creepster', cursive">
+        <label class="form-check-label" for="fontCreepster" style="font-family: 'Creepster', cursive;">
           <span class="fw-semibold">Creepster</span>
           <span class="text-muted small ms-2">Halloween</span>
         </label>
       </div>
 
       <div class="form-check mb-3">
-        <input class="form-check-input" type="radio" name="font"
-          id="fontButcherman" value="'Butcherman', cursive">
-        <label class="form-check-label" for="fontButcherman"
-          style="font-family: 'Butcherman', cursive;">
+        <input class="form-check-input" type="radio" name="font" id="fontButcherman" value="'Butcherman', cursive">
+        <label class="form-check-label" for="fontButcherman" style="font-family: 'Butcherman', cursive;">
           <span class="fw-semibold">Butcherman</span>
           <span class="text-muted small ms-2">Distorted</span>
         </label>
       </div>
 
       <div class="form-check mb-3">
-        <input class="form-check-input" type="radio" name="font"
-          id="fontFredericka" value="'Fredericka the Great', cursive">
-        <label class="form-check-label" for="fontFredericka"
-          style="font-family: 'Fredericka the Great', cursive;">
+        <input class="form-check-input" type="radio" name="font" id="fontFredericka"
+          value="'Fredericka the Great', cursive">
+        <label class="form-check-label" for="fontFredericka" style="font-family: 'Fredericka the Great', cursive;">
           <span class="fw-semibold">Fredericka the Great</span>
           <span class="text-muted small ms-2">Decorative</span>
         </label>
       </div>
 
       <div class="form-check mb-3">
-        <input class="form-check-input" type="radio" name="font"
-          id="fontNosifer" value="'Nosifer', cursive">
-        <label class="form-check-label" for="fontNosifer"
-          style="font-family: 'Nosifer', cursive;">
+        <input class="form-check-input" type="radio" name="font" id="fontNosifer" value="'Nosifer', cursive">
+        <label class="form-check-label" for="fontNosifer" style="font-family: 'Nosifer', cursive;">
           <span class="fw-semibold">Nosifer</span>
           <span class="text-muted small ms-2">Horror</span>
         </label>
       </div>
 
       <div class="form-check mb-3">
-        <input class="form-check-input" type="radio" name="font"
-          id="fontUnifrakturCook" value="'UnifrakturCook', cursive">
-        <label class="form-check-label" for="fontUnifrakturCook"
-          style="font-family: 'UnifrakturCook', cursive;">
+        <input class="form-check-input" type="radio" name="font" id="fontUnifrakturCook"
+          value="'UnifrakturCook', cursive">
+        <label class="form-check-label" for="fontUnifrakturCook" style="font-family: 'UnifrakturCook', cursive;">
           <span class="fw-semibold">UnifrakturCook</span>
           <span class="text-muted small ms-2">Gothic</span>
         </label>
       </div>
 
       <div class="form-check">
-        <input class="form-check-input" type="radio" name="font"
-          id="fontUnifrakturMaguntia" value="'UnifrakturMaguntia', cursive">
+        <input class="form-check-input" type="radio" name="font" id="fontUnifrakturMaguntia"
+          value="'UnifrakturMaguntia', cursive">
         <label class="form-check-label" for="fontUnifrakturMaguntia"
           style="font-family: 'UnifrakturMaguntia', cursive;">
           <span class="fw-semibold">UnifrakturMaguntia</span>
@@ -297,4 +286,3 @@
     </div>
   </div>
 </section>
-

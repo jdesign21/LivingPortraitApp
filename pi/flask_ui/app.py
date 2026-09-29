@@ -1,3 +1,4 @@
+
 from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
 from werkzeug.utils import secure_filename
 from pathlib import Path
@@ -31,7 +32,6 @@ from shared.vlc_helper import (
     get_next_start_time,
     get_secondary_video_mode,
     get_time_format,
-
 )
 
 from shared.vlc_network_helper import (
@@ -48,6 +48,13 @@ from shared.vlc_network_helper import (
 
 from shared.update_helper import check_for_update
 from shared.update_manager import start_update
+
+from shared.audio_helper import (
+    get_audio_outputs,
+    get_effective_audio_output,
+    set_audio_output,
+    get_audio_output
+)
 
 app = Flask(__name__)
 app.secret_key = 'replace-this-with-a-secure-random-key'
@@ -81,7 +88,6 @@ def format_ampm(time_str, time_format="12"):
         return time_str
 
 
-
 def get_mqtt_status():
     """
     Read the MQTT connection status written by mqtt_client.py.
@@ -99,8 +105,6 @@ def get_mqtt_status():
     except Exception as e:
         log(f"Error reading MQTT status: {e}", "ERROR")
         return False
-
-
 
 
 @app.route("/")
@@ -132,6 +136,8 @@ def index():
     pause_flag = settings.get("pause_flag", False)
     reboot_required = session.get("reboot_required", False)
     mute_audio = bool(settings.get("mute_audio", True))
+    audio_outputs = get_audio_outputs()
+    audio_output = get_effective_audio_output()["id"]
 
     # Master Sync Tags
     sync_tags = settings.get("sync_tags", [])
@@ -445,8 +451,11 @@ def index():
         sync_start_delay_ms=sync_start_delay_ms,
         version=version,
         reboot_required=reboot_required,
-        mute_audio=mute_audio
+        mute_audio=mute_audio,
+        audio_outputs=audio_outputs,
+        audio_output=audio_output,
     )
+
 
 @app.route("/setup", methods=["GET", "POST"])
 def setup():
@@ -461,6 +470,8 @@ def setup():
     enable = network_settings.get("enable", "0")
     primary_ip = network_settings.get("primary_ip", "")
     secondary_pis = network_settings.get("secondary_pis", [])
+    audio_outputs = get_audio_outputs()
+    audio_output = get_audio_output()
 
     if request.method == "POST":
         role = request.form.get("role", "secondary")
@@ -485,7 +496,9 @@ def setup():
                 enable=enable,
                 primary_ip=primary_ip,
                 secondary_pis=secondary_pis,
-                videos=videos
+                videos=videos,
+                audio_outputs=audio_outputs,
+                audio_output=audio_output
             )
 
         # Read Secondary Pis configured on the Primary.
@@ -514,7 +527,9 @@ def setup():
                     enable=enable,
                     primary_ip=primary_ip,
                     secondary_pis=new_secondary_pis,
-                    videos=videos
+                    videos=videos,
+                    audio_outputs=audio_outputs,
+                    audio_output=audio_output
                 )
 
             new_secondary_pis.append({
@@ -526,6 +541,11 @@ def setup():
 
         # Save Role / MQTT / Primary IP using the existing network helper.
         set_role(role, primary_ip, enable)
+
+        settings["audio_output"] = request.form.get(
+            "audio_output",
+            "default"
+        )
 
         # Save Secondary Pis.
         network_settings = load_network_settings()
@@ -552,7 +572,9 @@ def setup():
                 enable=enable,
                 primary_ip=primary_ip,
                 secondary_pis=new_secondary_pis,
-                videos=videos
+                videos=videos,
+                audio_outputs=audio_outputs,
+                audio_output=audio_output
             )
 
         if setup_video and setup_video.filename:
@@ -568,7 +590,9 @@ def setup():
                     enable=enable,
                     primary_ip=primary_ip,
                     secondary_pis=new_secondary_pis,
-                    videos=videos
+                    videos=videos,
+                    audio_outputs=audio_outputs,
+                    audio_output=audio_output
                 )
 
             filename = secure_filename(setup_video.filename)
@@ -582,7 +606,9 @@ def setup():
                     enable=enable,
                     primary_ip=primary_ip,
                     secondary_pis=new_secondary_pis,
-                    videos=videos
+                    videos=videos,
+                    audio_outputs=audio_outputs,
+                    audio_output=audio_output
                 )
 
             save_path = VIDEO_FOLDER / filename
@@ -654,7 +680,9 @@ def setup():
         enable=enable,
         primary_ip=primary_ip,
         secondary_pis=secondary_pis,
-        videos=videos
+        videos=videos,
+        audio_outputs=audio_outputs,
+        audio_output=audio_output
     )
 
 
@@ -959,6 +987,8 @@ def select():
             )
 
     return redirect(url_for("index"))
+
+
 
 @app.route("/pause_toggle", methods=["POST"])
 def pause_toggle():
@@ -1871,29 +1901,14 @@ def delete_schedule_tag():
 
     return redirect(url_for("index"))
 
-@app.route("/save_time_format", methods=["POST"])
-def save_time_format():
-    time_format = request.form.get("timeFormat", "12").strip()
-
-    if time_format not in ("12", "24"):
-        flash("Invalid time format.", "danger")
-        return redirect(url_for("index"))
-
+@app.route("/save_appearance_settings", methods=["POST"])
+def save_appearance_settings():
     settings = load_settings()
-    settings["time_format"] = time_format
-    save_settings(settings)
 
-    if time_format == "24":
-        flash("Time format changed to 24-hour.", "success")
-    else:
-        flash("Time format changed to 12-hour.", "success")
-
-    return redirect(url_for("index"))
-
-@app.route("/save_mute_audio", methods=["POST"])
-def save_mute_audio():
-    settings = load_settings()
     settings["mute_audio"] = "mute_audio" in request.form
+    settings["audio_output"] = request.form.get("audio_output", "default")
+    settings["time_format"] = request.form.get("timeFormat", "12")
+
     save_settings(settings)
 
     subprocess.run(
@@ -1901,10 +1916,7 @@ def save_mute_audio():
         check=False
     )
 
-    flash(
-        "Audio setting saved. Playback restarted.",
-        "success"
-    )
+    flash("Appearance settings saved. Playback restarted.", "success")
 
     return redirect(url_for("index"))
 

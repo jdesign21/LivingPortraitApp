@@ -40,6 +40,8 @@ from shared.vlc_network_helper import (
     get_sync_start_delay_ms
 )
 
+from shared.audio_helper import get_audio_device
+
 HOME = Path(os.path.expanduser("~"))
 LOG_FOLDER = HOME / "logs"
 VIDEO_FOLDER = HOME / "videos"
@@ -1126,7 +1128,10 @@ def main():
 
     last_played_path = media_path
 
-    instance = vlc.Instance()
+    #instance = vlc.Instance()
+    audio_device = get_audio_device()
+    instance = vlc.Instance("--aout=alsa", f"--alsa-audio-device={audio_device}")
+
     player = instance.media_player_new()
 
     player.audio_set_mute(
