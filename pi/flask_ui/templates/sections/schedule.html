@@ -6,16 +6,7 @@
   <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
     <i class="bi bi-calendar-check"></i> Schedule
   </h3>
-  <div class="card mt-4 shadow-sm">
-    <div class="card-header bg-primary text-white">
-      <strong>Current Time</strong>
-    </div>
-    <div class="card-body">
-      <div id="currentDateTime" class="mb-3 fw-bold">
-        {{ current_time }}
-      </div>
-    </div>
-  </div>
+
   <form id="scheduleForm" method="POST" action="{{ url_for('save_schedule') }}">
     <div class="card mt-4 shadow-sm">
       <div class="card-header bg-primary text-white">

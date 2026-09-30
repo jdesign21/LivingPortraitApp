@@ -9,7 +9,7 @@ import os
 import json
 import time
 import random
-import mqtt_client
+
 
 from time import sleep
 from pathlib import Path
@@ -29,11 +29,12 @@ from shared.vlc_helper import (
     get_mute_audio
 )
 
-from shared.vlc_network_helper import (
+from shared.network import (
     get_sync_start_delay_ms
 )
 
-from shared.audio_helper import get_audio_device
+from shared.audio import get_audio_device
+from shared import mqtt_client
 
 HOME = Path(os.path.expanduser("~"))
 LOG_FOLDER = HOME / "logs"
@@ -798,9 +799,10 @@ def main():
 
     log("Started Secondary Playlist playback thread.", "SYSTEM")
 
-    mqtt_client.client.on_message = on_message
+    if mqtt_client.is_enabled():
+        mqtt_client.client.on_message = on_message
 
-    log("Waiting for MQTT commands...", "MQTT")
+        log("Waiting for MQTT commands...", "MQTT")
 
     try:
         while True:

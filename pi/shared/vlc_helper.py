@@ -848,18 +848,12 @@ def playlist_updater():
             ) = get_playlist_settings()
 
             pause_flag = read_pause_flag()
-            schedule_enabled = is_schedule_enabled_now()
             day_active = is_current_schedule_active()
-
-            if (
-                mode not in ["single", "random", "fixed"]
-                or interval <= 0
-                or pause_flag
-                or not schedule_enabled
-                or trigger_change
-            ):
-                time.sleep(1)
-                continue
+            current_category = (
+                get_current_scheduler_category()
+                if day_active
+                else None
+            )
 
             # A Secondary using Match Sync Tag must not independently
             # change its selected video. The Primary controls selection.
@@ -870,16 +864,20 @@ def playlist_updater():
                 time.sleep(1)
                 continue
 
-            if day_active:
-                current_category = get_current_scheduler_category()
+            # Do not change the selected video while paused.
+            if pause_flag:
+                time.sleep(1)
+                continue
 
+            # Build the videos that are currently eligible.
+            if day_active:
                 active_files = [
-                    v["filename"]
-                    for v in order
-                    if v.get("active", True)
+                    item["filename"]
+                    for item in order
+                    if item.get("active", True)
                     and (
                         not current_category
-                        or current_category in v.get("tags", [])
+                        or current_category in item.get("tags", [])
                     )
                 ]
             else:
@@ -891,8 +889,9 @@ def playlist_updater():
 
             if not active_files:
                 log(
-                    f"No active files. "
-                    f"schedule_enabled={schedule_enabled}",
+                    f"No active files for current schedule. "
+                    f"schedule_active={day_active}, "
+                    f"category={current_category}",
                     "PLAYBACK"
                 )
                 time.sleep(10)
@@ -902,6 +901,58 @@ def playlist_updater():
                 "selected_video",
                 ""
             )
+
+            # --------------------------------------------------------
+            # SCHEDULE ENFORCEMENT
+            #
+            # If a schedule slot is currently active, its Schedule Tag
+            # is authoritative regardless of play mode, interval, or
+            # Trigger Change.
+            #
+            # If the current video is already valid, leave it alone.
+            # If it is not valid, immediately select an eligible video.
+            # --------------------------------------------------------
+            if day_active and current_video not in active_files:
+                new_video = active_files[0]
+
+                last_updated_str = datetime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+
+                settings["selected_video"] = new_video
+                settings["playlist"]["last_updated"] = (
+                    last_updated_str
+                )
+
+                save_settings(settings)
+
+                log(
+                    f"Schedule enforced: {current_video} -> "
+                    f"{new_video} "
+                    f"(tag={current_category})",
+                    "SCHEDULE"
+                )
+
+                notify_selection_sync(new_video)
+
+                time.sleep(1)
+                continue
+
+            # --------------------------------------------------------
+            # NORMAL PLAYLIST PROCESSING
+            #
+            # Schedule enforcement above is independent of the
+            # playlist interval. Once the current video is valid,
+            # the selected play mode and interval control normal
+            # playlist changes.
+            # --------------------------------------------------------
+            if (
+                mode not in ["single", "random", "fixed"]
+                or interval <= 0
+                or trigger_change
+            ):
+                time.sleep(1)
+                continue
 
             now = datetime.now()
 
@@ -933,31 +984,30 @@ def playlist_updater():
                 if mode == "single" or len(active_files) == 1:
                     new_video = active_files[0]
 
-                else:
-                    if mode == "random":
-                        other_choices = [
-                            v
-                            for v in active_files
-                            if v != current_video
-                        ]
+                elif mode == "random":
+                    other_choices = [
+                        v
+                        for v in active_files
+                        if v != current_video
+                    ]
 
-                        new_video = (
-                            random.choice(other_choices)
-                            if other_choices
-                            else current_video
+                    new_video = (
+                        random.choice(other_choices)
+                        if other_choices
+                        else current_video
+                    )
+
+                elif mode == "fixed":
+                    if current_video in active_files:
+                        idx = active_files.index(
+                            current_video
                         )
 
-                    elif mode == "fixed":
-                        if current_video in active_files:
-                            idx = active_files.index(
-                                current_video
-                            )
-
-                            new_video = active_files[
-                                (idx + 1) % len(active_files)
-                            ]
-                        else:
-                            new_video = active_files[0]
+                        new_video = active_files[
+                            (idx + 1) % len(active_files)
+                        ]
+                    else:
+                        new_video = active_files[0]
 
                 last_updated_str = now.strftime(
                     "%Y-%m-%d %H:%M:%S"

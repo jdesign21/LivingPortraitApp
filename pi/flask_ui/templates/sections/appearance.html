@@ -33,55 +33,115 @@
   </div>
 
   <!-- Theme Colors -->
-  <div class="card mb-3 shadow-sm">
-    <div class="card-header bg-primary text-white">
-      <strong>Theme Colors</strong>
-    </div>
-
-    <div class="card-body py-3">
-      <div class="row g-3 align-items-end">
-        <div class="col-12 col-sm-4">
-          <label for="primaryColor" class="form-label fw-semibold mb-1">
-            Primary Color
-          </label>
-          <input type="color" class="form-control form-control-color" id="primaryColor" value="#0d6efd"
-            title="Choose primary color">
-        </div>
-
-        <div class="col-12 col-sm-4">
-          <label for="secondaryColor" class="form-label fw-semibold mb-1">
-            Secondary Color
-          </label>
-          <input type="color" class="form-control form-control-color" id="secondaryColor" value="#084298"
-            title="Choose secondary color">
-        </div>
-
-        <div class="col-12 col-sm-4">
-          <label for="fontColor" class="form-label fw-semibold mb-1">
-            Font Color
-          </label>
-          <input type="color" class="form-control form-control-color" id="fontColor" value="#212529"
-            title="Choose font color">
-        </div>
-      </div>
-
-      <div class="d-flex justify-content-between align-items-center mt-3">
-        <div class="form-text">
-          Primary, secondary, and main text colors.
-        </div>
-
-        <button type="button" class="btn btn-outline-secondary btn-sm" id="resetThemeColors">
-          Reset Colors
-        </button>
-      </div>
-
-      <div class="alert alert-info mt-3 mb-0 py-2 small">
-        <strong>Color Limitations:</strong>
-        Very light or very dark colors may reduce readability or contrast.
-      </div>
-    </div>
+<div class="card mb-3 shadow-sm">
+  <div class="card-header bg-primary text-white">
+    <strong>Theme Colors</strong>
   </div>
 
+  <div class="card-body">
+    <div class="row g-4">
+
+      <!-- Primary Color -->
+      <div class="col-12 col-md-4">
+        <div class="border rounded p-3 h-100">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <input type="color"
+              class="form-control form-control-color flex-shrink-0"
+              id="primaryColor"
+              value="#0d6efd"
+              title="Choose primary color">
+
+            <div>
+              <label for="primaryColor" class="fw-semibold d-block mb-0">
+                Primary Color
+              </label>
+              <small class="text-muted">
+                Main buttons and accents
+              </small>
+            </div>
+          </div>
+
+          <div class="small text-muted">
+            Used for the main interface color and primary controls.
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary Color -->
+      <div class="col-12 col-md-4">
+        <div class="border rounded p-3 h-100">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <input type="color"
+              class="form-control form-control-color flex-shrink-0"
+              id="secondaryColor"
+              value="#084298"
+              title="Choose secondary color">
+
+            <div>
+              <label for="secondaryColor" class="fw-semibold d-block mb-0">
+                Secondary Color
+              </label>
+              <small class="text-muted">
+                Headers and secondary elements
+              </small>
+            </div>
+          </div>
+
+          <div class="small text-muted">
+            Used for secondary interface elements and darker accents.
+          </div>
+        </div>
+      </div>
+
+      <!-- Font Color -->
+      <div class="col-12 col-md-4">
+        <div class="border rounded p-3 h-100">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <input type="color"
+              class="form-control form-control-color flex-shrink-0"
+              id="fontColor"
+              value="#212529"
+              title="Choose font color">
+
+            <div>
+              <label for="fontColor" class="fw-semibold d-block mb-0">
+                Font Color
+              </label>
+              <small class="text-muted">
+                Main text color
+              </small>
+            </div>
+          </div>
+
+          <div class="small text-muted">
+            Controls the primary text color throughout the interface.
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Actions -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-4 pt-3 border-top">
+      <div class="form-text mb-0">
+        Customize the appearance of LivingPortraitApp.
+      </div>
+
+      <button type="button"
+        class="btn btn-outline-secondary btn-sm"
+        id="resetThemeColors">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>
+        Reset Colors
+      </button>
+    </div>
+
+    <!-- Accessibility Notice -->
+    <div class="alert alert-info mt-3 mb-0 py-2 small">
+      <strong>Readability:</strong>
+      Very light or very dark colors may reduce text contrast.
+    </div>
+  </div>
+</div>
 
 <!-- Audio & Time Settings -->
 <div class="card mb-3 shadow-sm">

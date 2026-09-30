@@ -4,7 +4,9 @@ import threading
 import socket
 from pathlib import Path
 import paho.mqtt.client as mqtt
-from shared.vlc_network_helper import get_role, get_primary_ip, is_enabled
+
+
+from shared.network import get_role, get_primary_ip, is_enabled
 from shared.vlc_helper import log, load_settings, save_settings
 
 PORT = 1883

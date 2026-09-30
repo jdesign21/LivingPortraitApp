@@ -266,7 +266,7 @@ const copyScheduleModal = copyScheduleModalElement
         updateDelayState();
     }
 
-    // ========================================================
+    /// ========================================================
     // SCHEDULE SLOT VALIDATION
     // ========================================================
 
@@ -355,7 +355,8 @@ const copyScheduleModal = copyScheduleModalElement
         });
     });
 
-// ========================================================
+
+    // ========================================================
 // COPY SCHEDULE SETTINGS TO ALL DAYS
 // ========================================================
 
@@ -404,10 +405,12 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
             const slot2Category =
                 document.getElementById(`${day}Slot2Category`);
 
+            // Copy all values first.
+            // Do NOT dispatch change events until everything is copied.
+
             // SLOT 1
             if (slot1Enabled && sourceSlot1Enabled) {
                 slot1Enabled.checked = sourceSlot1Enabled.checked;
-                slot1Enabled.dispatchEvent(new Event('change'));
             }
 
             if (slot1Start && sourceSlot1Start) {
@@ -425,7 +428,6 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
             // SLOT 2
             if (slot2Enabled && sourceSlot2Enabled) {
                 slot2Enabled.checked = sourceSlot2Enabled.checked;
-                slot2Enabled.dispatchEvent(new Event('change'));
             }
 
             if (slot2Start && sourceSlot2Start) {
@@ -439,6 +441,15 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
             if (slot2Category && sourceSlot2Category) {
                 slot2Category.value = sourceSlot2Category.value;
             }
+
+            // Update enabled/disabled state only after all values are copied.
+            if (slot1Enabled) {
+                slot1Enabled.dispatchEvent(new Event('change'));
+            }
+
+            if (slot2Enabled) {
+                slot2Enabled.dispatchEvent(new Event('change'));
+            }
         });
 
         if (copyScheduleModal) {
@@ -446,6 +457,7 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
         }
     });
 });
+ 
 
     // ========================================================
     // SCHEDULE FORM VALIDATION
@@ -714,28 +726,29 @@ if (savedManageTab) {
     }
 }
 
-    // ========================================================
-    // FIXED PLAYLIST REORDERING
-    // ========================================================
 
-    const fixedPlaylist = document.getElementById('fixedPlaylist');
-    const fixedOrderInput = document.getElementById('fixedOrderInput');
+// ========================================================
+// FIXED PLAYLIST REORDERING
+// ========================================================
 
-    if (fixedPlaylist && fixedOrderInput) {
-        Sortable.create(fixedPlaylist, {
-            animation: 150,
-            onEnd: () => {
-                const order = Array.from(fixedPlaylist.querySelectorAll('li'))
-                    .map(li => li.textContent.trim());
-                fixedOrderInput.value = order.join(',');
-            }
-        });
+const fixedPlaylist = document.getElementById('fixedPlaylist');
+const fixedOrderInput = document.getElementById('fixedOrderInput');
 
-        const initialOrder = Array.from(fixedPlaylist.querySelectorAll('li'))
-            .map(li => li.textContent.trim());
+if (fixedPlaylist && fixedOrderInput) {
+    Sortable.create(fixedPlaylist, {
+        animation: 150,
+        onEnd: () => {
+            const order = Array.from(fixedPlaylist.querySelectorAll('li'))
+                .map(li => li.dataset.filename);
+            fixedOrderInput.value = order.join(',');
+        }
+    });
 
-        fixedOrderInput.value = initialOrder.join(',');
-    }
+    const initialOrder = Array.from(fixedPlaylist.querySelectorAll('li'))
+        .map(li => li.dataset.filename);
+
+    fixedOrderInput.value = initialOrder.join(',');
+}
 
     // ========================================================
     // COUNTDOWN TIMER

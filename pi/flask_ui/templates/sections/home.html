@@ -129,16 +129,25 @@
           </div>
           {% endif %}
 
-          {% if playlist_mode == 'fixed' and fixed_order %}
-          <div class="px-3 pt-2">
-            <div class="fw-semibold mb-1">Playlist</div>
-            <ol class="mb-2 ps-4">
-              {% for video in fixed_order %}
-              <li class="mb-1">{{ video.filename }}</li>
-              {% endfor %}
-            </ol>
-          </div>
-          {% endif %}
+{% if playlist_mode == 'fixed' and fixed_order_display %}
+<div class="px-3 pt-2">
+  <div class="fw-semibold mb-1">Playlist</div>
+  <ol class="mb-2 ps-4">
+    {% for video in fixed_order_display %}
+    <li class="mb-1">
+      {{ video.filename }}
+
+      {% if video.plays_now %}
+        <span class="text-success fw-semibold ms-1">✓ Plays</span>
+      {% else %}
+        <span class="text-muted ms-1">— Skipped</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</div>
+{% endif %}
+
           {% endif %}
         </div>
       </div>
@@ -234,7 +243,7 @@
               {% endfor %}
 
               <span class="badge bg-light text-dark border">
-                {{ schedule_tag_name }}
+                <strong>Tags:</strong>{{ schedule_tag_name }}
               </span>
 
               {% if slot.is_active %}

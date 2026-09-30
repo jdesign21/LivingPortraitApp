@@ -2,7 +2,7 @@
 
 import sys
 import traceback
-from shared.vlc_network_helper import get_role
+from shared.network import get_role
 from shared.vlc_helper import log
 
 def main():

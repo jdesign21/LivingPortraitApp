@@ -1,104 +1,297 @@
-   <section id="about" class="section">
-      <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
-        <i class="bi  bi-info-circle"></i>About This Project
-      </h3>
+<section id="about" class="section">
+  <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
+    <i class="bi bi-info-circle me-2"></i>About This Project
+  </h3>
 
-      <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white">
-          <strong>About Us</strong>
+  <!-- About Us -->
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white">
+      <strong>Lights on Lantern Ln</strong>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        If you like this project, make sure to subscribe to my YouTube channel.
+      </p>
+
+
+  <div class="text-center">
+    <a href="https://www.youtube.com/@LightsOnLanternLn"
+       target="_blank"
+       class="btn btn-danger">
+      <i class="bi bi-youtube me-2"></i>Subscribe on YouTube
+    </a>
+  </div>
+</div>
+
+
+  </div>
+
+  <!-- System Information -->
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white">
+      <strong><i class="bi bi-cpu me-2"></i>System Information</strong>
+    </div>
+
+
+<div class="card-body">
+  <!-- Application -->
+  <h6 class="fw-bold text-primary mb-3">Application</h6>
+
+  <div class="table-responsive mb-4">
+    <table class="table table-striped mb-0">
+      <tbody>
+        <tr>
+          <td class="fw-semibold">LivingPortraitApp Version</td>
+          <td>{{ version }}</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">VLC Version</td>
+          <td>{{ system_info.vlc_version }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Raspberry Pi / Operating System -->
+  <h6 class="fw-bold text-primary mb-3">Raspberry Pi & Operating System</h6>
+
+  <div class="table-responsive mb-4">
+    <table class="table table-striped mb-0">
+      <tbody>
+        <tr>
+          <td class="fw-semibold">Raspberry Pi Model</td>
+          <td>{{ system_info.pi_model }}</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">Operating System</td>
+          <td>{{ system_info.os_version }}</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">Kernel Version</td>
+          <td>{{ system_info.kernel_version }}</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">CPU Architecture</td>
+          <td>{{ system_info.architecture }}</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">Hostname</td>
+          <td>{{ system_info.hostname }}</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">IP Address</td>
+          <td>{{ system_info.ip_address }}</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">Hardware Serial Number</td>
+          <td>{{ system_info.hardware_serial }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Audio -->
+  <h6 class="fw-bold text-primary mb-3">Audio</h6>
+
+  <div class="table-responsive mb-4">
+    <table class="table table-striped mb-0">
+      <tbody>
+        <tr>
+          <td class="fw-semibold">Audio System</td>
+          <td>{{ system_info.audio_system }}</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">PulseAudio</td>
+          <td>
+            {% if system_info.pulseaudio %}
+              <span class="badge bg-success">Installed</span>
+            {% else %}
+              <span class="badge bg-secondary">Not Installed</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">PipeWire</td>
+          <td>
+            {% if system_info.pipewire %}
+              <span class="badge bg-success">Installed</span>
+            {% else %}
+              <span class="badge bg-secondary">Not Installed</span>
+            {% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- System Performance -->
+  <h6 class="fw-bold text-primary mb-3">System Performance</h6>
+
+  <div class="table-responsive mb-4">
+    <table class="table table-striped mb-0">
+      <tbody>
+        <tr>
+          <td class="fw-semibold">CPU Usage</td>
+          <td>{{ system_info.cpu_usage }}</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">Memory Usage</td>
+          <td>{{ system_info.memory_usage }}</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">CPU Temperature</td>
+          <td>{{ system_info.cpu_temperature }}</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">Uptime</td>
+          <td>{{ system_info.uptime }}</td>
+        </tr>
+        <tr>
+          <td class="fw-semibold">System Boot Time</td>
+          <td>{{ system_info.boot_time }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Disk Utilization -->
+  <h6 class="fw-bold text-primary mb-3">Disk Utilization</h6>
+
+  <div class="border rounded p-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="fw-semibold">Root Partition</span>
+      <span class="text-muted small">
+        {{ system_info.disk_device }}
+      </span>
+    </div>
+
+    <div class="progress mb-3" style="height: 24px;">
+      <div
+        class="progress-bar"
+        role="progressbar"
+        style="width: {{ system_info.disk_used_percent }}%;"
+        aria-valuenow="{{ system_info.disk_used_percent }}"
+        aria-valuemin="0"
+        aria-valuemax="100">
+        {{ system_info.disk_used_percent }}% Used
+      </div>
+    </div>
+
+    <div class="row text-center">
+      <div class="col-6">
+        <div class="fw-bold">
+          {{ system_info.disk_free_gib }} GiB
         </div>
-        <div class="card-body">
-          <p class="text-muted small mb-0">If you like this project, make sure to subscribe to my YouTube channel.</p>
-          <br>
-
-
-
-          <!-- YouTube Subscribe -->
-          <div class="mb-3 text-center">
-            <a href="https://www.youtube.com/@LightsOnLanternLn" target="_blank" class="btn btn-danger">
-              <i class="bi bi-youtube me-2"></i> Subscribe on YouTube
-            </a>
-          </div>
-
-
-        </div>
+        <div class="text-muted small">Free Space</div>
       </div>
 
-      <br>
-      <div class="card shadow-sm mb-4">
-        <div class="card-header bg-primary text-white">
-          <strong>Parts List</strong>
+      <div class="col-6">
+        <div class="fw-bold">
+          {{ system_info.disk_total_gib }} GiB
         </div>
-        <div class="card-body">
-          <div class="table-responsive">
-            <table class="table table-striped mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th scope="col">Item</th>
-                  <th scope="col">Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Raspberry Pi</td>
-                  <td>Model 3,4,5</td>
-                </tr>
-                <tr>
-                  <td>MicroSD Card</td>
-                  <td>With Raspberry Pi OS installed</td>
-                </tr>
-                <tr>
-                  <td>5V Power Supply</td>
-                  <td>Micro-USB, 2.5A or higher</td>
-                </tr>
-                <tr>
-                  <td>PIR Sensor (5V)</td>
-                  <td>HC-SR501 or similar (3-pin)</td>
-                </tr>
-                <tr>
-                  <td>Jumper Wires (M to F)</td>
-                  <td>3 wires for connection</td>
-                </tr>
-                <tr>
-                  <td>HDMI Cable</td>
-                  <td>Full-size HDMI</td>
-                </tr>
-                <tr>
-                  <td>TV</td>
-                  <td>With HDMI input</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <div class="text-muted small">Total Space</div>
       </div>
+    </div>
 
-      <div class="card shadow-sm mb-4">
-        <div class="card-header bg-primary text-white">
-          <strong>Wiring Guide</strong>
-        </div>
-        <div class="card-body">
-          <ul class="list-group list-group-flush">
-            <li class="list-group-item">
-              <strong>HDMI from Pi to TV:</strong><br>
-              HDMI cable runs from Raspberry Pi’s HDMI port to the TV.
-            </li>
-            <li class="list-group-item">
-              <strong>PIR Sensor Wiring:</strong>
-              <ul class="mt-2">
-                <li><strong>VCC (Red)</strong> → 5V pin on Pi</li>
-                <li><strong>GND (Black)</strong> → GND pin on Pi</li>
-                <li><strong>OUT (Yellow)</strong> → GPIO pin on Pi (assumed to be GPIO 4)</li>
-              </ul>
-            </li>
-            <li class="list-group-item">
-              <strong>5V Power Supply:</strong><br>
-              Properly connected to the Pi’s micro-USB port.
-            </li>
-          </ul>
-        </div>
-      </div>
+    <div class="text-center text-muted small mt-2">
+      {{ system_info.disk_free_percent }}% free
+    </div>
+  </div>
+</div>
 
 
-      <p class="text-muted small">Version: {{ version }}</p>
-    </section>
+  </div>
+
+  <!-- Parts List -->
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white">
+      <strong><i class="bi bi-tools me-2"></i>Parts List</strong>
+    </div>
+
+
+<div class="card-body">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0">
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Item</th>
+          <th scope="col">Details</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>Raspberry Pi</td>
+          <td>Model 3, 4, 5</td>
+        </tr>
+        <tr>
+          <td>MicroSD Card</td>
+          <td>With Raspberry Pi OS installed</td>
+        </tr>
+        <tr>
+          <td>5V Power Supply</td>
+          <td>Micro-USB, 2.5A or higher</td>
+        </tr>
+        <tr>
+          <td>PIR Sensor (5V)</td>
+          <td>HC-SR501 or similar (3-pin)</td>
+        </tr>
+        <tr>
+          <td>Jumper Wires (M to F)</td>
+          <td>3 wires for connection</td>
+        </tr>
+        <tr>
+          <td>HDMI Cable</td>
+          <td>Full-size HDMI</td>
+        </tr>
+        <tr>
+          <td>TV</td>
+          <td>With HDMI input</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+  </div>
+
+  <!-- Wiring Guide -->
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white">
+      <strong><i class="bi bi-diagram-3 me-2"></i>Wiring Guide</strong>
+    </div>
+
+
+<div class="card-body">
+  <ul class="list-group list-group-flush">
+    <li class="list-group-item">
+      <strong>HDMI from Pi to TV:</strong><br>
+      HDMI cable runs from the Raspberry Pi’s HDMI port to the TV.
+    </li>
+
+    <li class="list-group-item">
+      <strong>PIR Sensor Wiring:</strong>
+      <ul class="mt-2 mb-0">
+        <li><strong>VCC (Red)</strong> → 5V pin on Pi</li>
+        <li><strong>GND (Black)</strong> → GND pin on Pi</li>
+        <li><strong>OUT (Yellow)</strong> → GPIO pin on Pi (GPIO 4)</li>
+      </ul>
+    </li>
+
+    <li class="list-group-item">
+      <strong>5V Power Supply:</strong><br>
+      Properly connected to the Pi’s micro-USB port.
+    </li>
+  </ul>
+</div>
+
+
+  </div>
+
+  <!--<p class="text-muted small">Version: {{ version }}</p>-->
+</section>

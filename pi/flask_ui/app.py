@@ -8,7 +8,6 @@ import random
 from flask import jsonify, send_file
 import sys
 import json
-import mqtt_client
 import time
 import subprocess
 
@@ -34,7 +33,7 @@ from shared.vlc_helper import (
     get_time_format,
 )
 
-from shared.vlc_network_helper import (
+from shared.network import (
     load_network_settings,
     save_network_settings,
     set_role,
@@ -45,11 +44,12 @@ from shared.vlc_network_helper import (
     check_secondary_status,
     get_sync_start_delay_ms
 )
-
+from shared.system_info import get_system_info
 from shared.update_helper import check_for_update
 from shared.update_manager import start_update
+from shared import mqtt_client
 
-from shared.audio_helper import (
+from shared.audio import (
     get_audio_outputs,
     get_effective_audio_output,
     set_audio_output,
@@ -130,6 +130,11 @@ def index():
 
     theme = request.cookies.get("themeMode", "light")
     version = get_version()
+
+    # Check for application updates using the configured update channel.
+    update_channel = settings.get("update_channel", "beta")
+    update_status = check_for_update(version, update_channel)
+
     videos = sorted([f.name for f in VIDEO_FOLDER.glob("*.mp4")])
 
     selected_video = settings.get("selected_video", "")
@@ -243,6 +248,31 @@ def index():
         and entry.get("filename") in videos
         and entry.get("active")
     ]
+
+    # Fixed Playlist Schedule Tag display
+    fixed_order_display = []
+
+    active_schedule_tag = None
+
+    for slot in today_schedule.get("slots", []):
+        if slot.get("is_active"):
+            active_schedule_tag = slot.get("category", "")
+            break
+
+    for entry in fixed_order:
+        video_tags = entry.get("tags", [])
+
+        plays_now = True
+
+        if active_schedule_tag:
+            plays_now = active_schedule_tag in video_tags
+
+        fixed_order_display.append({
+            "filename": entry.get("filename", ""),
+            "tags": video_tags,
+            "plays_now": plays_now
+        })
+
 
     manage_videos = [
         entry
@@ -410,6 +440,7 @@ def index():
         )
 
         recent_activity = recent_activity[:8]
+        system_info = get_system_info()
 
     return render_template(
         "index.html",
@@ -421,6 +452,7 @@ def index():
         interval=interval,
         last_updated=last_updated,
         fixed_order=fixed_order,
+        fixed_order_display=fixed_order_display,
         manage_videos=manage_videos,
         time_remaining=time_remaining,
         available_tags=available_tags,
@@ -450,10 +482,12 @@ def index():
         mqtt_connected=mqtt_connected,
         sync_start_delay_ms=sync_start_delay_ms,
         version=version,
+        update_status=update_status,
         reboot_required=reboot_required,
         mute_audio=mute_audio,
         audio_outputs=audio_outputs,
         audio_output=audio_output,
+        system_info=system_info
     )
 
 

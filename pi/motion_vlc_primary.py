@@ -10,7 +10,7 @@ import json
 import time
 import uuid
 import random
-import mqtt_client
+
 
 from time import sleep
 from gpiozero import MotionSensor
@@ -35,12 +35,13 @@ from shared.vlc_helper import (
     get_video_mute_audio
 )
 
-from shared.vlc_network_helper import (
+from shared.network import (
     is_enabled,
     get_sync_start_delay_ms
 )
 
-from shared.audio_helper import get_audio_device
+from shared.audio import get_audio_device
+from shared import mqtt_client
 
 HOME = Path(os.path.expanduser("~"))
 LOG_FOLDER = HOME / "logs"
@@ -1150,15 +1151,11 @@ def main():
         f"in paused state",
         "PLAYBACK"
     )
+    
+    if is_enabled():
+        mqtt_client.set_sync_status_handler(on_sync_status_message)
 
-    mqtt_client.set_sync_status_handler(
-        on_sync_status_message
-    )
-
-    log(
-        "MQTT sync status listener registered.",
-        "MQTT"
-    )
+        log("MQTT sync status listener registered.","MQTT")
 
     try:
         while True:
