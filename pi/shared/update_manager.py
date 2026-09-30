@@ -23,7 +23,6 @@ UPDATE_ITEMS = [
     "motion_vlc.py",
     "motion_vlc_primary.py",
     "motion_vlc_secondary.py",
-    "mqtt_client.py",
     "version.txt",
 ]
 
