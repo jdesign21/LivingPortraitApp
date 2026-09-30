@@ -377,7 +377,6 @@ def perform_update(tag_name):
                 "motion_vlc.py",
                 "motion_vlc_primary.py",
                 "motion_vlc_secondary.py",
-                "mqtt_client.py",
                 "version.txt",
                 "shared",
                 "flask_ui",

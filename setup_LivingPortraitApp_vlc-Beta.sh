@@ -7,7 +7,7 @@ set -e
 # ============================================================
 
 # GitHub release to install
-RELEASE="v2.0.0-beta.13"
+RELEASE="v2.0.0-beta.14"
 BASE_URL="https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/tags/$RELEASE/pi"
 
 # ============================================================
