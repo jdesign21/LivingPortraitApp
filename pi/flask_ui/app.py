@@ -727,15 +727,23 @@ def select():
     interval_str = request.form.get("interval", "0")
     triggered_flag = request.form.get("triggered_flag") == "on"
     trigger_change = request.form.get("trigger_change") == "on"
-    delay = int(request.form.get("delay", 0))
+
+    try:
+        delay = int(request.form.get("delay", 0))
+        secondary_start_delay = int(
+            request.form.get("secondary_start_delay", 0)
+        )
+
+        if delay < 0 or secondary_start_delay < 0:
+            raise ValueError()
+
+    except (ValueError, TypeError):
+        flash("Invalid delay value", "danger")
+        return redirect(url_for("index"))
 
     secondary_start_mode = request.form.get(
         "secondary_start_mode",
         "with_primary"
-    )
-
-    secondary_start_delay = int(
-        request.form.get("secondary_start_delay", 0)
     )
 
     secondary_video_mode = request.form.get(
@@ -1024,6 +1032,7 @@ def select():
 
 
 
+
 @app.route("/pause_toggle", methods=["POST"])
 def pause_toggle():
     pause = request.form.get("pause")
@@ -1064,21 +1073,27 @@ def upload():
         return redirect(url_for("index"))
 
     if file and file.filename.lower().endswith(".mp4"):
-        save_path = VIDEO_FOLDER / file.filename
+        filename = secure_filename(file.filename)
+
+        if not filename:
+            flash("Invalid filename", "danger")
+            return redirect(url_for("index"))
+
+        save_path = VIDEO_FOLDER / filename
         file.save(save_path)
 
         settings = load_settings()
         order = settings.get("playlist", {}).get("order", [])
 
-        if not any(item["filename"] == file.filename for item in order):
+        if not any(item["filename"] == filename for item in order):
             order.append({
-                "filename": file.filename,
+                "filename": filename,
                 "active": True
             })
             settings["playlist"]["order"] = order
             save_settings(settings)
 
-        flash(f"Uploaded: {file.filename}", "success")
+        flash(f"Uploaded: {filename}", "success")
     else:
         flash("Only .mp4 files are allowed", "danger")
 

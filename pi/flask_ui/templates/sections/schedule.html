@@ -1,7 +1,4 @@
 
-
-
-
 <section id="schedule" class="section">
   <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
     <i class="bi bi-calendar-check"></i> Schedule
@@ -12,6 +9,7 @@
       <div class="card-header bg-primary text-white">
         <strong>Playback Schedule</strong>
       </div>
+
       <div class="card-body">
         <p class="text-muted small mb-0">
           Set specific playback times for each day. Enable a time slot and choose its start and end time.
@@ -20,29 +18,37 @@
           <br><br>
           If a day has no enabled time slots, playback will run all day using the normal playback settings.
         </p>
+
         <br>
+
         <ul class="list-group mb-3">
           {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
           <li class="list-group-item">
-            <div class="d-flex gap-3">
-              <!-- LEFT: Day toggle -->
-              <div class="d-flex align-items-center" style="min-width: 150px;">
+
+            <div class="d-flex gap-3 schedule-day-row">
+
+              <!-- DAY -->
+              <div class="d-flex align-items-center schedule-day-label" style="min-width: 150px;">
                 <div class="form-check form-switch">
                   <input type="hidden" name="{{ day.lower() }}Enabled" value="true">
+
                   <label class="form-check-label fw-semibold" for="{{ day.lower() }}Enabled">
                     {{ day }}
                   </label>
                 </div>
               </div>
 
-              <!-- RIGHT: Slots + Copy to All -->
-              <div class="d-flex gap-3 flex-grow-1">
+              <!-- SLOTS + COPY TO ALL -->
+              <div class="d-flex gap-3 flex-grow-1 schedule-slots-container">
+
                 <!-- SLOTS -->
-                <div class="d-flex flex-column gap-2 flex-grow-1">
+                <div class="d-flex flex-column gap-2 flex-grow-1 schedule-slots">
 
                   <!-- TIME SLOT 1 -->
-                  <div class="card p-2 shadow-sm bg-light">
-                    <div class="d-flex flex-wrap align-items-center gap-2">
+                  <div class="card p-2 shadow-sm bg-light schedule-slot">
+
+                    <div class="d-flex flex-wrap align-items-center gap-2 schedule-slot-controls">
+
                       <div class="form-check form-switch">
                         <input class="form-check-input slot-toggle"
                           type="checkbox"
@@ -50,6 +56,7 @@
                           name="{{ day.lower() }}Slot1Enabled"
                           {% if days and days[day].slot1.enabled %}checked{% endif %}
                           {% if not days or not days[day].enabled %}disabled{% endif %}>
+
                         <label class="form-check-label fw-semibold" for="{{ day.lower() }}Slot1Enabled">
                           Time Slot 1
                         </label>
@@ -59,6 +66,7 @@
                         <label for="{{ day.lower() }}Slot1Start" class="me-1 mb-0">
                           Start
                         </label>
+
                         <input type="time"
                           class="form-control form-control-sm"
                           id="{{ day.lower() }}Slot1Start"
@@ -71,6 +79,7 @@
                         <label for="{{ day.lower() }}Slot1End" class="me-1 mb-0">
                           End
                         </label>
+
                         <input type="time"
                           class="form-control form-control-sm"
                           id="{{ day.lower() }}Slot1End"
@@ -85,7 +94,9 @@
                           id="{{ day.lower() }}Slot1Category"
                           class="form-select form-select-sm"
                           {% if not days or not days[day].slot1.enabled %}disabled{% endif %}>
+
                           <option value="">Select Video Tag</option>
+
                           {% for tag in schedule_tags %}
                           <option
                             value="{{ tag.id }}"
@@ -94,14 +105,17 @@
                             {{ tag.name }}
                           </option>
                           {% endfor %}
+
                         </select>
                       </div>
+
                     </div>
 
                     <hr>
 
                     <!-- TIME SLOT 2 -->
-                    <div class="d-flex flex-wrap align-items-center gap-2">
+                    <div class="d-flex flex-wrap align-items-center gap-2 schedule-slot-controls">
+
                       <div class="form-check form-switch">
                         <input class="form-check-input slot-toggle"
                           type="checkbox"
@@ -109,6 +123,7 @@
                           name="{{ day.lower() }}Slot2Enabled"
                           {% if days and days[day].slot2.enabled %}checked{% endif %}
                           {% if not days or not days[day].enabled %}disabled{% endif %}>
+
                         <label class="form-check-label fw-semibold" for="{{ day.lower() }}Slot2Enabled">
                           Time Slot 2
                         </label>
@@ -118,6 +133,7 @@
                         <label for="{{ day.lower() }}Slot2Start" class="me-1 mb-0">
                           Start
                         </label>
+
                         <input type="time"
                           class="form-control form-control-sm"
                           id="{{ day.lower() }}Slot2Start"
@@ -130,6 +146,7 @@
                         <label for="{{ day.lower() }}Slot2End" class="me-1 mb-0">
                           End
                         </label>
+
                         <input type="time"
                           class="form-control form-control-sm"
                           id="{{ day.lower() }}Slot2End"
@@ -144,7 +161,9 @@
                           id="{{ day.lower() }}Slot2Category"
                           class="form-select form-select-sm"
                           {% if not days or not days[day].slot2.enabled %}disabled{% endif %}>
+
                           <option value="">Select Video Tag</option>
+
                           {% for tag in schedule_tags %}
                           <option
                             value="{{ tag.id }}"
@@ -153,20 +172,24 @@
                             {{ tag.name }}
                           </option>
                           {% endfor %}
+
                         </select>
                       </div>
+
                     </div>
                   </div>
                 </div>
 
                 <!-- COPY TO ALL -->
-                <div class="d-flex align-items-center">
-                  <button type="button"
+                <div class="d-flex align-items-center copy-to-all-container">
+                  <button
+                    type="button"
                     class="btn btn-outline-primary btn-sm copy-to-all-btn"
                     data-day="{{ day.lower() }}">
                     Copy to All
                   </button>
                 </div>
+
               </div>
             </div>
           </li>
@@ -183,7 +206,5 @@
       </button>
     </div>
   </form>
-
-  
 </section>
 

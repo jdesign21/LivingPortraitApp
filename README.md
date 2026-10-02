@@ -4,13 +4,31 @@
 
 Welcome to the LivingPortraitApp project!
 
-This application enables you to display videos using VLC media player integration on a Raspberry Pi.
+LivingPortraitApp enables you to display videos using VLC media player integration on a Raspberry Pi.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/heads/main/screenshots/Capture.PNG" width="30%" />
-  <img src="https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/heads/main/screenshots/Capture2.PNG" width="30%" />
-  <img src="https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/heads/main/screenshots/Capture3.PNG" width="30%" />
+
+<img src="https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/heads/main/screenshots/Capture.PNG" width="30%" />
+
+<img src="https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/heads/main/screenshots/Capture2.PNG" width="30%" />
+
+<img src="https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/heads/main/screenshots/Capture3.PNG" width="30%" />
+
 </p>
+
+---
+
+## 🚀 Version 2.0.0 Released
+
+**LivingPortraitApp v2.0.0 is now available!**
+
+Version 2.0.0 introduces major updates and changes to the application. Because of these changes, **version 2.0.0 requires a fresh installation**.
+
+> ⚠️ **Important:** Existing LivingPortraitApp installations cannot be upgraded directly from version 1.x to version 2.0.0 using the built-in updater.
+
+For version 2.0.0, install LivingPortraitApp on a fresh Raspberry Pi installation or perform a fresh installation according to the instructions below.
+
+If you are upgrading from an earlier version, make sure to back up any videos or other files you want to keep before performing the fresh installation.
 
 ---
 
@@ -21,13 +39,15 @@ This application enables you to display videos using VLC media player integratio
 * Basic familiarity with terminal commands
 * Access to the internet for downloading files
 
+The installer will install the required software and configure LivingPortraitApp automatically.
+
 ---
 
 ## Installation
 
 ### Raspberry Pi 3B, 3B+, 4, Zero
 
-Using PuTTY (or any terminal), run the following command to install everything on a fresh Raspberry Pi:
+Using PuTTY (or any terminal), run the following command to install LivingPortraitApp v2.0.0 on a fresh Raspberry Pi:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/heads/main/setup_LivingPortraitApp_vlc.sh | bash
@@ -35,38 +55,18 @@ curl -sSL https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/hea
 
 ### Raspberry Pi 5
 
-Using PuTTY (or any terminal), run the following command to install everything on a fresh Raspberry Pi 5:
+Using PuTTY (or any terminal), run the following command to install LivingPortraitApp v2.0.0 on a fresh Raspberry Pi 5:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/heads/main/setup_LivingPortraitApp_vlc_pi5.sh | bash
 ```
 
-### Update Code Only
-
-Using PuTTY (or any terminal), run the following command to update code changes only:
-
-```bash
-curl -sSL https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/heads/main/setup_LivingPortraitApp_vlc_UpdateOnly.sh | bash
-```
-
 ---
 
-## Beta Testing
+## After Installation
 
-The beta version contains the latest features and changes that are still being tested. Use the beta installer only if you want to test the upcoming release.
+Once the installer has finished, **reboot your Raspberry Pi** for all changes to take effect.
 
-**Current Beta Release: `v2.0.0-beta.15`**
+After rebooting, open the LivingPortraitApp web interface and complete the initial configuration.
 
-### Raspberry Pi 3B, 3B+, 4, Zero
 
-Using PuTTY (or any terminal), run:
-
-```bash
-curl -sSL https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/heads/beta/setup_LivingPortraitApp_vlc-Beta.sh | bash
-```
-
-> **Note:** The beta version may contain bugs or changes that are not included in the current stable release.
-
----
-
-Finish and reboot your Raspberry Pi for changes to take effect.

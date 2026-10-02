@@ -444,3 +444,54 @@ body.dark-theme {
   color: var(--font-color) !important;
 }
 
+
+
+@media (max-width: 767.98px) {
+  .schedule-day-row {
+    flex-direction: column !important;
+  }
+
+  .schedule-day-label {
+    min-width: auto !important;
+    width: 100%;
+  }
+
+  .schedule-slots-container {
+    flex-direction: column !important;
+    width: 100%;
+  }
+
+  .schedule-slots {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .schedule-slot {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .schedule-slot-controls {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .schedule-slot-controls > div {
+    max-width: 100% !important;
+  }
+
+  .schedule-slot-controls .form-control,
+  .schedule-slot-controls .form-select {
+    max-width: 100%;
+  }
+
+  .copy-to-all-container {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .copy-to-all-container .copy-to-all-btn {
+    width: 100%;
+  }
+}
+

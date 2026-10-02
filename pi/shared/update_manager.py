@@ -273,8 +273,27 @@ def restart_services(backup_path):
         "UPDATE"
     )
 
-    # The update has successfully installed and motion_vlc restarted.
-    # The backup is no longer needed.
+    # Flask must be restarted before the backup is removed.
+    # If Flask fails to restart, perform_update() will catch
+    # the exception and restore the backup.
+    subprocess.run(
+        [
+            "sudo",
+            "systemctl",
+            "restart",
+            "flask_ui"
+        ],
+        check=True
+    )
+
+    log(
+        "flask_ui service restarted successfully.",
+        "UPDATE"
+    )
+
+    # The complete update has now successfully installed and
+    # both services have restarted. The rollback backup is
+    # no longer required.
     if backup_path and backup_path.exists():
         shutil.rmtree(
             backup_path,
@@ -293,24 +312,6 @@ def restart_services(backup_path):
 
     log(
         "LivingPortraitApp update completed successfully.",
-        "UPDATE"
-    )
-
-    time.sleep(1)
-
-    # Restart Flask last.
-    subprocess.run(
-        [
-            "sudo",
-            "systemctl",
-            "restart",
-            "flask_ui"
-        ],
-        check=True
-    )
-
-    log(
-        "flask_ui service restarted successfully.",
         "UPDATE"
     )
 
