@@ -235,6 +235,11 @@ pre {
   border-color: var(--primary-color) !important;
 }
 
+.bg-light {
+  border-color: var(--font-color) !important;
+  color: var(--font-color) !important;
+}
+
 .border-secondary {
   border-color: var(--secondary-color) !important;
 }
@@ -245,6 +250,21 @@ pre {
 
 .text-secondary {
   color: var(--secondary-color) !important;
+}
+
+.custom-table {
+  --bs-table-bg: transparent;
+  --bs-table-color: #212529;
+  --bs-table-hover-bg: #f0f6ff;
+  --bs-table-hover-color: #212529;
+}
+
+/* Dark Mode */
+body.dark-mode .custom-table {
+  --bs-table-bg: transparent;
+  --bs-table-color: #e9ecef;
+  --bs-table-hover-bg: #2b3035;
+  --bs-table-hover-color: #ffffff;
 }
 
 .btn-primary {

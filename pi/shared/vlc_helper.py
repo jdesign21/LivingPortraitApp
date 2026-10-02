@@ -13,6 +13,10 @@ VIDEO_FOLDER = HOME / "videos"
 LOG_FOLDER = HOME / "logs"
 LOG_FOLDER.mkdir(exist_ok=True)
 
+# Log retention
+LOG_RETENTION_DAYS = 30
+
+
 # Thread control
 stop_playlist_thread = threading.Event()
 
@@ -20,32 +24,87 @@ stop_playlist_thread = threading.Event()
 selection_sync_callback = None
 
 
+def cleanup_old_logs():
+    """Delete log files older than the configured retention period."""
+    try:
+        cutoff_time = time.time() - (
+            LOG_RETENTION_DAYS * 24 * 60 * 60
+        )
+
+        removed_count = 0
+
+        for log_file in LOG_FOLDER.glob("*.txt"):
+            try:
+                if log_file.stat().st_mtime < cutoff_time:
+                    log_file.unlink()
+                    removed_count += 1
+            except Exception as e:
+                log(
+                    f"Failed to remove old log "
+                    f"'{log_file.name}': {e}",
+                    "ERROR"
+                )
+
+        if removed_count:
+            log(
+                f"Removed {removed_count} log file(s) "
+                f"older than {LOG_RETENTION_DAYS} days.",
+                "SYSTEM"
+            )
+
+    except Exception as e:
+        log(
+            f"Failed to clean up old logs: {e}",
+            "ERROR"
+        )
+
+
 def get_version():
     version_file = HOME / "version.txt"
+
     try:
         with open(version_file, "r") as f:
             version = f.read().strip()
+
             if version:
                 return version
+
             return "unknown"
+
     except FileNotFoundError:
         return "unknown"
+
     except Exception as e:
-        log(f"Failed to read version.txt: {e}", "ERROR")
+        log(
+            f"Failed to read version.txt: {e}",
+            "ERROR"
+        )
         return "unknown"
 
 
 def log(msg, category="SYSTEM"):
     """
     Write a standardized application log entry.
+
     The category is a free-form string used to classify
     the log entry for filtering and display.
     """
-    timestamp = datetime.now().isoformat(timespec="seconds")
-    log_line = f"[{timestamp}] [{category}] {msg}"
+    timestamp = datetime.now().isoformat(
+        timespec="seconds"
+    )
+
+    log_line = (
+        f"[{timestamp}] [{category}] {msg}"
+    )
+
     print(log_line)
-    date_str = datetime.now().strftime("%Y-%m-%d")
+
+    date_str = datetime.now().strftime(
+        "%Y-%m-%d"
+    )
+
     log_file = LOG_FOLDER / f"{date_str}.txt"
+
     with log_file.open("a") as f:
         f.write(f"{log_line}\n")
 
@@ -67,7 +126,7 @@ def load_settings():
             "setup_complete": False,
             "selected_video": "",
             "pause_flag": True,
-            "mute_audio": True,
+            "mute_audio": False,
             "time_format": "12",
             "sync_tags": [],
             "schedule_tags": [
@@ -103,7 +162,7 @@ def load_settings():
         settings_changed = True
 
     if "mute_audio" not in settings:
-        settings["mute_audio"] = True
+        settings["mute_audio"] = False
         settings_changed = True
 
     if "schedule_tags" not in settings:

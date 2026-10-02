@@ -974,6 +974,11 @@ async function checkUpdateStatus() {
                     'Update completed successfully.';
             }
 
+            
+            //if (refreshUiContainer) {
+            //    refreshUiContainer.classList.add('d-none');
+            //}
+
             stopUpdateStatusPolling();
 
             if (updateNowBtn) {

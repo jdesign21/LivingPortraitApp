@@ -3,9 +3,11 @@
 import sys
 import traceback
 from shared.network import get_role
-from shared.vlc_helper import log
+from shared.vlc_helper import log, cleanup_old_logs
 
 def main():
+    cleanup_old_logs()
+
     role = get_role()
     log(f"Starting VLC in {role} mode.", "SYSTEM")
     if role == "primary":
