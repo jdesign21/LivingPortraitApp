@@ -85,16 +85,22 @@ curl -sSL https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/hea
 
 ## After Installation
 
-Once the installer has finished, reboot your Raspberry Pi for all changes to take effect.
+Once the installer has finished, **reboot your Raspberry Pi** for all changes to take effect.
 
 After rebooting, open a web browser on a computer or device connected to the same network and go to:
-http://[PI-IP]:5000
 
-Replace [PI-IP] with the IP address of your Raspberry Pi.
+```text
+http://[PI-IP]:5000
+```
+
+Replace `[PI-IP]` with the IP address of your Raspberry Pi.
 
 For example:
-http://192.168.1.100:5000
 
-The LivingPortraitApp web interface will open and you can complete the initial configuration.
+```text
+http://192.168.1.100:5000
+```
+
+The LivingPortraitApp web interface will open, and you can complete the initial configuration.
 
 
