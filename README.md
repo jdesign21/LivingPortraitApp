@@ -43,6 +43,25 @@ The installer will install the required software and configure LivingPortraitApp
 
 ---
 
+## Setting Up the Raspberry Pi
+
+If you are setting up a Raspberry Pi for the first time, the easiest method is to use Raspberry Pi Imager.
+Download and install Raspberry Pi Imager on your computer.
+Insert your Raspberry Pi microSD card into your computer.
+Open Raspberry Pi Imager and select your Raspberry Pi model.
+Select Raspberry Pi OS Lite (64-bit) as the operating system.
+Select your microSD card as the storage device.
+Before writing the image, open the operating system settings and configure:
+  Your Wi-Fi network and password
+  Your country/region
+  A username and password
+  Enable SSH so you can connect to the Raspberry Pi remotely
+Write the operating system to the microSD card.
+Insert the microSD card into the Raspberry Pi and power it on.
+Once the Raspberry Pi has connected to your network, connect to it using SSH or a terminal application such as PuTTY.
+
+---
+
 ## Installation
 
 ### Raspberry Pi 3B, 3B+, 4, Zero
@@ -65,8 +84,16 @@ curl -sSL https://raw.githubusercontent.com/jdesign21/LivingPortraitApp/refs/hea
 
 ## After Installation
 
-Once the installer has finished, **reboot your Raspberry Pi** for all changes to take effect.
+Once the installer has finished, reboot your Raspberry Pi for all changes to take effect.
 
-After rebooting, open the LivingPortraitApp web interface and complete the initial configuration.
+After rebooting, open a web browser on a computer or device connected to the same network and go to:
+http://[PI-IP]:5000
+
+Replace [PI-IP] with the IP address of your Raspberry Pi.
+
+For example:
+http://192.168.1.100:5000
+
+The LivingPortraitApp web interface will open and you can complete the initial configuration.
 
 
