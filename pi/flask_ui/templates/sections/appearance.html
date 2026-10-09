@@ -6,7 +6,7 @@
   <!-- Theme -->
   <div class="card mb-3 shadow-sm">
     <div class="card-header bg-primary text-white">
-      <strong>Theme</strong>
+      <strong><i class="bi bi-palette me-2"></i>Theme</strong>
     </div>
     <div class="card-body py-3">
       <div class="d-flex justify-content-between align-items-center">
@@ -32,121 +32,114 @@
     </div>
   </div>
 
-  <!-- Theme Colors -->
+
+
+
+
+
+<!-- Display Resolution -->
 <div class="card mb-3 shadow-sm">
   <div class="card-header bg-primary text-white">
-    <strong>Theme Colors</strong>
+    <strong><i class="bi bi-display me-2"></i>Display Resolution</strong>
   </div>
-
-  <div class="card-body">
-    <div class="row g-4">
-
-      <!-- Primary Color -->
-      <div class="col-12 col-md-4">
-        <div class="border rounded p-3 h-100">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <input type="color"
-              class="form-control form-control-color flex-shrink-0"
-              id="primaryColor"
-              value="#0d6efd"
-              title="Choose primary color">
-
-            <div>
-              <label for="primaryColor" class="fw-semibold d-block mb-0">
-                Primary Color
-              </label>
-              <small class="text-muted">
-                Main buttons and accents
-              </small>
-            </div>
-          </div>
-
-          <div class="small text-muted">
-            Used for the main interface color and primary controls.
-          </div>
+  <div class="card-body py-3">
+    <!-- Current Display Mode -->
+    <div class="d-flex align-items-start mb-3">
+      <i class="bi bi-monitor fs-4 me-3"></i>
+      <div>
+        <div class="fw-semibold">Current Display Mode</div>
+        <div class="text-muted small">
+          {% if display_info.current_resolution %}
+            {{ display_info.current_resolution.label }}
+            {% if display_info.current_resolution.scan_type %}
+              ({{ display_info.current_resolution.scan_type|capitalize }})
+            {% endif %}
+          {% else %}
+            Unable to detect the current display mode.
+          {% endif %}
         </div>
       </div>
-
-      <!-- Secondary Color -->
-      <div class="col-12 col-md-4">
-        <div class="border rounded p-3 h-100">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <input type="color"
-              class="form-control form-control-color flex-shrink-0"
-              id="secondaryColor"
-              value="#084298"
-              title="Choose secondary color">
-
-            <div>
-              <label for="secondaryColor" class="fw-semibold d-block mb-0">
-                Secondary Color
-              </label>
-              <small class="text-muted">
-                Headers and secondary elements
-              </small>
-            </div>
-          </div>
-
-          <div class="small text-muted">
-            Used for secondary interface elements and darker accents.
-          </div>
-        </div>
-      </div>
-
-      <!-- Font Color -->
-      <div class="col-12 col-md-4">
-        <div class="border rounded p-3 h-100">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <input type="color"
-              class="form-control form-control-color flex-shrink-0"
-              id="fontColor"
-              value="#212529"
-              title="Choose font color">
-
-            <div>
-              <label for="fontColor" class="fw-semibold d-block mb-0">
-                Font Color
-              </label>
-              <small class="text-muted">
-                Main text color
-              </small>
-            </div>
-          </div>
-
-          <div class="small text-muted">
-            Controls the primary text color throughout the interface.
-          </div>
-        </div>
-      </div>
-
     </div>
 
-    <!-- Actions -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-4 pt-3 border-top">
-      <div class="form-text mb-0">
-        Customize the appearance of LivingPortraitApp.
+    <hr class="my-3">
+
+    <!-- Save and Apply Display Mode -->
+    <form method="POST" action="{{ url_for('select_display_mode') }}">
+      <div class="mb-2">
+        <label for="displayMode" class="form-label fw-semibold">
+          <i class="bi bi-tv me-1"></i>Available Display Modes
+        </label>
+        <select class="form-select" id="displayMode" name="display_mode" required
+                {% if not display_info.available_modes %}disabled{% endif %}>
+          {% if display_info.available_modes %}
+            {% for mode in display_info.available_modes %}
+              <option
+                value="{{ mode.width }}|{{ mode.height }}|{{ mode.refresh_rate if mode.refresh_rate is not none else 'none' }}|{{ 1 if mode.interlaced else 0 }}"
+                {% if display_mode_selection
+                   and display_mode_selection.width == mode.width
+                   and display_mode_selection.height == mode.height
+                   and display_mode_selection.refresh_rate == mode.refresh_rate
+                   and display_mode_selection.interlaced == mode.interlaced %}
+                  selected
+                {% elif not display_mode_selection and display_info.current_resolution
+                   and mode.width == display_info.current_resolution.width
+                   and mode.height == display_info.current_resolution.height
+                   and mode.refresh_rate == display_info.current_resolution.get('refresh_rate')
+                   and mode.interlaced == display_info.current_resolution.get('interlaced', false) %}
+                  selected
+                {% endif %}>
+                {{ mode.label }}{% if mode.aspect_ratio %} ({{ mode.aspect_ratio }}){% endif %}
+              </option>
+            {% endfor %}
+          {% else %}
+            <option value="">No display modes detected</option>
+          {% endif %}
+        </select>
+        <div class="form-text">
+          Choose a supported resolution, refresh rate, and scan type.
+          The selection will be saved and applied to the boot configuration.
+        </div>
       </div>
 
-      <button type="button"
-        class="btn btn-outline-secondary btn-sm"
-        id="resetThemeColors">
-        <i class="bi bi-arrow-counterclockwise me-1"></i>
-        Reset Colors
-      </button>
-    </div>
+      <div class="d-flex justify-content-end mt-3">
+        <button type="submit" class="btn btn-primary"
+                {% if not display_info.available_modes %}disabled{% endif %}>
+          <i class="bi bi-save me-1"></i>Save &amp; Apply Display Mode
+        </button>
+      </div>
+    </form>
 
-    <!-- Accessibility Notice -->
-    <div class="alert alert-info mt-3 mb-0 py-2 small">
-      <strong>Readability:</strong>
-      Very light or very dark colors may reduce text contrast.
+    <hr class="my-3">
+
+    <!-- Restore Default Display Mode -->
+    <div>
+      <div class="fw-semibold mb-1">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Restore Default
+      </div>
+      <div class="text-muted small mb-2">
+        Remove the custom display override and return to automatic display
+        mode detection. 
+      </div>
+
+      <form method="POST" action="{{ url_for('restore_display_mode') }}"
+            onsubmit="return confirm('Restore automatic display detection? You will need to reboot the Raspberry Pi.');">
+        <div class="d-flex justify-content-end mt-3">
+          <button type="submit" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Restore Default
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
 
+
+
+
 <!-- Audio & Time Settings -->
 <div class="card mb-3 shadow-sm">
   <div class="card-header bg-primary text-white">
-    <strong>Audio & Time</strong>
+    <strong><i class="bi bi-sliders me-2"></i>Audio & Time</strong>
   </div>
 
   <div class="card-body py-3">
@@ -256,11 +249,121 @@
 </div>
 
 
+  <!-- Theme Colors -->
+<div class="card mb-3 shadow-sm">
+  <div class="card-header bg-primary text-white">
+    <strong><i class="bi bi-palette-fill me-2"></i>Theme Colors</strong>
+  </div>
+
+  <div class="card-body">
+    <div class="row g-4">
+
+      <!-- Primary Color -->
+      <div class="col-12 col-md-4">
+        <div class="border rounded p-3 h-100">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <input type="color"
+              class="form-control form-control-color flex-shrink-0"
+              id="primaryColor"
+              value="#0d6efd"
+              title="Choose primary color">
+
+            <div>
+              <label for="primaryColor" class="fw-semibold d-block mb-0">
+                Primary Color
+              </label>
+              <small class="text-muted">
+                Main buttons and accents
+              </small>
+            </div>
+          </div>
+
+          <div class="small text-muted">
+            Used for the main interface color and primary controls.
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary Color -->
+      <div class="col-12 col-md-4">
+        <div class="border rounded p-3 h-100">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <input type="color"
+              class="form-control form-control-color flex-shrink-0"
+              id="secondaryColor"
+              value="#084298"
+              title="Choose secondary color">
+
+            <div>
+              <label for="secondaryColor" class="fw-semibold d-block mb-0">
+                Secondary Color
+              </label>
+              <small class="text-muted">
+                Headers and secondary elements
+              </small>
+            </div>
+          </div>
+
+          <div class="small text-muted">
+            Used for secondary interface elements and darker accents.
+          </div>
+        </div>
+      </div>
+
+      <!-- Font Color -->
+      <div class="col-12 col-md-4">
+        <div class="border rounded p-3 h-100">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <input type="color"
+              class="form-control form-control-color flex-shrink-0"
+              id="fontColor"
+              value="#212529"
+              title="Choose font color">
+
+            <div>
+              <label for="fontColor" class="fw-semibold d-block mb-0">
+                Font Color
+              </label>
+              <small class="text-muted">
+                Main text color
+              </small>
+            </div>
+          </div>
+
+          <div class="small text-muted">
+            Controls the primary text color throughout the interface.
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Actions -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-4 pt-3 border-top">
+      <div class="form-text mb-0">
+        Customize the appearance of LivingPortraitApp.
+      </div>
+
+      <button type="button"
+        class="btn btn-outline-secondary btn-sm"
+        id="resetThemeColors">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>
+        Reset Colors
+      </button>
+    </div>
+
+    <!-- Accessibility Notice -->
+    <div class="alert alert-info mt-3 mb-0 py-2 small">
+      <strong>Readability:</strong>
+      Very light or very dark colors may reduce text contrast.
+    </div>
+  </div>
+</div>
 
   <!-- Font -->
   <div class="card shadow-sm">
     <div class="card-header bg-primary text-white">
-      <strong>Font</strong>
+      <strong><i class="bi bi-fonts me-2"></i>Font</strong>
     </div>
 
     <div class="card-body">

@@ -111,21 +111,21 @@ sudo systemctl restart mosquitto
 log_success "MQTT listener configuration created"
 
 # ============================================================
-# MQTT service permissions
+# LivingPortraitApp service permissions
 # ============================================================
 
-echo -e "\nSetting up MQTT service permissions..."
+echo -e "\nSetting up LivingPortraitApp service permissions..."
 
 sudo tee /etc/sudoers.d/livingportrait > /dev/null << EOF
-$USERNAME ALL=(root) NOPASSWD: /usr/bin/systemctl enable mosquitto, /usr/bin/systemctl disable mosquitto, /usr/bin/systemctl start mosquitto, /usr/bin/systemctl stop mosquitto, /usr/bin/systemctl restart mosquitto
+$USERNAME ALL=(root) NOPASSWD: /usr/bin/systemctl enable mosquitto, /usr/bin/systemctl disable mosquitto, /usr/bin/systemctl start mosquitto, /usr/bin/systemctl stop mosquitto, /usr/bin/systemctl restart mosquitto, /usr/bin/systemctl restart motion_vlc, /usr/bin/systemctl restart flask_ui, /usr/bin/systemctl status motion_vlc, /usr/bin/systemctl status flask_ui
 EOF
 
 sudo chmod 440 /etc/sudoers.d/livingportrait
 
 sudo visudo -cf /etc/sudoers.d/livingportrait \
-    || log_fail "MQTT sudoers configuration"
+    || log_fail "LivingPortraitApp sudoers configuration"
 
-log_success "MQTT service permissions configured"
+log_success "LivingPortraitApp service permissions configured"
 
 # ============================================================
 # Python virtual environment

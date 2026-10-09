@@ -47,6 +47,11 @@ from shared.network import (
 from shared.system_info import get_system_info
 from shared.update_helper import check_for_update
 from shared.update_manager import start_update
+from shared.display_helper import (
+    get_display_info,
+    apply_display_mode,
+    restore_default_display_mode,
+)
 from shared import mqtt_client
 
 from shared.audio import (
@@ -143,6 +148,23 @@ def index():
     mute_audio = bool(settings.get("mute_audio", True))
     audio_outputs = get_audio_outputs()
     audio_output = get_effective_audio_output()["id"]
+
+    # Detect current display mode and available HDMI modes.
+    try:
+        display_info = get_display_info()
+    except Exception as e:
+        log(f"Error detecting display information: {e}", "ERROR")
+        display_info = {
+            "current_resolution": None,
+            "available_modes": [],
+            "available_resolutions": [],
+            "connectors": [],
+            "detection_method": "unavailable"
+        }
+
+
+
+    display_mode_selection = settings.get("display_mode_selection")    
 
     # Master Sync Tags
     sync_tags = settings.get("sync_tags", [])
@@ -487,7 +509,9 @@ def index():
         mute_audio=mute_audio,
         audio_outputs=audio_outputs,
         audio_output=audio_output,
-        system_info=system_info
+        system_info=system_info,
+        display_info=display_info,
+        display_mode_selection=display_mode_selection,
     )
 
 
@@ -1968,6 +1992,192 @@ def save_appearance_settings():
     flash("Appearance settings saved. Playback restarted.", "success")
 
     return redirect(url_for("index"))
+
+
+
+
+@app.route("/select_display_mode", methods=["POST"])
+def select_display_mode():
+    selected_value = request.form.get("display_mode", "").strip()
+    log(f"Display mode submitted: {selected_value}", "INFO")
+
+    try:
+        if "|" in selected_value:
+            width_str, height_str, refresh_str, interlaced_str = selected_value.split("|")
+            width = int(width_str)
+            height = int(height_str)
+
+            if interlaced_str not in ("0", "1"):
+                raise ValueError("Invalid scan type")
+
+            refresh_rate = (
+                None
+                if refresh_str.lower() in ("none", "unknown")
+                else float(refresh_str)
+            )
+            interlaced = interlaced_str == "1"
+        else:
+            match = re.fullmatch(
+                r"(\d+)x(\d+)@([\d.]+|none|unknown)(i?)",
+                selected_value,
+                re.IGNORECASE,
+            )
+
+            if not match:
+                raise ValueError("Invalid display mode format")
+
+            width = int(match.group(1))
+            height = int(match.group(2))
+            refresh_text = match.group(3)
+
+            refresh_rate = (
+                None
+                if refresh_text.lower() in ("none", "unknown")
+                else float(refresh_text)
+            )
+            interlaced = match.group(4).lower() == "i"
+
+        display_info = get_display_info()
+        log(
+            f"Available display modes: {display_info.get('available_modes', [])}",
+            "INFO",
+        )
+
+        selected_mode = next(
+            (
+                mode for mode in display_info.get("available_modes", [])
+                if mode["width"] == width
+                and mode["height"] == height
+                and mode.get("interlaced", False) == interlaced
+                and (
+                    (
+                        mode.get("refresh_rate") is None
+                        and refresh_rate is None
+                    )
+                    or (
+                        mode.get("refresh_rate") is not None
+                        and refresh_rate is not None
+                        and abs(mode["refresh_rate"] - refresh_rate) < 0.01
+                    )
+                )
+            ),
+            None,
+        )
+
+        if selected_mode is None:
+            flash("Invalid display mode. Please select a detected mode.", "danger")
+            return redirect(url_for("index"))
+
+        if selected_mode.get("refresh_rate") is None:
+            flash(
+                "This display mode has no detected refresh rate and cannot be applied.",
+                "danger",
+            )
+            return redirect(url_for("index"))
+
+        settings = load_settings()
+        previous_selection = settings.get("display_mode_selection")
+
+        new_selection = {
+            "width": selected_mode["width"],
+            "height": selected_mode["height"],
+            "refresh_rate": selected_mode.get("refresh_rate"),
+            "interlaced": selected_mode.get("interlaced", False),
+            "scan_type": selected_mode.get("scan_type", "progressive"),
+            "label": selected_mode["label"],
+        }
+
+        # Apply the mode before saving the new selection.
+        # If applying fails, the saved selection remains unchanged.
+        override = apply_display_mode(new_selection)
+
+        settings["display_mode_selection"] = new_selection
+
+        try:
+            save_settings(settings)
+        except Exception:
+            # Restore the previous boot configuration if settings cannot save.
+            try:
+                if previous_selection:
+                    apply_display_mode(previous_selection)
+                else:
+                    restore_default_display_mode()
+            except Exception as rollback_error:
+                log(
+                    f"Display configuration rollback failed: {rollback_error}",
+                    "ERROR",
+                )
+            raise
+
+        log(f"Display configuration updated: {override}", "INFO")
+        flash(
+            f"Display mode saved and applied: {selected_mode['label']}. "
+            "Reboot the Raspberry Pi for the change to take effect.",
+            "success",
+        )
+
+        # Changing role or network configuration requires a reboot
+        session["reboot_required"] = True
+
+    except (ValueError, TypeError, KeyError) as e:
+        log(f"Invalid display mode selection '{selected_value}': {e}", "ERROR")
+        flash(f"Unable to apply the selected display mode: {e}", "danger")
+
+    except Exception as e:
+        log(f"Error saving or applying display configuration: {e}", "ERROR")
+        flash(
+            "Unable to save or apply the display mode. Check the application log.",
+            "danger",
+        )
+
+    return redirect(url_for("index"))
+
+
+
+@app.route("/restore_display_mode", methods=["POST"])
+def restore_display_mode():
+    try:
+        # Restore the default boot display configuration.
+        message = restore_default_display_mode()
+
+        # Clear the previously selected custom display mode.
+        settings = load_settings()
+        previous_selection = settings.pop("display_mode_selection", None)
+
+        try:
+            save_settings(settings)
+        except Exception:
+            # Restore the previous boot configuration if settings cannot save.
+            try:
+                if previous_selection:
+                    apply_display_mode(previous_selection)
+            except Exception as rollback_error:
+                log(
+                    f"Display configuration rollback failed: {rollback_error}",
+                    "ERROR",
+                )
+            raise
+
+        log(f"Display configuration restored: {message}", "INFO")
+        flash(
+            f"{message} Reboot the Raspberry Pi for the change to take effect.",
+            "success",
+        )
+
+        session["reboot_required"] = True
+
+    except Exception as e:
+        log(f"Error restoring display configuration: {e}", "ERROR")
+        flash(
+            "Unable to restore the default display configuration. "
+            "Check the application log.",
+            "danger",
+        )
+
+    return redirect(url_for("index"))
+
+
+
 
 if __name__ == "__main__":
     app.run(
