@@ -43,7 +43,8 @@ from shared.network import (
     remove_secondary,
     configure_mosquitto,
     check_secondary_status,
-    get_sync_start_delay_ms
+    get_sync_start_delay_ms,
+    get_sync_start_lead_ms
 )
 from shared.system_info import get_system_info
 from shared.update_helper import check_for_update
@@ -181,6 +182,7 @@ def index():
     primary_ip = network_settings.get("primary_ip", "")
     enable = network_settings.get("enable", "0")
     sync_start_delay_ms = get_sync_start_delay_ms()
+    sync_start_lead_ms = get_sync_start_lead_ms()
     secondary_pis = check_secondary_status()
 
     # Read MQTT status without importing mqtt_client.
@@ -513,6 +515,7 @@ def index():
         secondary_pis=secondary_pis,
         mqtt_connected=mqtt_connected,
         sync_start_delay_ms=sync_start_delay_ms,
+        sync_start_lead_ms=sync_start_lead_ms,
         version=version,
         update_status=update_status,
         reboot_required=reboot_required,
@@ -1699,9 +1702,21 @@ def network():
     try:
         # Save Sync Start Delay
         sync_start_delay_ms = int(request.form.get("sync_start_delay_ms", "1000"))
+        if not 0 <= sync_start_delay_ms <= 60000:
+            raise ValueError("Sync Start Delay must be between 0 and 60000 ms.")
 
         network_settings = load_network_settings()
         network_settings["sync_start_delay_ms"] = sync_start_delay_ms
+
+        # Save the synchronization lead time only when the Primary form supplies it.
+        # Secondary Pis keep their existing setting and never use it for scheduling.
+        lead_value = request.form.get("sync_start_lead_ms")
+        if role == "primary" and lead_value is not None:
+            sync_start_lead_ms = int(lead_value)
+            if not 0 <= sync_start_lead_ms <= 5000:
+                raise ValueError("Synchronization Lead Time must be between 0 and 5000 ms.")
+            network_settings["sync_start_lead_ms"] = sync_start_lead_ms
+
         save_network_settings(network_settings)
 
         # Save network role / MQTT settings
