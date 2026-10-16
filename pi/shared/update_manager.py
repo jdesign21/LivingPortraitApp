@@ -425,6 +425,14 @@ def perform_update(tag_name):
                 pi_folder
             )
 
+            # Existing installations need a one-time privileged helper repair.
+            if not Path("/usr/local/sbin/livingportrait-display-cmdline").is_file():
+                log(
+                    "Display-mode helper is not installed. Run "
+                    "repair_LivingPortraitApp_display_mode.sh once to enable display-mode changes.",
+                    "UPDATE"
+                )
+
             write_status(
                 "installed",
                 f"Update to {tag_name} installed."

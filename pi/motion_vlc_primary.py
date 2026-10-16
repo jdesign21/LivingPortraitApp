@@ -827,9 +827,13 @@ def play_triggered(delay_seconds):
 
             # Base timestamp is shared with Secondary.
             # Primary's Sync Start Delay is applied only to Primary.
+            # Give MQTT PLAY_AT messages time to reach every Secondary
+            # before the scheduled start. Keep this lead large enough to
+            # absorb normal network and scheduling jitter.
+            SYNC_START_LEAD_MS = 750
             base_start_at_ms = int(
                 time.time() * 1000
-            )
+            ) + SYNC_START_LEAD_MS
             start_at_ms = (
                 base_start_at_ms
                 + sync_start_delay_ms

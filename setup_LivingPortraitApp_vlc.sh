@@ -127,6 +127,9 @@ sudo visudo -cf /etc/sudoers.d/livingportrait \
 
 log_success "LivingPortraitApp service permissions configured"
 
+
+
+
 # ============================================================
 # Python virtual environment
 # ============================================================
@@ -209,6 +212,26 @@ cp -r "$PI_SOURCE"/. "$USER_HOME"/ \
 rm -rf "$TEMP_DIR"
 
 log_success "LivingPortraitApp files downloaded"
+
+# ============================================================
+# Display-mode helper permissions
+# ============================================================
+
+echo -e "\nInstalling restricted display-mode helper..."
+
+sudo install -o root -g root -m 755 \
+    "$USER_HOME/shared/display_cmdline_helper.py" \
+    /usr/local/sbin/livingportrait-display-cmdline
+
+sudo tee /etc/sudoers.d/livingportrait-display > /dev/null << EOF
+$USERNAME ALL=(root) NOPASSWD: /usr/local/sbin/livingportrait-display-cmdline
+EOF
+
+sudo chmod 440 /etc/sudoers.d/livingportrait-display
+sudo visudo -cf /etc/sudoers.d/livingportrait-display \
+    || log_fail "Display helper sudoers configuration"
+
+log_success "Restricted display-mode helper installed"
 
 # ============================================================
 # Get application version

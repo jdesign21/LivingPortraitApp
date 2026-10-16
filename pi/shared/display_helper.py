@@ -12,58 +12,7 @@ FRAMEBUFFER_SIZE = Path("/sys/class/graphics/fb0/virtual_size")
 CMDLINE_PATH = Path("/boot/firmware/cmdline.txt")
 DISPLAY_OVERRIDE_STATE = Path.home() / ".livingportrait_display_override.json"
 
-_ROOT_WRITE_SCRIPT = r'''
-import json
-import os
-import stat
-import sys
-import tempfile
-from pathlib import Path
-
-path = Path(sys.argv[1])
-data = json.load(sys.stdin)
-tokens = data.get("tokens")
-
-if not isinstance(tokens, list) or not tokens or not all(
-    isinstance(token, str) and token and "\n" not in token and "\r" not in token
-    for token in tokens
-):
-    raise ValueError("Invalid kernel command line tokens.")
-
-original_stat = path.stat()
-fd, temp_name = tempfile.mkstemp(
-    prefix=f".{path.name}.",
-    dir=str(path.parent),
-    text=True,
-)
-
-try:
-    os.fchmod(fd, stat.S_IMODE(original_stat.st_mode))
-    os.fchown(fd, original_stat.st_uid, original_stat.st_gid)
-
-    with os.fdopen(fd, "w", encoding="utf-8") as temp_file:
-        temp_file.write(" ".join(tokens) + "\n")
-        temp_file.flush()
-        os.fsync(temp_file.fileno())
-
-    os.replace(temp_name, path)
-
-    directory_fd = os.open(path.parent, os.O_RDONLY)
-    try:
-        os.fsync(directory_fd)
-    finally:
-        os.close(directory_fd)
-except Exception:
-    try:
-        os.close(fd)
-    except OSError:
-        pass
-    try:
-        os.unlink(temp_name)
-    except OSError:
-        pass
-    raise
-'''
+DISPLAY_CMDLINE_HELPER = Path("/usr/local/sbin/livingportrait-display-cmdline")
 
 
 def _parse_resolution(value):
@@ -311,10 +260,7 @@ def _write_cmdline(tokens, path=CMDLINE_PATH):
             [
                 "sudo",
                 "-n",
-                "/usr/bin/python3",
-                "-c",
-                _ROOT_WRITE_SCRIPT,
-                str(path),
+                str(DISPLAY_CMDLINE_HELPER),
             ],
             input=json.dumps({"tokens": tokens}),
             capture_output=True,

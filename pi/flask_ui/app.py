@@ -18,6 +18,7 @@ sys.path.append(str(HOME))
 
 from shared.vlc_helper import (
     log,
+    get_selected_video,
     get_version,
     load_settings,
     save_settings,
@@ -214,6 +215,12 @@ def index():
 
     if secondary_video_mode not in ("sync_tag", "playlist"):
         secondary_video_mode = "sync_tag"
+
+    # Reconcile a stale selected filename before rendering the video preview.
+    # Sync Tag Secondaries wait for the Primary; other modes select a valid
+    # active replacement through the shared playback helper.
+    selected_path = get_selected_video()
+    selected_video = Path(selected_path).name if selected_path else ""
 
     # Get days schedule
     days_schedule = settings.get("days", {})
@@ -532,6 +539,7 @@ def setup():
     audio_output = get_audio_output()
 
     if request.method == "POST":
+        audio_output = request.form.get("audio_output", "default")
         role = request.form.get("role", "secondary")
         enable = "1" if request.form.get("enable") == "1" else "0"
         primary_ip = request.form.get("primary_ip", "").strip()
@@ -600,10 +608,8 @@ def setup():
         # Save Role / MQTT / Primary IP using the existing network helper.
         set_role(role, primary_ip, enable)
 
-        settings["audio_output"] = request.form.get(
-            "audio_output",
-            "default"
-        )
+        settings["audio_output"] = audio_output
+        save_settings(settings)
 
         # Save Secondary Pis.
         network_settings = load_network_settings()
@@ -1309,7 +1315,10 @@ def update_all():
         )
 
         settings = load_settings()
-        settings["selected_video"] = only_video
+        if role == "secondary" and secondary_video_mode == "sync_tag":
+            settings["selected_video"] = ""
+        else:
+            settings["selected_video"] = only_video
         save_settings(settings)
 
         flash(
@@ -1505,20 +1514,30 @@ def delete(filename):
     playlist = settings.get("playlist", {})
     order = playlist.get("order", [])
 
-    role = settings.get("role", "primary")
-    enable = settings.get("enable", "0")
+    network_settings = load_network_settings()
+    role = network_settings.get("role", "primary")
+    enable = network_settings.get("enable", "0")
     secondary_video_mode = playlist.get("secondary_video_mode", "sync_tag")
 
     active_videos = [
         item
         for item in order
-        if item.get("active", True) and (VIDEO_FOLDER / item["filename"]).exists()
+        if item.get("active", True)
+        and (VIDEO_FOLDER / item.get("filename", "")).is_file()
     ]
 
-    # Do not allow the last active video to be deleted.
-    if len(active_videos) <= 1:
+    target_entry = next(
+        (item for item in order if item.get("filename") == filename),
+        None
+    )
+    target_is_active = target_entry.get("active", True) if target_entry else True
+
+    # Inactive videos can be deleted without affecting the active-video minimum.
+    if target_is_active and len(active_videos) <= 1:
         flash("At least one active video must remain.", "danger")
-        return redirect(url_for("index"))
+        return redirect(url_for('index'))
+
+    was_selected = Path(settings.get("selected_video", "")).name == filename
 
     filepath.unlink()
 
@@ -1530,6 +1549,25 @@ def delete(filename):
     ]
 
     settings["playlist"]["order"] = order
+
+    selected_name = Path(settings.get("selected_video", "")).name
+    if was_selected or not (VIDEO_FOLDER / selected_name).is_file():
+        if role == "secondary" and secondary_video_mode == "sync_tag":
+            # Let the Primary select the next video by Sync Tag.
+            settings["selected_video"] = ""
+        else:
+            replacement = next(
+                (
+                    item.get("filename", "")
+                    for item in order
+                    if item.get("active", True)
+                    and item.get("filename")
+                    and (VIDEO_FOLDER / item["filename"]).is_file()
+                ),
+                ""
+            )
+            settings["selected_video"] = replacement
+
     save_settings(settings)
 
     # Check remaining active videos.
