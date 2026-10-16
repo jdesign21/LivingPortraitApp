@@ -54,6 +54,7 @@ from shared.display_helper import (
     restore_default_display_mode,
 )
 from shared import mqtt_client
+from shared.power_manager import start_power_scheduler
 
 from shared.audio import (
     get_audio_outputs,
@@ -64,6 +65,7 @@ from shared.audio import (
 
 app = Flask(__name__)
 app.secret_key = 'replace-this-with-a-secure-random-key'
+start_power_scheduler()
 
 VIDEO_FOLDER = HOME / "videos"
 IMAGES_FOLDER = HOME / "images"
@@ -165,7 +167,8 @@ def index():
 
 
 
-    display_mode_selection = settings.get("display_mode_selection")    
+    display_mode_selection = settings.get("display_mode_selection")
+    power_schedule = settings.get("power_schedule", {})    
 
     # Master Sync Tags
     sync_tags = settings.get("sync_tags", [])
@@ -519,6 +522,7 @@ def index():
         system_info=system_info,
         display_info=display_info,
         display_mode_selection=display_mode_selection,
+        power_schedule=power_schedule,
     )
 
 
@@ -1717,6 +1721,50 @@ def network():
         flash(f"Failed to update network: {e}", "danger")
 
     return redirect(url_for("index"))
+
+@app.route("/power/shutdown", methods=["POST"])
+def power_shutdown():
+    try:
+        log("Manual shutdown requested from Power Management.", "POWER")
+        subprocess.Popen(
+            ["sudo", "-n", "/usr/sbin/shutdown", "-h", "now"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        flash("Shutting down Raspberry Pi...", "warning")
+    except Exception as e:
+        log(f"Failed to shut down Raspberry Pi: {e}", "ERROR")
+        flash("Unable to shut down Raspberry Pi. Check sudo permissions and logs.", "danger")
+    return redirect(url_for("index"))
+
+
+@app.route("/power/schedule", methods=["POST"])
+def save_power_schedule():
+    enabled = request.form.get("shutdown_enabled") == "1"
+    shutdown_time = request.form.get("shutdown_time", "23:00").strip()
+    try:
+        datetime.strptime(shutdown_time, "%H:%M")
+    except ValueError:
+        flash("Invalid shutdown time.", "danger")
+        return redirect(url_for("index"))
+
+    settings = load_settings()
+    schedule = settings.get("power_schedule", {})
+    schedule["shutdown_enabled"] = enabled
+    schedule["shutdown_time"] = shutdown_time
+    settings["power_schedule"] = schedule
+    save_settings(settings)
+    log(
+        f"Automatic shutdown {'enabled' if enabled else 'disabled'}"
+        + (f" for {shutdown_time}." if enabled else "."),
+        "POWER",
+    )
+    flash(
+        f"Automatic shutdown {'enabled for ' + shutdown_time if enabled else 'disabled'}.",
+        "success",
+    )
+    return redirect(url_for("index"))
+
 
 @app.route("/reboot", methods=["POST"])
 def reboot():
