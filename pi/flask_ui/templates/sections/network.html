@@ -57,6 +57,20 @@
                         </div>
                     </div>
 
+                    {% if role == 'primary' %}
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Synchronization Lead Time</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" name="sync_start_lead_ms"
+                                value="{{ sync_start_lead_ms }}" min="0" max="5000" step="50" required>
+                            <span class="input-group-text">ms</span>
+                        </div>
+                        <div class="form-text">
+                            Extra time for playback commands to reach Secondary Pis before the scheduled start (0–5000 ms).
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <div class="col-md-4">
                         <label class="form-label fw-semibold">Sync Start Delay</label>
 
