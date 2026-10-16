@@ -327,7 +327,7 @@ log_success "motion_vlc service enabled and restarted"
 echo -e "\nSetting up reboot permission..."
 
 sudo tee /etc/sudoers.d/livingportrait-reboot > /dev/null << EOF
-$USERNAME ALL=(root) NOPASSWD: /usr/sbin/reboot
+$USERNAME ALL=(root) NOPASSWD: /usr/sbin/reboot, /usr/sbin/shutdown
 EOF
 
 sudo chmod 440 /etc/sudoers.d/livingportrait-reboot
