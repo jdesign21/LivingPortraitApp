@@ -1,0 +1,52 @@
+<section id="power" class="section">
+  <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
+    <i class="bi bi-power"></i> Power Management
+  </h3>
+
+  <div class="alert alert-warning">
+    <strong>Warning:</strong> Shutting down a Pi stops playback and disconnects the web interface.
+    Use this instead of unplugging the power.
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white"><strong>This Raspberry Pi</strong></div>
+    <div class="card-body">
+      <p>Shut down or restart this Raspberry Pi safely.</p>
+      <div class="d-flex flex-wrap gap-2">
+        <form method="POST" action="{{ url_for('power_shutdown') }}"
+              onsubmit="return confirm('Shut down this Raspberry Pi now?');">
+          <button type="submit" class="btn btn-danger">
+            <i class="bi bi-power me-1"></i> Shut Down
+          </button>
+        </form>
+        <form method="POST" action="{{ url_for('reboot') }}"
+              onsubmit="return confirm('Restart this Raspberry Pi now?');">
+          <button type="submit" class="btn btn-outline-warning">
+            <i class="bi bi-arrow-clockwise me-1"></i> Reboot
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white"><strong>Automatic Shutdown</strong></div>
+    <div class="card-body">
+      <p class="text-muted">The schedule uses this Pi's local time and applies to this Pi only.</p>
+      <form method="POST" action="{{ url_for('save_power_schedule') }}">
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 id="shutdownEnabled" name="shutdown_enabled" value="1"
+                 {% if power_schedule.get('shutdown_enabled', false) %}checked{% endif %}>
+          <label class="form-check-label" for="shutdownEnabled">Enable scheduled shutdown</label>
+        </div>
+        <div class="mb-3" style="max-width: 220px;">
+          <label class="form-label" for="shutdownTime">Shutdown time</label>
+          <input class="form-control" type="time" id="shutdownTime" name="shutdown_time"
+                 value="{{ power_schedule.get('shutdown_time', '23:00') }}" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Shutdown Schedule</button>
+      </form>
+    </div>
+  </div>
+</section>
