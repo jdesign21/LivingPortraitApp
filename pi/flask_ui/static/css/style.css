@@ -338,6 +338,11 @@ pre {
 /* =========================================================
    THEME COLOR ACCENTS
 ========================================================= */
+
+/* Keep primary card headers while using the secondary color as their accent. */
+.card-header {
+  border-bottom: 2px solid var(--secondary-color) !important;
+}
 .border-primary {
   border-color: var(--primary-color) !important;
 }
