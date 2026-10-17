@@ -215,6 +215,53 @@ chmod +x "$USER_HOME/motion_vlc.py"
 
 log_success "LivingPortraitApp files downloaded"
 
+
+# ============================================================
+# Display command-line helper permissions
+# ============================================================
+
+echo -e "\nSetting up display configuration permissions..."
+
+HELPER_SOURCE="$USER_HOME/shared/display_cmdline_helper.py"
+HELPER_DEST="/usr/local/sbin/livingportrait-display-cmdline"
+SUDOERS_FILE="/etc/sudoers.d/livingportrait-display"
+
+if [ ! -f "$HELPER_SOURCE" ]; then
+    log_fail "Display command-line helper not found: $HELPER_SOURCE"
+fi
+
+# Install the helper as a root-owned executable.
+sudo install -o root -g root -m 755 \
+    "$HELPER_SOURCE" "$HELPER_DEST" \
+    || log_fail "Installing display command-line helper"
+
+# Normalize the installed helper to Unix LF line endings.
+sudo sed -i 's/\r$//' "$HELPER_DEST" \
+    || log_fail "Normalizing display helper line endings"
+
+# Ensure ownership and executable permissions remain correct.
+sudo chown root:root "$HELPER_DEST"
+sudo chmod 755 "$HELPER_DEST"
+
+# Allow the application user to run only this helper without a password.
+SUDOERS_TEMP="$(mktemp)"
+trap 'rm -f "$SUDOERS_TEMP"' EXIT
+
+printf '%s ALL=(root) NOPASSWD: %s\n' \
+    "$USERNAME" "$HELPER_DEST" > "$SUDOERS_TEMP"
+
+sudo install -o root -g root -m 440 \
+    "$SUDOERS_TEMP" "$SUDOERS_FILE" \
+    || log_fail "Installing display helper sudoers configuration"
+
+# Validate the sudoers configuration.
+sudo visudo -cf "$SUDOERS_FILE" \
+    || log_fail "Display helper sudoers configuration"
+
+log_success "Display configuration permissions configured"
+
+
+
 # ============================================================
 # Get application version
 # ============================================================

@@ -682,14 +682,67 @@ def get_selected_video():
 
         video_path = VIDEO_FOLDER / selected_name
 
-        if video_path.exists():
+        if selected_name and video_path.is_file():
             return str(video_path)
 
-        log(
-            f"Selected video {selected_name} not found in folder",
-            "VIDEO"
+        if selected_name:
+            log(
+                f"Selected video {selected_name} not found; looking for an active replacement.",
+                "VIDEO"
+            )
+
+        playlist = settings.get("playlist", {})
+        order = playlist.get("order", [])
+
+        # In Sync Tag mode, a Secondary must wait for the Primary to choose
+        # the matching tagged video instead of selecting an unrelated file.
+        try:
+            network_settings = json.loads(
+                (HOME / "network_pis.json").read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError):
+            network_settings = {}
+
+        if (
+            network_settings.get("role") == "secondary"
+            and playlist.get("secondary_video_mode", "sync_tag") == "sync_tag"
+        ):
+            if selected_name:
+                settings["selected_video"] = ""
+                save_settings(settings)
+                log(
+                    "Secondary is waiting for a valid Primary Sync Tag selection.",
+                    "VIDEO"
+                )
+            return None
+
+        schedule_active = is_current_schedule_active()
+        current_category = (
+            get_current_scheduler_category()
+            if schedule_active
+            else None
         )
-        return None
+
+        replacement = None
+        for item in order:
+            filename = item.get("filename", "").strip()
+            if not filename or not item.get("active", True):
+                continue
+            if current_category and current_category not in item.get("tags", []):
+                continue
+            candidate = VIDEO_FOLDER / filename
+            if candidate.is_file():
+                replacement = filename
+                break
+
+        if replacement is None:
+            log("No active existing video is available as a replacement.", "VIDEO")
+            return None
+
+        settings["selected_video"] = replacement
+        save_settings(settings)
+        log(f"Selected video updated to replacement: {replacement}", "VIDEO")
+        return str(VIDEO_FOLDER / replacement)
 
     except Exception as e:
         log(

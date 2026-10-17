@@ -25,72 +25,59 @@
 <body class="{{ 'dark-theme' if theme == 'dark' else '' }}">
 
   <nav class="sidebar" id="sidebar">
-
     <div class="sidebar-logo text-center">
       <img src="{{ url_for('image_file', filename='logo.png') }}" alt="Logo" class="sidebar-logo-img img-fluid">
     </div>
-
-
     <button id="toggleSidebar" class="btn btn-sm btn-light border">
       <i class="bi bi-chevron-left"></i>
     </button>
 
     <a class="nav-link active" data-section="home">
-      <i class="bi bi-house"></i>
-      <span class="label">Home</span>
+      <i class="bi bi-house"></i><span class="label">Home</span>
     </a>
 
-    
+    <div class="sidebar-heading">Playback</div>
     <a class="nav-link" data-section="mode">
-      <i class="bi bi-check-square"></i>
-      <span class="label">Mode</span>
+      <i class="bi bi-check-square"></i><span class="label">Mode</span>
     </a>
-
 {% if role == "primary" or (role == "secondary" and enable != "1") %}
     <a class="nav-link" data-section="schedule">
-      <i class="bi bi-calendar-check"></i>
-      <span class="label">Schedule</span>
+      <i class="bi bi-calendar-check"></i><span class="label">Schedule</span>
     </a>
-    {% endif %}
-<!--
-    <a class="nav-link" data-section="upload">
-      <i class="bi bi-upload"></i>
-      <span class="label">Upload</span>
-    </a>
-  -->
+{% endif %}
     <a class="nav-link" data-section="manage">
-      <i class="bi bi-folder2-open"></i>
-      <span class="label">Videos</span>
+      <i class="bi bi-folder2-open"></i><span class="label">Videos</span>
     </a>
 
+    <div class="sidebar-heading">System</div>
+    <a class="nav-link" data-section="power">
+      <i class="bi bi-power"></i><span class="label">Power</span>
+    </a>
     <a class="nav-link" data-section="network">
-      <i class="bi bi-hdd-network"></i>
-      <span class="label">Network</span>
+      <i class="bi bi-hdd-network"></i><span class="label">Network</span>
+    </a>
+    <a class="nav-link" data-section="logs">
+      <i class="bi bi-file-earmark-text"></i><span class="label">Logs</span>
     </a>
 
-    <a class="nav-link" data-section="logs">
-      <i class="bi bi-file-earmark-text"></i>
-      <span class="label">Logs</span>
+    <a class="nav-link" data-section="system_settings">
+      <i class="bi bi-sliders"></i><span class="label">System Settings</span>
     </a>
 
     <a class="nav-link" data-section="Appearance">
-      <i class="bi bi-palette"></i>
-      <span class="label">Appearance</span>
+      <i class="bi bi-palette"></i><span class="label">Appearance</span>
     </a>
 
+    <div class="sidebar-heading">More</div>
     <a class="nav-link" data-section="about">
-      <i class="bi  bi-info-circle"></i>
-      <span class="label">About</span>
+      <i class="bi bi-info-circle"></i><span class="label">About</span>
     </a>
-
     <a class="nav-link" data-section="updates">
-      <i class="bi bi-arrow-repeat"></i>
-      <span class="label">Check Updates</span>
+      <i class="bi bi-arrow-repeat"></i><span class="label">Check Updates</span>
     </a>
-<a class="nav-link" data-section="whats_new">
-  <i class="bi bi-megaphone"></i>
-  <span class="label">What's New</span>
-</a>
+    <a class="nav-link" data-section="whats_new">
+      <i class="bi bi-megaphone"></i><span class="label">What&#39;s New</span>
+    </a>
   </nav>
 
 
@@ -247,8 +234,14 @@
     <!-- NETWORK SECTION -->
     {% include 'sections/network.html' %}
 
+    <!-- POWER SECTION  -->
+    {% include 'sections/power.html' %}
+
     <!-- LOGS SECTION  -->
     {% include 'sections/logs.html' %}
+
+    <!-- SYSTEM SETTINGS SECTION -->
+    {% include 'sections/system_settings.html' %}
 
     <!-- APPEARANCE SECTION  -->
     {% include 'sections/appearance.html' %}

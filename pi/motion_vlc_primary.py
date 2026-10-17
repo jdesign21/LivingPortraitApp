@@ -37,7 +37,8 @@ from shared.vlc_helper import (
 
 from shared.network import (
     is_enabled,
-    get_sync_start_delay_ms
+    get_sync_start_delay_ms,
+    get_sync_start_lead_ms
 )
 
 from shared.audio import get_audio_device
@@ -821,19 +822,22 @@ def play_triggered(delay_seconds):
                 "SYNC"
             )
 
-            sync_start_delay_ms = (
-                get_sync_start_delay_ms()
-            )
+            sync_start_delay_ms = (get_sync_start_delay_ms())
 
             # Base timestamp is shared with Secondary.
             # Primary's Sync Start Delay is applied only to Primary.
+            # Give MQTT PLAY_AT messages time to reach every Secondary
+            # before the scheduled start. This lead is configurable in
+            # Network Settings on the Primary.
+            sync_start_lead_ms = get_sync_start_lead_ms()
             base_start_at_ms = int(
                 time.time() * 1000
-            )
+            ) + sync_start_lead_ms
             start_at_ms = (
                 base_start_at_ms
                 + sync_start_delay_ms
             )
+
 
             if secondary_start_mode == "with_primary":
                 secondary_start_at_ms = base_start_at_ms
@@ -853,8 +857,7 @@ def play_triggered(delay_seconds):
 
             elif secondary_start_mode == "after_delay":
                 secondary_start_at_ms = (
-                    base_start_at_ms
-                    + (secondary_start_delay * 1000)
+                    base_start_at_ms + (secondary_start_delay * 1000)
                 )
 
                 log(

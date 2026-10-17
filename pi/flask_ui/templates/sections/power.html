@@ -1,0 +1,139 @@
+
+<section id="power" class="section">
+  <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
+    <i class="bi bi-power"></i> Power Management
+  </h3>
+
+  <!-- Power Controls -->
+  <div class="card mb-3 shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <strong><i class="bi bi-power me-2"></i>Power Controls</strong>
+    </div>
+
+    <div class="card-body py-3">
+
+      <!-- Shut Down -->
+      <div class="d-flex justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-power fs-4 me-3"></i>
+          <div>
+            <div class="fw-semibold">Shut Down</div>
+            <div class="text-muted small">
+              Safely turn off this Raspberry Pi and stop video playback.
+            </div>
+          </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('power_shutdown') }}"
+              onsubmit="return confirm('Shut down this Raspberry Pi now?');">
+          <button type="submit" class="btn btn-danger btn-sm">
+            <i class="bi bi-power me-1"></i>Shut Down
+          </button>
+        </form>
+      </div>
+
+      <hr class="my-3">
+
+      <!-- Reboot -->
+      <div class="d-flex justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-arrow-clockwise fs-4 me-3"></i>
+          <div>
+            <div class="fw-semibold">Reboot</div>
+            <div class="text-muted small">
+              Restart this Raspberry Pi.
+            </div>
+          </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('reboot') }}"
+              onsubmit="return confirm('Restart this Raspberry Pi now?');">
+          <button type="submit" class="btn btn-warning">
+            <i class="bi bi-arrow-clockwise me-1"></i>Reboot
+          </button>
+        </form>
+      </div>
+
+      <div class="alert alert-warning mt-3 mb-0 py-2 small">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        Shutting down or rebooting stops playback and temporarily disconnects
+        the web interface. Use these controls instead of unplugging the power.
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Automatic Shutdown -->
+  <div class="card mb-3 shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <strong><i class="bi bi-clock me-2"></i>Automatic Shutdown</strong>
+    </div>
+
+    <div class="card-body py-3">
+
+      <form method="POST" action="{{ url_for('save_power_schedule') }}">
+
+        <!-- Enable Schedule -->
+        <div class="d-flex justify-content-between align-items-center gap-3">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-calendar-check fs-4 me-3"></i>
+            <div>
+              <div class="fw-semibold">Enable Scheduled Shutdown</div>
+              <div class="text-muted small">
+                Automatically shut down this Raspberry Pi every day
+                at the selected time.
+              </div>
+            </div>
+          </div>
+
+          <div class="form-check form-switch m-0">
+            <input class="form-check-input"
+                   type="checkbox"
+                   role="switch"
+                   id="shutdownEnabled"
+                   name="shutdown_enabled"
+                   value="1"
+                   {% if power_schedule.get('shutdown_enabled', false) %}checked{% endif %}>
+          </div>
+        </div>
+
+        <hr class="my-3">
+
+        <!-- Shutdown Time -->
+        <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-alarm fs-4 me-3"></i>
+            <div>
+              <label for="shutdownTime" class="fw-semibold mb-0">
+                Shutdown Time
+              </label>
+              <div class="text-muted small">
+                Uses this Raspberry Pi's local time.
+              </div>
+            </div>
+          </div>
+
+          <div style="width: 160px; max-width: 100%;">
+            <input class="form-control form-control-sm"
+                   type="time"
+                   id="shutdownTime"
+                   name="shutdown_time"
+                   value="{{ power_schedule.get('shutdown_time', '23:00') }}"
+                   required>
+          </div>
+        </div>
+
+        <hr class="my-3">
+
+        <!-- Save Button -->
+        <div class="text-end mt-3">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-save me-1"></i>Save Shutdown Schedule
+          </button>
+        </div>
+
+      </form>
+
+    </div>
+  </div>
+</section>

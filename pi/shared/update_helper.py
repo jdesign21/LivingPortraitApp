@@ -12,7 +12,7 @@ REPO = "jdesign21/LivingPortraitApp"
 GITHUB_RELEASES_FEED = f"https://github.com/{REPO}/releases.atom"
 
 HOME = Path.home()
-UPDATE_CACHE_FILE = HOME / "update_status.json"
+UPDATE_CACHE_FILE = HOME / "update_check_cache.json"
 UPDATE_CHECK_INTERVAL = 12 * 60 * 60  # 12 hours
 
 ATOM_NAMESPACE = "http://www.w3.org/2005/Atom"
@@ -326,7 +326,7 @@ def get_latest_release(channel="stable"):
     }
 
 
-def check_for_update(installed_version, channel="stable"):
+def check_for_update(installed_version, channel="stable", force_check=False):
     """
     Check for an update.
 
@@ -339,7 +339,7 @@ def check_for_update(installed_version, channel="stable"):
 
     # Use cached result if the 12-hour period
     # has not expired.
-    if not update_check_needed(channel):
+    if not force_check and not update_check_needed(channel):
         cached = get_cached_update(channel)
 
         if cached:

@@ -42,7 +42,8 @@ from shared.network import (
     remove_secondary,
     configure_mosquitto,
     check_secondary_status,
-    get_sync_start_delay_ms
+    get_sync_start_delay_ms,
+    get_sync_start_lead_ms
 )
 from shared.system_info import get_system_info
 from shared.update_helper import check_for_update
@@ -53,6 +54,7 @@ from shared.display_helper import (
     restore_default_display_mode,
 )
 from shared import mqtt_client
+from shared.power_manager import start_power_scheduler
 
 from shared.audio import (
     get_audio_outputs,
@@ -63,6 +65,7 @@ from shared.audio import (
 
 app = Flask(__name__)
 app.secret_key = 'replace-this-with-a-secure-random-key'
+start_power_scheduler()
 
 VIDEO_FOLDER = HOME / "videos"
 IMAGES_FOLDER = HOME / "images"
@@ -149,6 +152,7 @@ def index():
     audio_outputs = get_audio_outputs()
     audio_output = get_effective_audio_output()["id"]
 
+
     # Detect current display mode and available HDMI modes.
     try:
         display_info = get_display_info()
@@ -165,6 +169,7 @@ def index():
 
 
     display_mode_selection = settings.get("display_mode_selection")    
+    power_schedule = settings.get("power_schedule", {})
 
     # Master Sync Tags
     sync_tags = settings.get("sync_tags", [])
@@ -177,6 +182,7 @@ def index():
     primary_ip = network_settings.get("primary_ip", "")
     enable = network_settings.get("enable", "0")
     sync_start_delay_ms = get_sync_start_delay_ms()
+    sync_start_lead_ms = get_sync_start_lead_ms()
     secondary_pis = check_secondary_status()
 
     # Read MQTT status without importing mqtt_client.
@@ -503,6 +509,7 @@ def index():
         secondary_pis=secondary_pis,
         mqtt_connected=mqtt_connected,
         sync_start_delay_ms=sync_start_delay_ms,
+        sync_start_lead_ms=sync_start_lead_ms,
         version=version,
         update_status=update_status,
         reboot_required=reboot_required,
@@ -512,6 +519,7 @@ def index():
         system_info=system_info,
         display_info=display_info,
         display_mode_selection=display_mode_selection,
+        power_schedule=power_schedule
     )
 
 
@@ -535,6 +543,7 @@ def setup():
         role = request.form.get("role", "secondary")
         enable = "1" if request.form.get("enable") == "1" else "0"
         primary_ip = request.form.get("primary_ip", "").strip()
+        audio_output = request.form.get("audio_output", "default")
 
         if role not in ("primary", "secondary"):
             role = "secondary"
@@ -600,10 +609,8 @@ def setup():
         # Save Role / MQTT / Primary IP using the existing network helper.
         set_role(role, primary_ip, enable)
 
-        settings["audio_output"] = request.form.get(
-            "audio_output",
-            "default"
-        )
+        settings["audio_output"] = audio_output
+        save_settings(settings)
 
         # Save Secondary Pis.
         network_settings = load_network_settings()
@@ -1505,20 +1512,30 @@ def delete(filename):
     playlist = settings.get("playlist", {})
     order = playlist.get("order", [])
 
-    role = settings.get("role", "primary")
-    enable = settings.get("enable", "0")
+    network_settings = load_network_settings()
+    role = network_settings.get("role", "primary")
+    enable = network_settings.get("enable", "0")
     secondary_video_mode = playlist.get("secondary_video_mode", "sync_tag")
 
     active_videos = [
         item
         for item in order
-        if item.get("active", True) and (VIDEO_FOLDER / item["filename"]).exists()
+        if item.get("active", True)
+        and (VIDEO_FOLDER / item.get("filename", "")).is_file()
     ]
 
-    # Do not allow the last active video to be deleted.
-    if len(active_videos) <= 1:
+    target_entry = next(
+        (item for item in order if item.get("filename") == filename),
+        None
+    )
+    target_is_active = target_entry.get("active", True) if target_entry else True
+
+    # Inactive videos can be deleted without affecting the active-video minimum.
+    if target_is_active and len(active_videos) <= 1:
         flash("At least one active video must remain.", "danger")
-        return redirect(url_for("index"))
+        return redirect(url_for('index'))
+
+    was_selected = Path(settings.get("selected_video", "")).name == filename
 
     filepath.unlink()
 
@@ -1530,6 +1547,25 @@ def delete(filename):
     ]
 
     settings["playlist"]["order"] = order
+
+    selected_name = Path(settings.get("selected_video", "")).name
+    if was_selected or not (VIDEO_FOLDER / selected_name).is_file():
+        if role == "secondary" and secondary_video_mode == "sync_tag":
+            # Let the Primary select the next video by Sync Tag.
+            settings["selected_video"] = ""
+        else:
+            replacement = next(
+                (
+                    item.get("filename", "")
+                    for item in order
+                    if item.get("active", True)
+                    and item.get("filename")
+                    and (VIDEO_FOLDER / item["filename"]).is_file()
+                ),
+                ""
+            )
+            settings["selected_video"] = replacement
+
     save_settings(settings)
 
     # Check remaining active videos.
@@ -1569,6 +1605,7 @@ def delete(filename):
         flash(f"Deleted {filename}", "success")
 
     return redirect(url_for("index"))
+
 
 @app.route("/logs/view/<filename>")
 def view_log(filename):
@@ -1657,9 +1694,21 @@ def network():
     try:
         # Save Sync Start Delay
         sync_start_delay_ms = int(request.form.get("sync_start_delay_ms", "1000"))
+        if not 0 <= sync_start_delay_ms <= 60000:
+            raise ValueError("Sync Start Delay must be between 0 and 60000 ms.")
 
         network_settings = load_network_settings()
         network_settings["sync_start_delay_ms"] = sync_start_delay_ms
+
+        # Save the synchronization lead time only when the Primary form supplies it.
+        # Secondary Pis keep their existing setting and never use it for scheduling.
+        lead_value = request.form.get("sync_start_lead_ms")
+        if role == "primary" and lead_value is not None:
+            sync_start_lead_ms = int(lead_value)
+            if not 0 <= sync_start_lead_ms <= 5000:
+                raise ValueError("Synchronization Lead Time must be between 0 and 5000 ms.")
+            network_settings["sync_start_lead_ms"] = sync_start_lead_ms
+
         save_network_settings(network_settings)
 
         # Save network role / MQTT settings
@@ -1679,6 +1728,7 @@ def network():
         flash(f"Failed to update network: {e}", "danger")
 
     return redirect(url_for("index"))
+
 
 @app.route("/reboot", methods=["POST"])
 def reboot():
@@ -1786,7 +1836,7 @@ def check_updates():
 
     try:
         installed_version = get_version()
-        result = check_for_update(installed_version, channel)
+        result = check_for_update(installed_version, channel, force_check=True)
         result["success"] = True
         return jsonify(result)
     except Exception as e:
@@ -2177,6 +2227,57 @@ def restore_display_mode():
     return redirect(url_for("index"))
 
 
+
+@app.route("/power/shutdown", methods=["POST"])
+def power_shutdown():
+    try:
+        log("Manual shutdown requested from Power Management.", "POWER")
+        subprocess.Popen(
+            ["sudo", "-n", "/usr/sbin/shutdown", "-h", "now"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        flash("Shutting down Raspberry Pi...", "warning")
+    except Exception as e:
+        log(f"Failed to shut down Raspberry Pi: {e}", "ERROR")
+        flash(
+            "Unable to shut down Raspberry Pi. Check sudo permissions and logs.",
+            "danger",
+        )
+
+    return redirect(url_for("index"))
+
+
+@app.route("/power/schedule", methods=["POST"])
+def save_power_schedule():
+    enabled = request.form.get("shutdown_enabled") == "1"
+    shutdown_time = request.form.get("shutdown_time", "23:00").strip()
+
+    try:
+        datetime.strptime(shutdown_time, "%H:%M")
+    except ValueError:
+        flash("Invalid shutdown time.", "danger")
+        return redirect(url_for("index"))
+
+    settings = load_settings()
+    schedule = settings.get("power_schedule", {})
+    schedule["shutdown_enabled"] = enabled
+    schedule["shutdown_time"] = shutdown_time
+    settings["power_schedule"] = schedule
+    save_settings(settings)
+
+    log(
+        f"Automatic shutdown {'enabled' if enabled else 'disabled'}"
+        + (f" for {shutdown_time}." if enabled else "."),
+        "POWER",
+    )
+
+    flash(
+        f"Automatic shutdown {'enabled for ' + shutdown_time if enabled else 'disabled'}.",
+        "success",
+    )
+
+    return redirect(url_for("index"))
 
 
 if __name__ == "__main__":

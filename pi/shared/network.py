@@ -22,6 +22,7 @@ def load_network_settings():
         "primary_ip": "",
         "enable": "0",
         "sync_start_delay_ms": 0,
+        "sync_start_lead_ms": 750,
         "secondary_pis": []
     }
     save_network_settings(settings)
@@ -108,6 +109,21 @@ def get_sync_start_delay_ms():
     except (TypeError, ValueError):
         log("Invalid sync start delay setting. Using 1000 ms.", "ERROR")
         return 1000
+
+
+def get_sync_start_lead_ms():
+    settings = load_network_settings()
+    try:
+        lead_ms = int(settings.get("sync_start_lead_ms", 750))
+    except (TypeError, ValueError):
+        log("Invalid synchronization lead time. Using 750 ms.", "ERROR")
+        return 750
+
+    if not 0 <= lead_ms <= 5000:
+        log("Synchronization lead time is outside 0-5000 ms. Using 750 ms.", "ERROR")
+        return 750
+
+    return lead_ms
 
 
 def check_secondary_status():
