@@ -417,8 +417,25 @@ body.dark-mode .custom-table {
     width: 60px !important;
   }
 
-  .sidebar .nav-link span.label {
+  .sidebar .nav-link span.label,
+  .sidebar .sidebar-group-toggle .label,
+  .sidebar .sidebar-group-toggle .group-chevron {
     display: none !important;
+  }
+
+  .sidebar .nav-link,
+  .sidebar .sidebar-group-toggle {
+    justify-content: center;
+    padding: 12px 8px;
+  }
+
+  .sidebar .nav-link i,
+  .sidebar .sidebar-group-toggle > i:first-child {
+    margin-right: 0;
+  }
+
+  .sidebar .sidebar-submenu .nav-link {
+    padding-left: 8px;
   }
 
   .sidebar-logo-img {
