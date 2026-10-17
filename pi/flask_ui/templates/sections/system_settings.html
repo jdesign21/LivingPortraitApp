@@ -1,0 +1,220 @@
+<section id="system_settings" class="section">
+  <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
+    <i class="bi bi-sliders"></i> System Settings
+  </h3>
+
+  <p class="text-muted mb-4">
+    Configure this Raspberry Pi's display, audio, and time display preferences.
+  </p>
+
+  <!-- Display Resolution -->
+  <div class="card mb-3 shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <strong><i class="bi bi-display me-2"></i>Display Resolution</strong>
+    </div>
+    <div class="card-body py-3">
+      <!-- Current Display Mode -->
+      <div class="d-flex align-items-start mb-3">
+        <i class="bi bi-monitor fs-4 me-3"></i>
+        <div>
+          <div class="fw-semibold">Current Display Mode</div>
+          <div class="text-muted small">
+            {% if display_info.current_resolution %}
+              {{ display_info.current_resolution.label }}
+              {% if display_info.current_resolution.scan_type %}
+                ({{ display_info.current_resolution.scan_type|capitalize }})
+              {% endif %}
+            {% else %}
+              Unable to detect the current display mode.
+            {% endif %}
+          </div>
+        </div>
+      </div>
+  
+      <hr class="my-3">
+  
+      <!-- Save and Apply Display Mode -->
+      <form method="POST" action="{{ url_for('select_display_mode') }}">
+        <div class="mb-2">
+          <label for="displayMode" class="form-label fw-semibold">
+            <i class="bi bi-tv me-1"></i>Available Display Modes
+          </label>
+          <select class="form-select" id="displayMode" name="display_mode" required
+                  {% if not display_info.available_modes %}disabled{% endif %}>
+            {% if display_info.available_modes %}
+              {% for mode in display_info.available_modes %}
+                <option
+                  value="{{ mode.width }}|{{ mode.height }}|{{ mode.refresh_rate if mode.refresh_rate is not none else 'none' }}|{{ 1 if mode.interlaced else 0 }}"
+                  {% if display_mode_selection
+                     and display_mode_selection.width == mode.width
+                     and display_mode_selection.height == mode.height
+                     and display_mode_selection.refresh_rate == mode.refresh_rate
+                     and display_mode_selection.interlaced == mode.interlaced %}
+                    selected
+                  {% elif not display_mode_selection and display_info.current_resolution
+                     and mode.width == display_info.current_resolution.width
+                     and mode.height == display_info.current_resolution.height
+                     and mode.refresh_rate == display_info.current_resolution.get('refresh_rate')
+                     and mode.interlaced == display_info.current_resolution.get('interlaced', false) %}
+                    selected
+                  {% endif %}>
+                  {{ mode.label }}{% if mode.aspect_ratio %} ({{ mode.aspect_ratio }}){% endif %}
+                </option>
+              {% endfor %}
+            {% else %}
+              <option value="">No display modes detected</option>
+            {% endif %}
+          </select>
+          <div class="form-text">
+            Choose a supported resolution, refresh rate, and scan type.
+            The selection will be saved and applied to the boot configuration.
+          </div>
+        </div>
+  
+        <div class="d-flex justify-content-end mt-3">
+          <button type="submit" class="btn btn-primary"
+                  {% if not display_info.available_modes %}disabled{% endif %}>
+            <i class="bi bi-save me-1"></i>Save &amp; Apply Display Mode
+          </button>
+        </div>
+      </form>
+  
+      <hr class="my-3">
+  
+      <!-- Restore Default Display Mode -->
+      <div>
+        <div class="fw-semibold mb-1">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Restore Default
+        </div>
+        <div class="text-muted small mb-2">
+          Remove the custom display override and return to automatic display
+          mode detection. 
+        </div>
+  
+        <form method="POST" action="{{ url_for('restore_display_mode') }}"
+              onsubmit="return confirm('Restore automatic display detection? You will need to reboot the Raspberry Pi.');">
+          <div class="d-flex justify-content-end mt-3">
+            <button type="submit" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Restore Default
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  
+  
+  
+  <!-- Audio & Time Settings -->
+  <div class="card mb-3 shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <strong><i class="bi bi-sliders me-2"></i>Audio & Time</strong>
+    </div>
+  
+    <div class="card-body py-3">
+      <form method="POST" action="{{ url_for('save_appearance_settings') }}">
+  
+        <!-- Mute Audio -->
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-volume-mute fs-4 me-3"></i>
+  
+            <div>
+              <div class="fw-semibold">Mute Audio</div>
+              <div class="text-muted small">
+                Mute video audio on this screen only.
+              </div>
+            </div>
+          </div>
+  
+          <div class="form-check form-switch m-0">
+            <input class="form-check-input"
+                   type="checkbox"
+                   role="switch"
+                   id="muteAudio"
+                   name="mute_audio"
+                   {% if mute_audio %}checked{% endif %}>
+          </div>
+        </div>
+  
+        <hr class="my-3">
+  
+        <!-- Audio Output -->
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-volume-up fs-4 me-3"></i>
+  
+            <div>
+              <div class="fw-semibold">Audio Output</div>
+              <div class="text-muted small">
+                Select where video audio should play.
+              </div>
+            </div>
+          </div>
+  
+          <select class="form-select form-select-sm"
+                  name="audio_output"
+                  id="audioOutput"
+                  style="max-width: 250px;">
+            {% for output in audio_outputs %}
+            <option value="{{ output.id }}"
+                    {% if output.id == audio_output %}selected{% endif %}>
+              {{ output.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+  
+        <hr class="my-3">
+  
+        <!-- Time Format -->
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-clock fs-4 me-3"></i>
+  
+            <div>
+              <div class="fw-semibold">Time Format</div>
+              <div class="text-muted small">
+                Changes how times are displayed. Schedule and playback timing are not affected.
+              </div>
+            </div>
+          </div>
+  
+          <div class="d-flex align-items-center gap-3">
+            <div class="form-check mb-0">
+              <input class="form-check-input"
+                     type="radio"
+                     name="timeFormat"
+                     id="timeFormat12"
+                     value="12"
+                     {% if time_format == "12" %}checked{% endif %}>
+              <label class="form-check-label" for="timeFormat12">
+                12-hour
+              </label>
+            </div>
+  
+            <div class="form-check mb-0">
+              <input class="form-check-input"
+                     type="radio"
+                     name="timeFormat"
+                     id="timeFormat24"
+                     value="24"
+                     {% if time_format == "24" %}checked{% endif %}>
+              <label class="form-check-label" for="timeFormat24">
+                24-hour
+              </label>
+            </div>
+          </div>
+        </div>
+  
+        <div class="d-flex justify-content-end mt-3">
+          <button type="submit" class="btn btn-success btn-sm">
+            Save
+          </button>
+        </div>
+  
+      </form>
+    </div>
+  </div>
+</section>
