@@ -804,6 +804,18 @@ if (fixedPlaylist && fixedOrderInput) {
                 sec.id === sectionId
             );
         });
+
+        // Keep the group containing the active page expanded.
+        document.querySelectorAll('.sidebar-group').forEach(group => {
+            const activeLink = group.querySelector(
+                '.nav-link[data-section="' + sectionId + '"]'
+            );
+            if (activeLink) {
+                group.classList.remove('is-collapsed');
+                const toggle = group.querySelector('.sidebar-group-toggle');
+                if (toggle) toggle.setAttribute('aria-expanded', 'true');
+            }
+        });
     }
 
     let savedSection = localStorage.getItem('activeSidebarSection') || 'select';
@@ -823,6 +835,16 @@ if (fixedPlaylist && fixedOrderInput) {
             const selectedSection = link.getAttribute('data-section');
             localStorage.setItem('activeSidebarSection', selectedSection);
             activateSection(selectedSection);
+        });
+    });
+
+    // Expand/collapse groups independently of page navigation.
+    document.querySelectorAll('.sidebar-group-toggle').forEach(toggle => {
+        toggle.addEventListener('click', () => {
+            const group = toggle.closest('.sidebar-group');
+            if (!group) return;
+            const collapsed = group.classList.toggle('is-collapsed');
+            toggle.setAttribute('aria-expanded', String(!collapsed));
         });
     });
 
