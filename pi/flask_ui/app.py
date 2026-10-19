@@ -155,15 +155,14 @@ def enforce_authentication_and_csrf():
 @app.after_request
 def add_csrf_tokens_to_forms(response):
     if response.mimetype == "text/html" and response.status_code < 400:
-        token = session.get("_csrf_token", "")
-        if token:
-            html = response.get_data(as_text=True)
-            hidden = '<input type="hidden" name="csrf_token" value="' + token + '">'
-            html = re.sub(r"(<form\b[^>]*>)", lambda match: match.group(1) + hidden, html, flags=re.IGNORECASE)
-            response.set_data(html)
+        # Generate a token even on public login/setup pages whose templates do not
+        # explicitly call csrf_token(). Flask saves this session after after_request.
+        token = _csrf_token()
+        html = response.get_data(as_text=True)
+        hidden = '<input type="hidden" name="csrf_token" value="' + token + '">'
+        html = re.sub(r"(<form\\b[^>]*>)", lambda match: match.group(1) + hidden, html, flags=re.IGNORECASE)
+        response.set_data(html)
     return response
-
-
 def _login_is_rate_limited(key):
     now = time.monotonic()
     failures = [stamp for stamp in _LOGIN_FAILURES.get(key, []) if now - stamp < _LOGIN_WINDOW_SECONDS]
