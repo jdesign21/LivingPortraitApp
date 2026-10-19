@@ -157,7 +157,21 @@
                                     <td>{{ device.version }}</td>
                                     <td><span class="text-muted small">{{ device.last_seen_label }}</span></td>
                                     <td class="text-end">
-                                        {% if device.is_configured %}
+                                        {% if device.ip_changed %}
+                                        <form method="POST" action="{{ url_for('network_add_discovered_secondary') }}" class="d-inline">
+                                            <input type="hidden" name="device_id" value="{{ device.device_id }}">
+                                            <button type="submit" class="btn btn-outline-primary btn-sm">
+                                                <i class="bi bi-arrow-left-right"></i> Update IP
+                                            </button>
+                                        </form>
+                                        {% elif device.needs_link %}
+                                        <form method="POST" action="{{ url_for('network_add_discovered_secondary') }}" class="d-inline">
+                                            <input type="hidden" name="device_id" value="{{ device.device_id }}">
+                                            <button type="submit" class="btn btn-outline-primary btn-sm">
+                                                <i class="bi bi-link-45deg"></i> Link Device
+                                            </button>
+                                        </form>
+                                        {% elif device.is_configured %}
                                         <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Added</span>
                                         {% else %}
                                         <form method="POST" action="{{ url_for('network_add_discovered_secondary') }}" class="d-inline">
