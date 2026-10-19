@@ -160,9 +160,11 @@ def add_csrf_tokens_to_forms(response):
         token = _csrf_token()
         html = response.get_data(as_text=True)
         hidden = '<input type="hidden" name="csrf_token" value="' + token + '">'
-        html = re.sub(r"(<form\\b[^>]*>)", lambda match: match.group(1) + hidden, html, flags=re.IGNORECASE)
+        html = re.sub(r"(<form\b[^>]*>)", lambda match: match.group(1) + hidden, html, flags=re.IGNORECASE)
         response.set_data(html)
     return response
+
+
 def _login_is_rate_limited(key):
     now = time.monotonic()
     failures = [stamp for stamp in _LOGIN_FAILURES.get(key, []) if now - stamp < _LOGIN_WINDOW_SECONDS]
