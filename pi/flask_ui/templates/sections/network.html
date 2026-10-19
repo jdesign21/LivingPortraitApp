@@ -123,6 +123,66 @@
                 Add and manage the Secondary Pis used for synchronized playback.
             </p>
 
+            <!-- DISCOVERED SECONDARY PIS -->
+            <div class="card border mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong><i class="bi bi-radar me-1"></i> Discovered LivingPortraitApp Devices</strong>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location.reload()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh Results
+                    </button>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Secondary Pis announce themselves automatically on your local network. Discovery results are not a security verification.
+                    </p>
+                    <div class="table-responsive border rounded">
+                        <table class="table table-hover mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Device</th>
+                                    <th>IP Address</th>
+                                    <th>Version</th>
+                                    <th>Last Seen</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for device in discovered_secondary_pis %}
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">{{ device.name }}</div>
+                                        <div class="text-muted small">LivingPortraitApp Secondary</div>
+                                    </td>
+                                    <td>{{ device.ip }}</td>
+                                    <td>{{ device.version }}</td>
+                                    <td><span class="text-muted small">{{ device.last_seen_label }}</span></td>
+                                    <td class="text-end">
+                                        {% if device.is_configured %}
+                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Added</span>
+                                        {% else %}
+                                        <form method="POST" action="{{ url_for('network_add_discovered_secondary') }}" class="d-inline">
+                                            <input type="hidden" name="device_id" value="{{ device.device_id }}">
+                                            <button type="submit" class="btn btn-primary btn-sm">
+                                                <i class="bi bi-plus-lg"></i> Add
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="bi bi-radar fs-4 d-block mb-2"></i>
+                                        No secondary Pis discovered yet. Make sure the secondary is running LivingPortraitApp and is connected to the same local network, then refresh in a few seconds.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- ADD SECONDARY PI -->
             <form method="POST" action="{{ url_for('network_add_secondary') }}" class="mb-4">
                 <div class="row g-2 align-items-end">
