@@ -107,10 +107,9 @@
     </form>
 
     <!-- SECONDARY PIS -->
-    <div class="card shadow-sm" style="display: {{ 'none' if role == 'secondary' else 'block' }}">
+    <div class="card shadow-sm mb-4" style="display: {{ 'none' if role == 'secondary' else 'block' }}">
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <strong>Secondary Pis</strong>
-
+            <strong><i class="bi bi-hdd-network me-1"></i> Secondary Pis</strong>
             <form method="POST" action="{{ url_for('network_check_secondary') }}" class="mb-0">
                 <button type="submit" class="btn btn-light btn-sm">
                     <i class="bi bi-wifi"></i> Check Status
@@ -119,193 +118,153 @@
         </div>
 
         <div class="card-body">
-            <p class="text-muted small mb-4">
-                Add and manage the Secondary Pis used for synchronized playback.
-            </p>
-
-            <!-- DISCOVERED SECONDARY PIS -->
-            <div class="card border mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <strong><i class="bi bi-radar me-1"></i> Discovered LivingPortraitApp Devices</strong>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location.reload()">
-                        <i class="bi bi-arrow-clockwise"></i> Refresh Results
-                    </button>
+            <!-- AUTOMATIC DISCOVERY -->
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                <div>
+                    <h5 class="mb-1"><i class="bi bi-radar me-1"></i> Discover Secondary Pis</h5>
+                    <p class="text-muted small mb-0">Compatible secondary devices on your network appear here automatically.</p>
                 </div>
-                <div class="card-body">
-                    <p class="text-muted small mb-3">
-                        Secondary Pis announce themselves automatically on your local network. Discovery results are not a security verification.
-                    </p>
-                    <div class="table-responsive border rounded">
-                        <table class="table table-hover mb-0 align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Device</th>
-                                    <th>IP Address</th>
-                                    <th>Version</th>
-                                    <th>Last Seen</th>
-                                    <th class="text-end">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for device in discovered_secondary_pis %}
-                                <tr>
-                                    <td>
-                                        <div class="fw-semibold">{{ device.name }}</div>
-                                        <div class="text-muted small">LivingPortraitApp Secondary</div>
-                                    </td>
-                                    <td>{{ device.ip }}</td>
-                                    <td>{{ device.version }}</td>
-                                    <td><span class="text-muted small">{{ device.last_seen_label }}</span></td>
-                                    <td class="text-end">
-                                        {% if device.ip_changed %}
-                                        <form method="POST" action="{{ url_for('network_add_discovered_secondary') }}" class="d-inline">
-                                            <input type="hidden" name="device_id" value="{{ device.device_id }}">
-                                            <button type="submit" class="btn btn-outline-primary btn-sm">
-                                                <i class="bi bi-arrow-left-right"></i> Update IP
-                                            </button>
-                                        </form>
-                                        {% elif device.needs_link %}
-                                        <form method="POST" action="{{ url_for('network_add_discovered_secondary') }}" class="d-inline">
-                                            <input type="hidden" name="device_id" value="{{ device.device_id }}">
-                                            <button type="submit" class="btn btn-outline-primary btn-sm">
-                                                <i class="bi bi-link-45deg"></i> Link Device
-                                            </button>
-                                        </form>
-                                        {% elif device.is_configured %}
-                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Added</span>
-                                        {% else %}
-                                        <form method="POST" action="{{ url_for('network_add_discovered_secondary') }}" class="d-inline">
-                                            <input type="hidden" name="device_id" value="{{ device.device_id }}">
-                                            <button type="submit" class="btn btn-primary btn-sm">
-                                                <i class="bi bi-plus-lg"></i> Add
-                                            </button>
-                                        </form>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">
-                                        <i class="bi bi-radar fs-4 d-block mb-2"></i>
-                                        No secondary Pis discovered yet. Make sure the secondary is running LivingPortraitApp and is connected to the same local network, then refresh in a few seconds.
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location.reload()">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+                </button>
             </div>
 
-            <!-- ADD SECONDARY PI -->
-            <form method="POST" action="{{ url_for('network_add_secondary') }}" class="mb-4">
-                <div class="row g-2 align-items-end">
-                    <div class="col-md-4">
-                        <label class="form-label fw-semibold small">
-                            Secondary Pi Name
-                        </label>
-                        <input type="text" class="form-control form-control-sm" name="name"
-                            placeholder="Example: Second Screen" required>
-                    </div>
-
-                    <div class="col-md-4">
-                        <label class="form-label fw-semibold small">
-                            IP Address
-                        </label>
-                        <input type="text" class="form-control form-control-sm" name="ip" placeholder="192.168.1.xxx"
-                            required>
-                    </div>
-
-                    <div class="col-md-4">
-                        <button type="submit" class="btn btn-outline-secondary btn-sm">
-                            <i class="bi bi-plus-lg"></i> Add Secondary Pi
-                        </button>
+            <div class="list-group mb-4">
+                {% for device in discovered_secondary_pis %}
+                <div class="list-group-item">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div class="flex-grow-1">
+                            <div class="fw-semibold">{{ device.name }}</div>
+                            <div class="text-muted small">{{ device.ip }}</div>
+                            <div class="text-muted small">
+                                Version {{ device.version }} <span class="mx-1">·</span> Seen {{ device.last_seen_label }}
+                            </div>
+                        </div>
+                        <div>
+                            {% if device.ip_changed %}
+                            <form method="POST" action="{{ url_for('network_add_discovered_secondary') }}" class="d-inline">
+                                <input type="hidden" name="device_id" value="{{ device.device_id }}">
+                                <button type="submit" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-arrow-left-right me-1"></i> Update IP
+                                </button>
+                            </form>
+                            {% elif device.needs_link %}
+                            <form method="POST" action="{{ url_for('network_add_discovered_secondary') }}" class="d-inline">
+                                <input type="hidden" name="device_id" value="{{ device.device_id }}">
+                                <button type="submit" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-link-45deg me-1"></i> Link Device
+                                </button>
+                            </form>
+                            {% elif device.is_configured %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Added</span>
+                            {% else %}
+                            <form method="POST" action="{{ url_for('network_add_discovered_secondary') }}" class="d-inline">
+                                <input type="hidden" name="device_id" value="{{ device.device_id }}">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-plus-lg me-1"></i> Add
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
-            </form>
+                {% else %}
+                <div class="border rounded text-center text-muted p-4">
+                    <i class="bi bi-radar fs-4 d-block mb-2"></i>
+                    <div>No secondary Pis found yet.</div>
+                    <div class="small mt-1">Make sure the secondary is running LivingPortraitApp on the same local network, then refresh.</div>
+                </div>
+                {% endfor %}
+            </div>
 
-            <!-- SECONDARY PI LIST -->
-            <div class="table-responsive border rounded">
+            <!-- CONFIGURED DEVICES -->
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <h5 class="mb-0"><i class="bi bi-pc-display-horizontal me-1"></i> Configured Secondary Pis</h5>
+                <span class="badge bg-secondary">{{ secondary_pis|length }} configured</span>
+            </div>
+            <p class="text-muted small mb-3">These are the devices the primary is set up to manage. Offline devices remain listed.</p>
+
+            <div class="table-responsive border rounded mb-3">
                 <table class="table table-hover mb-0 align-middle">
                     <thead class="table-light">
                         <tr>
                             <th>Name</th>
                             <th>IP Address</th>
                             <th>Status</th>
-                            <th>Last Checked</th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
-
                     <tbody>
                         {% for pi in secondary_pis %}
                         <tr>
-                            <td>
-                                <form method="POST" action="{{ url_for('network_edit_secondary', index=loop.index0) }}"
-                                    class="row g-2">
-                                    <div class="col">
-                                        <input type="text" class="form-control form-control-sm" name="name"
-                                            value="{{ pi.name }}" required>
+                            <td colspan="3" class="p-0">
+                                <form method="POST" action="{{ url_for('network_edit_secondary', index=loop.index0) }}" class="row g-2 align-items-center m-0 p-2">
+                                    <div class="col-md-5">
+                                        <label class="visually-hidden">Secondary Pi name</label>
+                                        <input type="text" class="form-control form-control-sm" name="name" value="{{ pi.name }}" required>
                                     </div>
-                            </td>
-
-                            <td>
-                                <input type="text" class="form-control form-control-sm" name="ip" value="{{ pi.ip }}"
-                                    required>
-                            </td>
-
-                            <td>
-                                {% if pi.status == 'online' %}
-                                <span class="badge bg-success">
-                                    <i class="bi bi-check-circle"></i> Online
-                                </span>
-                                {% elif pi.status == 'offline' %}
-                                <span class="badge bg-danger">
-                                    <i class="bi bi-x-circle"></i> Offline
-                                </span>
-                                {% else %}
-                                <span class="badge bg-secondary">
-                                    Not Checked
-                                </span>
-                                {% endif %}
-                            </td>
-
-                            <td>
-                                {% if pi.last_checked %}
-                                <span class="text-muted small">
-                                    {{ pi.last_checked }}
-                                </span>
-                                {% else %}
-                                <span class="text-muted small">—</span>
-                                {% endif %}
-                            </td>
-
-                            <td class="text-end">
-                                <button type="submit" class="btn btn-primary btn-sm">
-                                    <i class="bi bi-check-lg"></i> Update
-                                </button>
-                                </form>
-
-                                <form method="POST"
-                                    action="{{ url_for('network_delete_secondary', index=loop.index0) }}"
-                                    class="d-inline" onsubmit="return confirm('Delete {{ pi.name }}?');">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm">
-                                        <i class="bi bi-trash"></i> Delete
-                                    </button>
-                                </form>
-                            </td>
+                                    <div class="col-md-4">
+                                        <label class="visually-hidden">IP address</label>
+                                        <input type="text" class="form-control form-control-sm" name="ip" value="{{ pi.ip }}" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        {% if pi.status == 'online' %}
+                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Online</span>
+                                        {% elif pi.status == 'offline' %}
+                                        <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Offline</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Not Checked</span>
+                                        {% endif %}
+                                        {% if pi.last_checked %}
+                                        <div class="text-muted small mt-1">{{ pi.last_checked }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-12 d-flex justify-content-end gap-2">
+                                        <button type="submit" class="btn btn-outline-primary btn-sm">
+                                            <i class="bi bi-check-lg me-1"></i> Save
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('network_delete_secondary', index=loop.index0) }}" class="d-inline" onsubmit="return confirm('Delete {{ pi.name }}?');">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                            <i class="bi bi-trash me-1"></i> Delete
+                                        </button>
+                                    </form>
+                                    </div>
+                                </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-4">
-                                <i class="bi bi-diagram-3 fs-4 d-block mb-2"></i>
-                                No Secondary Pis configured.
-                            </td>
+                            <td colspan="4" class="text-center text-muted py-4">No Secondary Pis configured.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+
+            <!-- MANUAL ADDITION: COLLAPSED BY DEFAULT -->
+            <details class="border rounded p-3">
+                <summary class="fw-semibold">
+                    <i class="bi bi-plus-circle me-1"></i> Add a Secondary Pi Manually
+                </summary>
+                <p class="text-muted small mt-2 mb-3">Use this if automatic discovery cannot find your device.</p>
+                <form method="POST" action="{{ url_for('network_add_secondary') }}">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-5">
+                            <label class="form-label small" for="manualSecondaryName">Device name</label>
+                            <input type="text" class="form-control form-control-sm" id="manualSecondaryName" name="name" placeholder="Example: Second Screen" required>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small" for="manualSecondaryIp">IP address</label>
+                            <input type="text" class="form-control form-control-sm" id="manualSecondaryIp" name="ip" placeholder="192.168.1.xxx" required>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-outline-primary btn-sm w-100">
+                                <i class="bi bi-plus-lg me-1"></i> Add
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </details>
         </div>
     </div>
 </section>
