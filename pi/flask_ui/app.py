@@ -14,6 +14,11 @@ import re
 import secrets
 import time
 
+HOME = Path(os.path.expanduser("~"))
+
+# Add the shared folder to sys.path
+sys.path.append(str(HOME))
+
 from shared.auth_manager import (
     get_or_create_secret_key,
     load_auth_data,
@@ -25,10 +30,6 @@ from shared.auth_manager import (
     update_admin,
 )
 
-HOME = Path(os.path.expanduser("~"))
-
-# Add the shared folder to sys.path
-sys.path.append(str(HOME))
 
 from shared.vlc_helper import (
     log,
@@ -159,7 +160,7 @@ def add_csrf_tokens_to_forms(response):
         if token:
             html = response.get_data(as_text=True)
             hidden = '<input type="hidden" name="csrf_token" value="' + token + '">'
-            html = re.sub(r"(<form\\b[^>]*>)", lambda match: match.group(1) + hidden, html, flags=re.IGNORECASE)
+            html = re.sub(r"(<form\b[^>]*>)", lambda match: match.group(1) + hidden, html, flags=re.IGNORECASE)
             response.set_data(html)
     return response
 
@@ -204,7 +205,7 @@ def admin_setup():
             saved = load_auth_data()
             session.clear()
             session.permanent = True
-            session["auth_user"] = created
+            session["auth_user"] = saved.get("username", username)
             session["auth_version"] = saved.get("session_version")
             session["last_activity"] = time.time()
             _csrf_token()
