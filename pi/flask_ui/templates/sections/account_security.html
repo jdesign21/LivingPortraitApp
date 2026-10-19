@@ -6,29 +6,45 @@
     <div class="card-header bg-primary text-white"><strong>Administrator Account</strong></div>
     <div class="card-body">
       <p class="text-muted">Manage the local administrator credentials used to access this LivingPortraitApp.</p>
-      <form method="POST" action="{{ url_for('account_security') }}">
-        <div class="mb-3">
-          <label for="current_password" class="form-label">Current Password (required to save changes)</label>
-          <input id="current_password" name="current_password" type="password" class="form-control" autocomplete="current-password" required>
+      <div class="row align-items-center g-3 mb-3">
+        <div class="col-sm-6">
+          <div class="small text-muted mb-1">Username</div>
+          <div class="fw-semibold text-break">{{ auth_username }}</div>
         </div>
-        <div class="mb-3">
-          <label for="new_username" class="form-label">Username</label>
-          <input id="new_username" name="new_username" class="form-control" value="{{ auth_username }}" minlength="3" maxlength="32" pattern="[A-Za-z0-9._-]+" required>
-          <div class="form-text">3–32 characters: letters, numbers, period, underscore, or hyphen.</div>
+        <div class="col-sm-6">
+          <div class="small text-muted mb-1">Password</div>
+          <div class="fw-semibold" aria-label="Password is hidden">••••••••••••</div>
         </div>
+      </div>
+      <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#editAdministratorAccount" aria-expanded="false" aria-controls="editAdministratorAccount">
+        <i class="bi bi-pencil-square me-2"></i>Edit Account
+      </button>
+      <div class="collapse mt-4" id="editAdministratorAccount">
         <hr>
-        <p class="fw-semibold mb-2">Change Password (optional)</p>
-        <div class="mb-3">
-          <label for="new_password" class="form-label">New Password</label>
-          <input id="new_password" name="new_password" type="password" class="form-control" autocomplete="new-password" minlength="12">
-          <div class="form-text">Leave both password fields blank to keep the current password. New passwords must be at least 12 characters.</div>
-        </div>
-        <div class="mb-3">
-          <label for="confirm_new_password" class="form-label">Confirm New Password</label>
-          <input id="confirm_new_password" name="confirm_new_password" type="password" class="form-control" autocomplete="new-password" minlength="12">
-        </div>
-        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-2"></i>Save Account Changes</button>
-      </form>
+        <form method="POST" action="{{ url_for('account_security') }}">
+          <div class="mb-3">
+            <label for="current_password" class="form-label">Current Password (required to save changes)</label>
+            <input id="current_password" name="current_password" type="password" class="form-control" autocomplete="current-password" required>
+          </div>
+          <div class="mb-3">
+            <label for="new_username" class="form-label">Username</label>
+            <input id="new_username" name="new_username" class="form-control" value="{{ auth_username }}" minlength="3" maxlength="32" pattern="[A-Za-z0-9._-]+" required>
+            <div class="form-text">3–32 characters: letters, numbers, period, underscore, or hyphen.</div>
+          </div>
+          <hr>
+          <p class="fw-semibold mb-2">Change Password (optional)</p>
+          <div class="mb-3">
+            <label for="new_password" class="form-label">New Password</label>
+            <input id="new_password" name="new_password" type="password" class="form-control" autocomplete="new-password" minlength="12">
+            <div class="form-text">Leave both password fields blank to keep the current password. New passwords must be at least 12 characters.</div>
+          </div>
+          <div class="mb-3">
+            <label for="confirm_new_password" class="form-label">Confirm New Password</label>
+            <input id="confirm_new_password" name="confirm_new_password" type="password" class="form-control" autocomplete="new-password" minlength="12">
+          </div>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-save me-2"></i>Save Account Changes</button>
+        </form>
+      </div>
     </div>
   </div>
   <div class="card shadow-sm mb-4">
