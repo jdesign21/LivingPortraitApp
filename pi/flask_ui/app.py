@@ -12,7 +12,6 @@ import time
 import subprocess
 import re
 import secrets
-import time
 
 HOME = Path(os.path.expanduser("~"))
 
@@ -238,10 +237,7 @@ def login():
             session["auth_version"] = auth_data.get("session_version")
             session["last_activity"] = time.time()
             _csrf_token()
-            target = request.args.get("next", "")
-            if not target.startswith("/") or target.startswith("//"):
-                target = url_for("index")
-            return redirect(target)
+            return redirect(url_for("index"))
 
         _record_login_failure(key)
         flash("Invalid username or password.", "danger")
