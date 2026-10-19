@@ -10,6 +10,20 @@ import sys
 import json
 import time
 import subprocess
+import re
+import secrets
+import time
+
+from shared.auth_manager import (
+    get_or_create_secret_key,
+    load_auth_data,
+    validate_username,
+    validate_password,
+    hash_password,
+    verify_password,
+    create_admin,
+    update_admin,
+)
 
 HOME = Path(os.path.expanduser("~"))
 
@@ -64,8 +78,214 @@ from shared.audio import (
 )
 
 app = Flask(__name__)
-app.secret_key = 'replace-this-with-a-secure-random-key'
+app.secret_key = get_or_create_secret_key()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    # The current server is HTTP-only. Enable this when HTTPS is configured.
+    SESSION_COOKIE_SECURE=False,
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+    SESSION_REFRESH_EACH_REQUEST=True,
+)
 start_power_scheduler()
+
+_LOGIN_FAILURES = {}
+_LOGIN_WINDOW_SECONDS = 15 * 60
+_LOGIN_MAX_FAILURES = 5
+
+
+def _csrf_token():
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+
+@app.context_processor
+def inject_auth_template_values():
+    return {"csrf_token": _csrf_token}
+
+
+@app.before_request
+def enforce_authentication_and_csrf():
+    # All state-changing requests, including login and setup, require a session token.
+    if request.method not in ("GET", "HEAD", "OPTIONS", "TRACE"):
+        expected = session.get("_csrf_token", "")
+        supplied = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token", "")
+        if not expected or not supplied or not secrets.compare_digest(str(expected), str(supplied)):
+            return "CSRF validation failed. Reload the page and try again.", 400
+
+    auth_data = load_auth_data()
+    configured = bool(auth_data.get("username") and auth_data.get("password"))
+    endpoint = request.endpoint or ""
+
+    if endpoint in ("static", "login", "admin_setup"):
+        if endpoint == "login" and not configured:
+            return redirect(url_for("admin_setup"))
+        if endpoint == "admin_setup" and configured:
+            return redirect(url_for("login"))
+        return None
+
+    # The logo is the only image available before login; all other media is private.
+    if endpoint == "image_file" and request.view_args and request.view_args.get("filename") == "logo.png":
+        return None
+
+    if not configured:
+        return redirect(url_for("admin_setup", next=request.path))
+
+    if not session.get("auth_user"):
+        return redirect(url_for("login", next=request.path))
+
+    if session.get("auth_version") != auth_data.get("session_version"):
+        session.clear()
+        flash("Your session has ended because the account credentials changed. Please sign in again.", "warning")
+        return redirect(url_for("login"))
+
+    last_activity = session.get("last_activity", 0)
+    if not isinstance(last_activity, (int, float)) or time.time() - last_activity > _LOGIN_WINDOW_SECONDS * 32:
+        session.clear()
+        flash("Your session expired. Please sign in again.", "warning")
+        return redirect(url_for("login"))
+
+    session["last_activity"] = time.time()
+    return None
+
+
+@app.after_request
+def add_csrf_tokens_to_forms(response):
+    if response.mimetype == "text/html" and response.status_code < 400:
+        token = session.get("_csrf_token", "")
+        if token:
+            html = response.get_data(as_text=True)
+            hidden = '<input type="hidden" name="csrf_token" value="' + token + '">'
+            html = re.sub(r"(<form\\b[^>]*>)", lambda match: match.group(1) + hidden, html, flags=re.IGNORECASE)
+            response.set_data(html)
+    return response
+
+
+def _login_is_rate_limited(key):
+    now = time.monotonic()
+    failures = [stamp for stamp in _LOGIN_FAILURES.get(key, []) if now - stamp < _LOGIN_WINDOW_SECONDS]
+    _LOGIN_FAILURES[key] = failures
+    return len(failures) >= _LOGIN_MAX_FAILURES
+
+
+def _record_login_failure(key):
+    now = time.monotonic()
+    failures = [stamp for stamp in _LOGIN_FAILURES.get(key, []) if now - stamp < _LOGIN_WINDOW_SECONDS]
+    failures.append(now)
+    _LOGIN_FAILURES[key] = failures
+
+
+@app.route("/admin-setup", methods=["GET", "POST"])
+def admin_setup():
+    auth_data = load_auth_data()
+    if auth_data.get("username") and auth_data.get("password"):
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        username = validate_username(request.form.get("username", ""))
+        password = request.form.get("password", "")
+        confirmation = request.form.get("confirm_password", "")
+
+        if not username:
+            flash("Username must be 3–32 characters using letters, numbers, periods, underscores, or hyphens.", "danger")
+        elif not validate_password(password):
+            flash("Password must be at least 12 characters and have no leading or trailing whitespace.", "danger")
+        elif password != confirmation:
+            flash("The passwords do not match.", "danger")
+        else:
+            # Re-check immediately before writing so only one first-run request wins.
+            auth_data = load_auth_data()
+            if auth_data.get("username") and auth_data.get("password"):
+                return redirect(url_for("login"))
+            created = create_admin(username, password)
+            saved = load_auth_data()
+            session.clear()
+            session.permanent = True
+            session["auth_user"] = created
+            session["auth_version"] = saved.get("session_version")
+            session["last_activity"] = time.time()
+            _csrf_token()
+            flash("Administrator account created. Complete the LivingPortraitApp setup below.", "success")
+            return redirect(url_for("index"))
+
+    return render_template("admin_setup.html")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    auth_data = load_auth_data()
+    if not auth_data.get("username") or not auth_data.get("password"):
+        return redirect(url_for("admin_setup"))
+
+    if request.method == "POST":
+        remote = request.remote_addr or "unknown"
+        key = remote[:128]
+        if _login_is_rate_limited(key):
+            flash("Too many sign-in attempts. Wait 15 minutes before trying again.", "danger")
+            return redirect(url_for("login"))
+
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        if verify_password(password, auth_data.get("password")) and username.strip().casefold() == str(auth_data.get("username", "")).casefold():
+            _LOGIN_FAILURES.pop(key, None)
+            session.clear()
+            session.permanent = True
+            session["auth_user"] = auth_data["username"]
+            session["auth_version"] = auth_data.get("session_version")
+            session["last_activity"] = time.time()
+            _csrf_token()
+            target = request.args.get("next", "")
+            if not target.startswith("/") or target.startswith("//"):
+                target = url_for("index")
+            return redirect(target)
+
+        _record_login_failure(key)
+        flash("Invalid username or password.", "danger")
+
+    return render_template("login.html")
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    flash("You have been signed out.", "success")
+    return redirect(url_for("login"))
+
+
+@app.route("/account-security", methods=["POST"])
+def account_security():
+    auth_data = load_auth_data()
+    current_password = request.form.get("current_password", "")
+    username = validate_username(request.form.get("new_username", ""))
+    new_password = request.form.get("new_password", "")
+    confirm_password = request.form.get("confirm_new_password", "")
+
+    if not verify_password(current_password, auth_data.get("password")):
+        flash("The current password is incorrect.", "danger")
+        return redirect(url_for("index") + "#account_security")
+    if not username:
+        flash("Username must be 3–32 characters using letters, numbers, periods, underscores, or hyphens.", "danger")
+        return redirect(url_for("index") + "#account_security")
+    if new_password or confirm_password:
+        if new_password != confirm_password:
+            flash("The new passwords do not match.", "danger")
+            return redirect(url_for("index") + "#account_security")
+        if not validate_password(new_password):
+            flash("New password must be at least 12 characters and have no leading or trailing whitespace.", "danger")
+            return redirect(url_for("index") + "#account_security")
+    else:
+        new_password = None
+
+    updated = update_admin(username, new_password)
+    session["auth_user"] = updated["username"]
+    session["auth_version"] = updated.get("session_version")
+    session["last_activity"] = time.time()
+    flash("Administrator account updated successfully.", "success")
+    return redirect(url_for("index") + "#account_security")
+
 
 VIDEO_FOLDER = HOME / "videos"
 IMAGES_FOLDER = HOME / "images"
@@ -472,6 +692,7 @@ def index():
 
     return render_template(
         "index.html",
+        auth_username=session.get("auth_user", ""),
         logs=logs,
         recent_activity=recent_activity,
         videos=fixed_order,
