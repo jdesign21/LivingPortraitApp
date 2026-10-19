@@ -62,7 +62,26 @@
         <span class="badge bg-success">Configured</span>
       </div>
       <hr>
-      <p class="small text-muted mb-0">Sessions expire after 8 hours of inactivity. If you forget your administrator password, recovery requires access to the Raspberry Pi OS account. <a href="https://github.com/jdesign21/LivingPortraitApp/blob/login_feature/AUTHENTICATION.md" target="_blank" rel="noopener noreferrer">View password recovery instructions</a>.</p>
+      <form method="POST" action="{{ url_for('account_session_settings') }}">
+        <div class="mb-3">
+          <label for="session_timeout_hours" class="form-label fw-semibold">Session timeout</label>
+          <select id="session_timeout_hours" name="session_timeout_hours" class="form-select">
+            <option value="0.25" {% if session_timeout_hours == 0.25 %}selected{% endif %}>15 minutes</option>
+            <option value="0.5" {% if session_timeout_hours == 0.5 %}selected{% endif %}>30 minutes</option>
+            <option value="1" {% if session_timeout_hours == 1 %}selected{% endif %}>1 hour</option>
+            <option value="4" {% if session_timeout_hours == 4 %}selected{% endif %}>4 hours</option>
+            <option value="8" {% if session_timeout_hours == 8 %}selected{% endif %}>8 hours (Default)</option>
+            <option value="12" {% if session_timeout_hours == 12 %}selected{% endif %}>12 hours</option>
+            <option value="24" {% if session_timeout_hours == 24 %}selected{% endif %}>24 hours</option>
+            <option value="48" {% if session_timeout_hours == 48 %}selected{% endif %}>48 hours</option>
+          </select>
+          <div class="form-text">Automatically sign out after this amount of inactivity. The default is 8 hours.</div>
+        </div>
+        <div class="d-flex justify-content-end">
+          <button type="submit" class="btn btn-primary"><i class="bi bi-save me-2"></i>Save Session Settings</button>
+        </div>
+      </form>
+      <p class="small text-muted mt-3 mb-0">If you forget your administrator password, recovery requires access to the Raspberry Pi OS account. <a href="https://github.com/jdesign21/LivingPortraitApp/blob/login_feature/AUTHENTICATION.md" target="_blank" rel="noopener noreferrer">View password recovery instructions</a>.</p>
     </div>
   </div>
   <div class="card shadow-sm">
