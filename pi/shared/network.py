@@ -60,12 +60,25 @@ def is_enabled():
 
 def add_secondary(name, ip):
     settings = load_network_settings()
-    settings["secondary_pis"].append({
+    secondary_pis = settings.setdefault("secondary_pis", [])
+    normalized_ip = str(ip).strip()
+
+    for existing in secondary_pis:
+        if str(existing.get("ip", "")).strip() == normalized_ip:
+            existing["name"] = name
+            save_network_settings(settings)
+            log(
+                f"Existing Secondary Pi updated instead of duplicated: {name} ({normalized_ip})",
+                "NETWORK",
+            )
+            return
+
+    secondary_pis.append({
         "name": name,
-        "ip": ip
+        "ip": normalized_ip
     })
     save_network_settings(settings)
-    log(f"Secondary Pi added: {name} ({ip})", "NETWORK")
+    log(f"Secondary Pi added: {name} ({normalized_ip})", "NETWORK")
 
 def update_secondary(index, name=None, ip=None):
     settings = load_network_settings()
