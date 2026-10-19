@@ -3,7 +3,7 @@
 If the administrator password is forgotten, sign in to the Raspberry Pi operating-system account locally or over SSH. Run:
 
 ```bash
-~/flask_venv/bin/python ~/reset_admin_password.py
+~/flask_venv/bin/python ~/flask_ui/reset_admin_password.py
 sudo systemctl restart flask_ui
 ```
 
