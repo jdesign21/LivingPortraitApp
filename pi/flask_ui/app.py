@@ -302,31 +302,44 @@ def logout():
 def account_security():
     auth_data = load_auth_data()
     current_password = request.form.get("current_password", "")
-    username = validate_username(request.form.get("new_username", ""))
-    new_password = request.form.get("new_password", "")
-    confirm_password = request.form.get("confirm_new_password", "")
+    action = request.form.get("action", "")
 
     if not verify_password(current_password, auth_data.get("password")):
         flash("The current password is incorrect.", "danger")
         return redirect(url_for("index") + "#account_security")
-    if not username:
-        flash("Username must be 3–32 characters using letters, numbers, periods, underscores, or hyphens.", "danger")
+
+    if action == "change_username":
+        username = validate_username(request.form.get("new_username", ""))
+        if not username:
+            flash("Username must be 3–32 characters using letters, numbers, periods, underscores, or hyphens.", "danger")
+            return redirect(url_for("index") + "#account_security")
+
+        updated = update_admin(username, None)
+        session["auth_user"] = updated["username"]
+        session["auth_version"] = updated.get("session_version")
+        session["last_activity"] = time.time()
+        flash("Administrator username updated successfully.", "success")
         return redirect(url_for("index") + "#account_security")
-    if new_password or confirm_password:
+
+    if action == "change_password":
+        new_password = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_new_password", "")
+
         if new_password != confirm_password:
             flash("The new passwords do not match.", "danger")
             return redirect(url_for("index") + "#account_security")
         if not validate_password(new_password):
             flash("New password must be at least 12 characters and have no leading or trailing whitespace.", "danger")
             return redirect(url_for("index") + "#account_security")
-    else:
-        new_password = None
 
-    updated = update_admin(username, new_password)
-    session["auth_user"] = updated["username"]
-    session["auth_version"] = updated.get("session_version")
-    session["last_activity"] = time.time()
-    flash("Administrator account updated successfully.", "success")
+        updated = update_admin(auth_data.get("username", ""), new_password)
+        session["auth_user"] = updated["username"]
+        session["auth_version"] = updated.get("session_version")
+        session["last_activity"] = time.time()
+        flash("Administrator password updated successfully.", "success")
+        return redirect(url_for("index") + "#account_security")
+
+    flash("Unknown account action. Please try again.", "danger")
     return redirect(url_for("index") + "#account_security")
 
 
