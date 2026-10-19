@@ -1,3 +1,4 @@
+
 #!/bin/bash
 set -e
 
@@ -45,16 +46,16 @@ echo -e "============================================"
 # ============================================================
 
 echo -e "\nUpdating package list..."
-sudo apt update -y || log_fail "apt update failed"
+sudo apt update -y || log_fail "apt update"
 
 echo -e "\nUpgrading packages (this may take several minutes)..."
 
 sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y \
     -o Dpkg::Options::="--force-confdef" \
     -o Dpkg::Options::="--force-confold" \
-    || log_fail "apt upgrade failed"
+    || log_fail "apt upgrade"
 
-log_success "System update completed"
+log_success "System update"
 
 # ============================================================
 # Required packages
@@ -70,6 +71,7 @@ REQUIRED_PKGS=(
     mosquitto
     mosquitto-clients
     python3-paho-mqtt
+    curl
 )
 
 MISSING_PKGS=()
@@ -84,8 +86,9 @@ else
     echo "Installing missing packages: ${MISSING_PKGS[*]}"
 
     sudo apt install -y "${MISSING_PKGS[@]}" \
-        && log_success "Package installation" \
         || log_fail "Package installation"
+
+    log_success "Package installation"
 fi
 
 # ============================================================
@@ -103,12 +106,10 @@ EOF
 
 sudo chmod 644 /etc/mosquitto/conf.d/listener.conf
 
-# Enable and restart Mosquitto so the new listener configuration
-# is active immediately after installation.
 sudo systemctl enable mosquitto
 sudo systemctl restart mosquitto
 
-log_success "MQTT listener configuration created"
+log_success "MQTT listener configuration"
 
 # ============================================================
 # LivingPortraitApp service permissions
@@ -123,9 +124,9 @@ EOF
 sudo chmod 440 /etc/sudoers.d/livingportrait
 
 sudo visudo -cf /etc/sudoers.d/livingportrait \
-    || log_fail "LivingPortraitApp sudoers configuration"
+    || log_fail "LivingPortraitApp service permissions validation"
 
-log_success "LivingPortraitApp service permissions configured"
+log_success "LivingPortraitApp service permissions"
 
 # ============================================================
 # Python virtual environment
@@ -134,21 +135,18 @@ log_success "LivingPortraitApp service permissions configured"
 echo -e "\nSetting up Python virtual environment..."
 
 if [ ! -d "$VENV_PATH" ]; then
-
     python3 -m venv "$VENV_PATH" \
         || log_fail "Virtual environment creation"
 
-    "$VENV_PATH/bin/pip" install --upgrade pip
+    "$VENV_PATH/bin/pip" install --upgrade pip \
+        || log_fail "pip upgrade"
 
     "$VENV_PATH/bin/pip" install flask paho-mqtt \
-        || log_fail "Flask and MQTT pip install"
+        || log_fail "Flask and MQTT pip installation"
 
     log_success "Flask virtual environment setup"
-
 else
-
     log_success "Flask virtual environment already exists"
-
 fi
 
 # ============================================================
@@ -157,12 +155,15 @@ fi
 
 echo -e "\nCreating directories..."
 
-mkdir -p "$USER_HOME/videos" \
-         "$USER_HOME/pause_video" \
-         "$USER_HOME/images" \
-         "$USER_HOME/logs" \
-         "$USER_HOME/shared" \
-         "$USER_HOME/flask_ui/templates"
+mkdir -p \
+    "$USER_HOME/videos" \
+    "$USER_HOME/pause_video" \
+    "$USER_HOME/images" \
+    "$USER_HOME/logs" \
+    "$USER_HOME/shared" \
+    "$USER_HOME/flask_ui/templates"
+
+log_success "Application directories"
 
 # ============================================================
 # Download application files
@@ -174,44 +175,33 @@ echo -e "Release: $RELEASE"
 TEMP_DIR=$(mktemp -d)
 ZIP_FILE="$TEMP_DIR/LivingPortraitApp.zip"
 
-# Download the complete GitHub release ZIP
+cleanup() {
+    rm -rf "$TEMP_DIR"
+}
+trap cleanup EXIT
+
 curl -fsSL \
     "https://github.com/jdesign21/LivingPortraitApp/archive/refs/tags/$RELEASE.zip" \
     -o "$ZIP_FILE" \
-    || {
-        rm -rf "$TEMP_DIR"
-        log_fail "Downloading LivingPortraitApp release"
-    }
+    || log_fail "Downloading LivingPortraitApp release"
 
-# Extract the release ZIP
 python3 -m zipfile -e "$ZIP_FILE" "$TEMP_DIR" \
-    || {
-        rm -rf "$TEMP_DIR"
-        log_fail "Extracting LivingPortraitApp release"
-    }
+    || log_fail "Extracting LivingPortraitApp release"
 
-# Find the pi folder inside the extracted release
 PI_SOURCE=$(find "$TEMP_DIR" -type d -path "*/pi" -print -quit)
 
 if [ -z "$PI_SOURCE" ]; then
-    rm -rf "$TEMP_DIR"
     log_fail "Could not find pi folder in release"
 fi
 
-# Copy everything inside pi/ to the Raspberry Pi home directory
 cp -r "$PI_SOURCE"/. "$USER_HOME"/ \
-    || {
-        rm -rf "$TEMP_DIR"
-        log_fail "Copying application files"
-    }
+    || log_fail "Copying application files"
 
-# Clean up temporary files
+# Remove downloaded archive and extracted files.
 rm -rf "$TEMP_DIR"
+trap - EXIT
 
 log_success "LivingPortraitApp files downloaded"
-
-
-
 
 # ============================================================
 # Display command-line helper permissions
@@ -227,21 +217,17 @@ if [ ! -f "$HELPER_SOURCE" ]; then
     log_fail "Display command-line helper not found: $HELPER_SOURCE"
 fi
 
-# Install the helper as a root-owned executable.
 sudo install -o root -g root -m 755 \
     "$HELPER_SOURCE" "$HELPER_DEST" \
     || log_fail "Installing display command-line helper"
 
-# Normalize the installed helper to Unix LF line endings.
 sudo sed -i 's/\r$//' "$HELPER_DEST" \
     || log_fail "Normalizing display helper line endings"
 
-# Ensure ownership and executable permissions remain correct.
 sudo chown root:root "$HELPER_DEST"
 sudo chmod 755 "$HELPER_DEST"
 
-# Allow the application user to run only this helper without a password.
-SUDOERS_TEMP="$(mktemp)"
+SUDOERS_TEMP=$(mktemp)
 trap 'rm -f "$SUDOERS_TEMP"' EXIT
 
 printf '%s ALL=(root) NOPASSWD: %s\n' \
@@ -251,20 +237,26 @@ sudo install -o root -g root -m 440 \
     "$SUDOERS_TEMP" "$SUDOERS_FILE" \
     || log_fail "Installing display helper sudoers configuration"
 
-# Validate the sudoers configuration.
 sudo visudo -cf "$SUDOERS_FILE" \
-    || log_fail "Display helper sudoers configuration"
+    || log_fail "Display helper sudoers validation"
 
-log_success "Display configuration permissions configured"
+rm -f "$SUDOERS_TEMP"
+trap - EXIT
 
-
-
+log_success "Display configuration permissions"
 
 # ============================================================
 # Get application version
 # ============================================================
 
-VERSION=$(curl -fsSL "$BASE_URL/version.txt")
+echo -e "\nChecking application version..."
+
+VERSION=$(curl -fsSL "$BASE_URL/version.txt") \
+    || log_fail "Retrieving application version"
+
+if [ -z "$VERSION" ]; then
+    log_fail "Application version is empty"
+fi
 
 echo -e "\n📦 Installed LivingPortraitApp version $VERSION"
 
@@ -277,7 +269,6 @@ echo "$VERSION" > "$USER_HOME/version.txt"
 echo -e "\nSetting up Flask systemd service..."
 
 if [ ! -f /etc/systemd/system/flask_ui.service ]; then
-
     sudo tee /etc/systemd/system/flask_ui.service > /dev/null << EOF
 [Unit]
 Description=Flask Web UI for Video Selector
@@ -294,12 +285,9 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
-    log_success "Systemd service file for Flask created"
-
+    log_success "Flask systemd service file created"
 else
-
     echo "✔ flask_ui.service already exists"
-
 fi
 
 sudo systemctl daemon-reload
@@ -315,7 +303,6 @@ log_success "Flask UI service enabled and restarted"
 echo -e "\nSetting up motion_vlc.service..."
 
 if [ ! -f /etc/systemd/system/motion_vlc.service ]; then
-
     sudo tee /etc/systemd/system/motion_vlc.service > /dev/null << EOF
 [Unit]
 Description=Run motion_vlc.py at boot
@@ -334,11 +321,8 @@ WantedBy=multi-user.target
 EOF
 
     log_success "Systemd service file for motion_vlc created"
-
 else
-
     echo "✔ motion_vlc.service already exists"
-
 fi
 
 sudo systemctl daemon-reload
@@ -348,21 +332,23 @@ sudo systemctl restart motion_vlc.service
 log_success "motion_vlc service enabled and restarted"
 
 # ============================================================
-# Reboot permission
+# Shutdown and reboot permissions
 # ============================================================
 
-echo -e "\nSetting up reboot permission..."
+echo -e "\nSetting up shutdown and reboot permissions..."
 
-sudo tee /etc/sudoers.d/livingportrait-reboot > /dev/null << EOF
-$USERNAME ALL=(root) NOPASSWD: /usr/sbin/reboot
+POWER_SUDOERS_FILE="/etc/sudoers.d/livingportrait-reboot"
+
+sudo tee "$POWER_SUDOERS_FILE" > /dev/null << EOF
+$USERNAME ALL=(root) NOPASSWD: /usr/sbin/shutdown, /usr/sbin/reboot
 EOF
 
-sudo chmod 440 /etc/sudoers.d/livingportrait-reboot
+sudo chmod 440 "$POWER_SUDOERS_FILE"
 
-sudo visudo -cf /etc/sudoers.d/livingportrait-reboot \
-    || log_fail "Reboot sudoers configuration"
+sudo visudo -cf "$POWER_SUDOERS_FILE" \
+    || log_fail "Shutdown and reboot sudoers validation"
 
-log_success "Reboot permission configured"
+log_success "Shutdown and reboot permissions configured"
 
 # ============================================================
 # Finished
