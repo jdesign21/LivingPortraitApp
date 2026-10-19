@@ -23,7 +23,6 @@ from shared.auth_manager import (
     load_auth_data,
     validate_username,
     validate_password,
-    hash_password,
     verify_password,
     create_admin,
     update_admin,
@@ -91,6 +90,7 @@ start_power_scheduler()
 
 _LOGIN_FAILURES = {}
 _LOGIN_WINDOW_SECONDS = 15 * 60
+_SESSION_TIMEOUT_SECONDS = 8 * 60 * 60
 _LOGIN_MAX_FAILURES = 5
 
 
@@ -143,7 +143,7 @@ def enforce_authentication_and_csrf():
         return redirect(url_for("login"))
 
     last_activity = session.get("last_activity", 0)
-    if not isinstance(last_activity, (int, float)) or time.time() - last_activity > _LOGIN_WINDOW_SECONDS * 32:
+    if not isinstance(last_activity, (int, float)) or time.time() - last_activity > _SESSION_TIMEOUT_SECONDS:
         session.clear()
         flash("Your session expired. Please sign in again.", "warning")
         return redirect(url_for("login"))
@@ -219,6 +219,13 @@ def login():
     auth_data = load_auth_data()
     if not auth_data.get("username") or not auth_data.get("password"):
         return redirect(url_for("admin_setup"))
+
+    if (
+        request.method == "GET"
+        and session.get("auth_user")
+        and session.get("auth_version") == auth_data.get("session_version")
+    ):
+        return redirect(url_for("index"))
 
     if request.method == "POST":
         remote = request.remote_addr or "unknown"
