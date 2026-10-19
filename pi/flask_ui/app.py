@@ -60,7 +60,11 @@ from shared.network import (
     get_sync_start_lead_ms
 )
 from shared.system_info import get_system_info
-from shared.discovery_service import start_discovery_service, get_discovered_secondary_pis
+from shared.discovery_service import (
+    start_discovery_service,
+    get_discovered_secondary_pis,
+    verify_secondary_device,
+)
 from shared.update_helper import check_for_update
 from shared.update_manager import start_update
 from shared.display_helper import (
@@ -2065,6 +2069,13 @@ def network_add_discovered_secondary():
     if not device:
         flash(
             "That device is no longer being discovered. Wait for its next announcement and refresh the page.",
+            "warning",
+        )
+        return redirect(url_for("index"))
+
+    if not verify_secondary_device(device["ip"], device_id):
+        flash(
+            "Could not verify a live LivingPortraitApp Secondary at that address. Make sure it is running and on the same local network, then try again.",
             "warning",
         )
         return redirect(url_for("index"))
