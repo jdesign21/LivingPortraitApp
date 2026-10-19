@@ -5,6 +5,7 @@ Do not use an announcement alone to grant security privileges.
 """
 import json
 import os
+import secrets
 import socket
 import threading
 import time
@@ -20,6 +21,7 @@ DEVICE_ID_FILE = DISCOVERY_DIR / "device_id"
 DISCOVERY_FILE = DISCOVERY_DIR / "discovered_secondary_pis.json"
 
 DISCOVERY_PORT = 37020
+PROBE_PORT = 37021
 ANNOUNCE_INTERVAL_SECONDS = 8
 STALE_AFTER_SECONDS = 35
 APPLICATION_NAME = "LivingPortraitApp"
@@ -28,6 +30,8 @@ PROTOCOL_VERSION = 1
 _started = False
 _start_lock = threading.Lock()
 _file_lock = threading.Lock()
+_probe_started = False
+_probe_start_lock = threading.Lock()
 
 
 def _ensure_directory():
@@ -187,7 +191,98 @@ def _build_announcement():
     }
 
 
+def _probe_responder_forever():
+    """Answer a live-service probe from the primary. This is not cryptographic authentication."""
+    while get_role() == "secondary":
+        sock = None
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(("", PROBE_PORT))
+            sock.settimeout(2)
+
+            while get_role() == "secondary":
+                try:
+                    raw_payload, address = sock.recvfrom(2048)
+                except socket.timeout:
+                    continue
+
+                try:
+                    request = json.loads(raw_payload.decode("utf-8"))
+                except (UnicodeDecodeError, ValueError):
+                    continue
+
+                if (
+                    not isinstance(request, dict)
+                    or request.get("application") != APPLICATION_NAME
+                    or request.get("message_type") != "probe"
+                    or request.get("protocol_version") != PROTOCOL_VERSION
+                ):
+                    continue
+
+                response = _build_announcement()
+                response["message_type"] = "probe_response"
+                response["nonce"] = str(request.get("nonce", ""))[:128]
+                try:
+                    sock.sendto(json.dumps(response).encode("utf-8"), address)
+                except OSError as exc:
+                    log(f"Secondary discovery probe response failed: {exc}", "NETWORK")
+
+        except Exception as exc:
+            log(f"Secondary discovery probe listener error: {exc}", "NETWORK")
+            time.sleep(5)
+        finally:
+            if sock is not None:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+
+
+def _start_probe_responder():
+    global _probe_started
+    with _probe_start_lock:
+        if _probe_started:
+            return
+        threading.Thread(
+            target=_probe_responder_forever,
+            name="livingportrait-discovery-probe",
+            daemon=True,
+        ).start()
+        _probe_started = True
+
+
+def verify_secondary_device(ip, expected_device_id, timeout=2.0):
+    """Confirm a live LivingPortraitApp secondary service responds at the discovered IP."""
+    nonce = secrets.token_urlsafe(24)
+    request = {
+        "application": APPLICATION_NAME,
+        "message_type": "probe",
+        "protocol_version": PROTOCOL_VERSION,
+        "nonce": nonce,
+    }
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.settimeout(timeout)
+            sock.sendto(json.dumps(request).encode("utf-8"), (ip, PROBE_PORT))
+            raw_response, _address = sock.recvfrom(4096)
+        response = json.loads(raw_response.decode("utf-8"))
+        return (
+            isinstance(response, dict)
+            and response.get("application") == APPLICATION_NAME
+            and response.get("message_type") == "probe_response"
+            and response.get("protocol_version") == PROTOCOL_VERSION
+            and response.get("role") == "secondary"
+            and response.get("device_id") == expected_device_id
+            and secrets.compare_digest(str(response.get("nonce", "")), nonce)
+        )
+    except (OSError, UnicodeDecodeError, ValueError, TypeError):
+        return False
+
+
 def _announce_forever():
+    _start_probe_responder()
     log("LivingPortraitApp secondary discovery announcements started.", "NETWORK")
 
     while get_role() == "secondary":
