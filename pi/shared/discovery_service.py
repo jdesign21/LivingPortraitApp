@@ -266,7 +266,9 @@ def verify_secondary_device(ip, expected_device_id, timeout=2.0):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.settimeout(timeout)
             sock.sendto(json.dumps(request).encode("utf-8"), (ip, PROBE_PORT))
-            raw_response, _address = sock.recvfrom(4096)
+            raw_response, address = sock.recvfrom(4096)
+        if address[0] != ip:
+            return False
         response = json.loads(raw_response.decode("utf-8"))
         return (
             isinstance(response, dict)
