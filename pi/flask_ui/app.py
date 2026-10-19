@@ -26,6 +26,7 @@ from shared.auth_manager import (
     verify_password,
     create_admin,
     update_admin,
+    save_auth_data,
 )
 
 
@@ -90,7 +91,8 @@ start_power_scheduler()
 
 _LOGIN_FAILURES = {}
 _LOGIN_WINDOW_SECONDS = 15 * 60
-_SESSION_TIMEOUT_SECONDS = 8 * 60 * 60
+SESSION_TIMEOUT_OPTIONS = (0.25, 0.5, 1, 4, 8, 12, 24, 48)
+_DEFAULT_SESSION_TIMEOUT_HOURS = 8
 _LOGIN_MAX_FAILURES = 5
 
 
@@ -102,9 +104,22 @@ def _csrf_token():
     return token
 
 
+def _get_session_timeout_hours(auth_data=None):
+    auth_data = auth_data if isinstance(auth_data, dict) else load_auth_data()
+    try:
+        timeout_hours = float(auth_data.get("session_timeout_hours", _DEFAULT_SESSION_TIMEOUT_HOURS))
+    except (TypeError, ValueError):
+        timeout_hours = _DEFAULT_SESSION_TIMEOUT_HOURS
+    return timeout_hours if timeout_hours in SESSION_TIMEOUT_OPTIONS else _DEFAULT_SESSION_TIMEOUT_HOURS
+
+
 @app.context_processor
 def inject_auth_template_values():
-    return {"csrf_token": _csrf_token}
+    return {
+        "csrf_token": _csrf_token,
+        "session_timeout_hours": _get_session_timeout_hours(),
+        "session_timeout_options": SESSION_TIMEOUT_OPTIONS,
+    }
 
 
 @app.before_request
@@ -118,6 +133,8 @@ def enforce_authentication_and_csrf():
 
     auth_data = load_auth_data()
     configured = bool(auth_data.get("username") and auth_data.get("password"))
+    timeout_hours = _get_session_timeout_hours(auth_data)
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=timeout_hours)
     endpoint = request.endpoint or ""
 
     if endpoint in ("static", "login", "admin_setup"):
@@ -143,7 +160,7 @@ def enforce_authentication_and_csrf():
         return redirect(url_for("login"))
 
     last_activity = session.get("last_activity", 0)
-    if not isinstance(last_activity, (int, float)) or time.time() - last_activity > _SESSION_TIMEOUT_SECONDS:
+    if not isinstance(last_activity, (int, float)) or time.time() - last_activity > timeout_hours * 60 * 60:
         session.clear()
         flash("Your session expired. Please sign in again.", "warning")
         return redirect(url_for("login"))
@@ -251,6 +268,27 @@ def login():
         flash("Invalid username or password.", "danger")
 
     return render_template("login.html")
+
+
+@app.route("/account-session-settings", methods=["POST"])
+def account_session_settings():
+    auth_data = load_auth_data()
+    try:
+        timeout_hours = float(request.form.get("session_timeout_hours", ""))
+    except (TypeError, ValueError):
+        timeout_hours = None
+
+    if timeout_hours not in SESSION_TIMEOUT_OPTIONS:
+        flash("Select a valid session timeout.", "danger")
+        return redirect(url_for("index") + "#account_security")
+
+    auth_data["session_timeout_hours"] = timeout_hours
+    save_auth_data(auth_data)
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=timeout_hours)
+    session.permanent = True
+    session["last_activity"] = time.time()
+    flash("Session timeout updated successfully.", "success")
+    return redirect(url_for("index") + "#account_security")
 
 
 @app.route("/logout", methods=["POST"])
