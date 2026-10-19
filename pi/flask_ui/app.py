@@ -60,6 +60,7 @@ from shared.network import (
     get_sync_start_lead_ms
 )
 from shared.system_info import get_system_info
+from shared.discovery_service import start_discovery_service, get_discovered_secondary_pis
 from shared.update_helper import check_for_update
 from shared.update_manager import start_update
 from shared.display_helper import (
@@ -88,6 +89,7 @@ app.config.update(
     SESSION_REFRESH_EACH_REQUEST=True,
 )
 start_power_scheduler()
+start_discovery_service()
 
 _LOGIN_FAILURES = {}
 _LOGIN_WINDOW_SECONDS = 15 * 60
@@ -460,6 +462,22 @@ def index():
     sync_start_delay_ms = get_sync_start_delay_ms()
     sync_start_lead_ms = get_sync_start_lead_ms()
     secondary_pis = check_secondary_status()
+    discovered_secondary_pis = get_discovered_secondary_pis()
+    configured_device_ids = {
+        str(pi.get("device_id"))
+        for pi in secondary_pis
+        if pi.get("device_id")
+    }
+    configured_ips = {
+        str(pi.get("ip", "")).strip()
+        for pi in secondary_pis
+        if str(pi.get("ip", "")).strip()
+    }
+    for discovered_pi in discovered_secondary_pis:
+        discovered_pi["is_configured"] = (
+            discovered_pi.get("device_id") in configured_device_ids
+            or str(discovered_pi.get("ip", "")).strip() in configured_ips
+        )
 
     # Read MQTT status without importing mqtt_client.
     # This prevents Flask from starting a second MQTT worker.
@@ -784,6 +802,7 @@ def index():
         primary_ip=primary_ip,
         enable=enable,
         secondary_pis=secondary_pis,
+        discovered_secondary_pis=discovered_secondary_pis,
         mqtt_connected=mqtt_connected,
         sync_start_delay_ms=sync_start_delay_ms,
         sync_start_lead_ms=sync_start_lead_ms,
@@ -2027,6 +2046,65 @@ def reboot():
         flash(f"Failed to reboot Raspberry Pi: {e}", "danger")
 
     return redirect(url_for("index"))
+
+# Add a discovered secondary Pi to the configured list.
+@app.route("/network/add_discovered_secondary", methods=["POST"])
+def network_add_discovered_secondary():
+    device_id = request.form.get("device_id", "").strip()
+    discovered = get_discovered_secondary_pis()
+    device = next(
+        (item for item in discovered if item.get("device_id") == device_id),
+        None,
+    )
+
+    network_settings = load_network_settings()
+    if network_settings.get("role") != "primary":
+        flash("Only the Primary Pi can add Secondary Pis.", "danger")
+        return redirect(url_for("index"))
+
+    if not device:
+        flash(
+            "That device is no longer being discovered. Wait for its next announcement and refresh the page.",
+            "warning",
+        )
+        return redirect(url_for("index"))
+
+    secondary_pis = network_settings.get("secondary_pis", [])
+    existing = next(
+        (
+            item for item in secondary_pis
+            if item.get("device_id") == device_id
+            or str(item.get("ip", "")).strip() == str(device.get("ip", "")).strip()
+        ),
+        None,
+    )
+
+    if existing:
+        same_device = existing.get("device_id") == device_id
+        existing["device_id"] = device_id
+        if same_device:
+            existing["ip"] = device["ip"]
+        save_network_settings(network_settings)
+        flash(
+            f"{existing.get('name', device['name'])} is already configured. Device information was refreshed.",
+            "info",
+        )
+        return redirect(url_for("index"))
+
+    secondary_pis.append({
+        "name": device["name"],
+        "ip": device["ip"],
+        "device_id": device_id,
+    })
+    network_settings["secondary_pis"] = secondary_pis
+    save_network_settings(network_settings)
+    log(
+        f"Discovered Secondary Pi added: {device['name']} ({device['ip']})",
+        "NETWORK",
+    )
+    flash(f"Added Secondary Pi: {device['name']} ({device['ip']}).", "success")
+    return redirect(url_for("index"))
+
 
 # Add a new secondary Pi
 @app.route("/network/add_secondary", methods=["POST"])
