@@ -858,7 +858,9 @@ def setup():
     if settings.get("setup_complete", False):
         return redirect(url_for("index"))
 
-    role = network_settings.get("role", "secondary")
+    role = request.args.get("role", network_settings.get("role", "secondary"))
+    if role not in ("primary", "secondary"):
+        role = network_settings.get("role", "secondary")
     enable = network_settings.get("enable", "0")
     primary_ip = network_settings.get("primary_ip", "")
     secondary_pis = network_settings.get("secondary_pis", [])
@@ -2091,10 +2093,10 @@ def setup_add_discovered_secondary():
     device = next((item for item in get_discovered_secondary_pis() if item.get("device_id") == device_id), None)
     if not device:
         flash("That device is no longer being discovered. Wait for its next announcement and refresh the page.", "warning")
-        return redirect(url_for("setup"))
+        return redirect(url_for("setup", role="primary"))
     if not verify_secondary_device(device["ip"], device_id):
         flash("Could not verify a live LivingPortraitApp Secondary at that address. Make sure it is running and on the same local network, then try again.", "warning")
-        return redirect(url_for("setup"))
+        return redirect(url_for("setup", role="primary"))
     network_settings = load_network_settings()
     secondary_pis = network_settings.get("secondary_pis", [])
     existing = next((item for item in secondary_pis if item.get("device_id") == device_id or str(item.get("ip", "")).strip() == str(device.get("ip", "")).strip()), None)
@@ -2106,13 +2108,13 @@ def setup_add_discovered_secondary():
         network_settings["secondary_pis"] = secondary_pis
         save_network_settings(network_settings)
         flash(f"{existing.get('name', device['name'])} is already configured. Device information was refreshed.", "info")
-        return redirect(url_for("setup"))
+        return redirect(url_for("setup", role="primary"))
     secondary_pis.append({"name": device["name"], "ip": device["ip"], "device_id": device_id})
     network_settings["secondary_pis"] = secondary_pis
     save_network_settings(network_settings)
     log(f"Discovered Secondary Pi added during setup: {device['name']} ({device['ip']})", "NETWORK")
     flash(f"Added Secondary Pi: {device['name']} ({device['ip']}).", "success")
-    return redirect(url_for("setup"))
+    return redirect(url_for("setup", role="primary"))
 
 # Add a discovered secondary Pi to the configured list.
 @app.route("/network/add_discovered_secondary", methods=["POST"])
