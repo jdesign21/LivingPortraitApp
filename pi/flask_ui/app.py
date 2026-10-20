@@ -830,6 +830,25 @@ def index():
     )
 
 
+def _get_discovered_secondary_pis_for_config(secondary_pis):
+    """Annotate discovered devices with their current configuration state."""
+    discovered = get_discovered_secondary_pis()
+    configured_device_ips = {
+        str(pi.get("device_id")): str(pi.get("ip", "")).strip()
+        for pi in secondary_pis if pi.get("device_id")
+    }
+    configured_device_ids = set(configured_device_ips)
+    configured_ips = {str(pi.get("ip", "")).strip() for pi in secondary_pis if str(pi.get("ip", "")).strip()}
+    for device in discovered:
+        device_id = device.get("device_id")
+        ip = str(device.get("ip", "")).strip()
+        matched_by_id = device_id in configured_device_ids
+        matched_by_ip = ip in configured_ips
+        device["is_configured"] = matched_by_id or matched_by_ip
+        device["ip_changed"] = matched_by_id and configured_device_ips.get(device_id, "") != ip
+        device["needs_link"] = matched_by_ip and not matched_by_id
+    return discovered
+
 @app.route("/setup", methods=["GET", "POST"])
 def setup():
     settings = load_settings()
@@ -843,6 +862,7 @@ def setup():
     enable = network_settings.get("enable", "0")
     primary_ip = network_settings.get("primary_ip", "")
     secondary_pis = network_settings.get("secondary_pis", [])
+    discovered_secondary_pis = _get_discovered_secondary_pis_for_config(secondary_pis)
     audio_outputs = get_audio_outputs()
     audio_output = get_audio_output()
 
@@ -870,6 +890,7 @@ def setup():
                 enable=enable,
                 primary_ip=primary_ip,
                 secondary_pis=secondary_pis,
+                discovered_secondary_pis=_get_discovered_secondary_pis_for_config(secondary_pis),
                 videos=videos,
                 audio_outputs=audio_outputs,
                 audio_output=audio_output
@@ -901,6 +922,7 @@ def setup():
                     enable=enable,
                     primary_ip=primary_ip,
                     secondary_pis=new_secondary_pis,
+                discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
                     audio_output=audio_output
@@ -944,6 +966,7 @@ def setup():
                 enable=enable,
                 primary_ip=primary_ip,
                 secondary_pis=new_secondary_pis,
+                discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                 videos=videos,
                 audio_outputs=audio_outputs,
                 audio_output=audio_output
@@ -962,6 +985,7 @@ def setup():
                     enable=enable,
                     primary_ip=primary_ip,
                     secondary_pis=new_secondary_pis,
+                discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
                     audio_output=audio_output
@@ -978,6 +1002,7 @@ def setup():
                     enable=enable,
                     primary_ip=primary_ip,
                     secondary_pis=new_secondary_pis,
+                discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
                     audio_output=audio_output
@@ -1052,6 +1077,7 @@ def setup():
         enable=enable,
         primary_ip=primary_ip,
         secondary_pis=secondary_pis,
+                discovered_secondary_pis=_get_discovered_secondary_pis_for_config(secondary_pis),
         videos=videos,
         audio_outputs=audio_outputs,
         audio_output=audio_output
@@ -2057,6 +2083,36 @@ def reboot():
         flash(f"Failed to reboot Raspberry Pi: {e}", "danger")
 
     return redirect(url_for("index"))
+
+# Add a discovered secondary Pi during initial setup.
+@app.route("/setup/add_discovered_secondary", methods=["POST"])
+def setup_add_discovered_secondary():
+    device_id = request.form.get("device_id", "").strip()
+    device = next((item for item in get_discovered_secondary_pis() if item.get("device_id") == device_id), None)
+    if not device:
+        flash("That device is no longer being discovered. Wait for its next announcement and refresh the page.", "warning")
+        return redirect(url_for("setup"))
+    if not verify_secondary_device(device["ip"], device_id):
+        flash("Could not verify a live LivingPortraitApp Secondary at that address. Make sure it is running and on the same local network, then try again.", "warning")
+        return redirect(url_for("setup"))
+    network_settings = load_network_settings()
+    secondary_pis = network_settings.get("secondary_pis", [])
+    existing = next((item for item in secondary_pis if item.get("device_id") == device_id or str(item.get("ip", "")).strip() == str(device.get("ip", "")).strip()), None)
+    if existing:
+        same_device = existing.get("device_id") == device_id
+        existing["device_id"] = device_id
+        if same_device:
+            existing["ip"] = device["ip"]
+        network_settings["secondary_pis"] = secondary_pis
+        save_network_settings(network_settings)
+        flash(f"{existing.get('name', device['name'])} is already configured. Device information was refreshed.", "info")
+        return redirect(url_for("setup"))
+    secondary_pis.append({"name": device["name"], "ip": device["ip"], "device_id": device_id})
+    network_settings["secondary_pis"] = secondary_pis
+    save_network_settings(network_settings)
+    log(f"Discovered Secondary Pi added during setup: {device['name']} ({device['ip']})", "NETWORK")
+    flash(f"Added Secondary Pi: {device['name']} ({device['ip']}).", "success")
+    return redirect(url_for("setup"))
 
 # Add a discovered secondary Pi to the configured list.
 @app.route("/network/add_discovered_secondary", methods=["POST"])
