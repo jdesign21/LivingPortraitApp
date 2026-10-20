@@ -930,10 +930,14 @@ def setup():
                     audio_output=audio_output
                 )
 
-            new_secondary_pis.append({
+            secondary_entry = {
                 "name": name[:50],
                 "ip": ip
-            })
+            }
+            device_id = request.form.get(f"secondary_pis[{index}][device_id]", "").strip()
+            if device_id:
+                secondary_entry["device_id"] = device_id
+            new_secondary_pis.append(secondary_entry)
 
             index += 1
 
