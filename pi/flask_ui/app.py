@@ -890,7 +890,7 @@ def setup():
                 enable=enable,
                 primary_ip=primary_ip,
                 secondary_pis=secondary_pis,
-                discovered_secondary_pis=_get_discovered_secondary_pis_for_config(secondary_pis),
+                    discovered_secondary_pis=discovered_secondary_pis,
                 videos=videos,
                 audio_outputs=audio_outputs,
                 audio_output=audio_output
@@ -922,7 +922,7 @@ def setup():
                     enable=enable,
                     primary_ip=primary_ip,
                     secondary_pis=new_secondary_pis,
-                discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
+                    discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
                     audio_output=audio_output
@@ -966,7 +966,7 @@ def setup():
                 enable=enable,
                 primary_ip=primary_ip,
                 secondary_pis=new_secondary_pis,
-                discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
+                    discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                 videos=videos,
                 audio_outputs=audio_outputs,
                 audio_output=audio_output
@@ -985,7 +985,7 @@ def setup():
                     enable=enable,
                     primary_ip=primary_ip,
                     secondary_pis=new_secondary_pis,
-                discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
+                    discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
                     audio_output=audio_output
@@ -1002,7 +1002,7 @@ def setup():
                     enable=enable,
                     primary_ip=primary_ip,
                     secondary_pis=new_secondary_pis,
-                discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
+                    discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
                     audio_output=audio_output
@@ -1077,7 +1077,7 @@ def setup():
         enable=enable,
         primary_ip=primary_ip,
         secondary_pis=secondary_pis,
-                discovered_secondary_pis=_get_discovered_secondary_pis_for_config(secondary_pis),
+                    discovered_secondary_pis=_get_discovered_secondary_pis_for_config(secondary_pis),
         videos=videos,
         audio_outputs=audio_outputs,
         audio_output=audio_output
