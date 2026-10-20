@@ -2469,12 +2469,35 @@ def save_appearance_settings():
 
     save_settings(settings)
 
-    subprocess.run(
-        ["sudo", "systemctl", "restart", "motion_vlc.service"],
-        check=False
-    )
-
-    flash("Appearance settings saved. Playback restarted.", "success")
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "systemctl", "restart", "motion_vlc"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+        if result.returncode == 0:
+            flash("Appearance settings saved. Playback restarted.", "success")
+        else:
+            detail = (result.stderr or result.stdout or "").strip()
+            log(
+                "Appearance settings saved, but playback restart failed."
+                + (f" Details: {detail}" if detail else ""),
+                "ERROR",
+            )
+            flash(
+                "Appearance settings were saved, but playback could not be restarted. "
+                "Check the application log and service permissions.",
+                "warning",
+            )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        log(f"Appearance settings saved, but playback restart failed: {exc}", "ERROR")
+        flash(
+            "Appearance settings were saved, but playback could not be restarted. "
+            "Check the application log and service permissions.",
+            "warning",
+        )
 
     return redirect(url_for("index"))
 
