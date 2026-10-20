@@ -38,6 +38,58 @@
 
         <div id="setupError" class="alert alert-danger d-none" role="alert"></div>
 
+        <!-- AUTOMATIC SECONDARY DISCOVERY -->
+        <div id="setupDiscoverySection" class="card shadow-sm mb-4">
+          <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <strong><i class="bi bi-radar me-1"></i> Discover Secondary Pis</strong>
+            <button type="button" class="btn btn-light btn-sm" onclick="window.location.reload()">
+              <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            </button>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">Find compatible Secondary Pis on your local network and add them without manually entering their IP addresses.</p>
+            <div class="list-group mb-3">
+              {% for device in discovered_secondary_pis %}
+              <div class="list-group-item">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                  <div class="flex-grow-1">
+                    <div class="fw-semibold">{{ device.name }}</div>
+                    <div class="text-muted small">{{ device.ip }}</div>
+                    <div class="text-muted small">Version {{ device.version }} <span class="mx-1">·</span> Seen {{ device.last_seen_label }}</div>
+                  </div>
+                  <div>
+                    {% if device.ip_changed %}
+                    <form method="POST" action="{{ url_for('setup_add_discovered_secondary') }}" class="d-inline">
+                      <input type="hidden" name="device_id" value="{{ device.device_id }}">
+                      <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left-right me-1"></i> Update IP</button>
+                    </form>
+                    {% elif device.needs_link %}
+                    <form method="POST" action="{{ url_for('setup_add_discovered_secondary') }}" class="d-inline">
+                      <input type="hidden" name="device_id" value="{{ device.device_id }}">
+                      <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-link-45deg me-1"></i> Link Device</button>
+                    </form>
+                    {% elif device.is_configured %}
+                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Added</span>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('setup_add_discovered_secondary') }}" class="d-inline">
+                      <input type="hidden" name="device_id" value="{{ device.device_id }}">
+                      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i> Add</button>
+                    </form>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+              {% else %}
+              <div class="border rounded text-center text-muted p-4">
+                <i class="bi bi-radar fs-4 d-block mb-2"></i>
+                <div>No Secondary Pis found yet.</div>
+                <div class="small mt-1">Make sure the Secondary is running LivingPortraitApp on the same local network, then refresh.</div>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="small text-muted">If a device does not appear, you can still add it manually in the Secondary Pis section below.</div>
+          </div>
+        </div>
         <div class="card shadow-sm">
           <div class="card-header bg-primary text-white">
             <strong>Initial Setup</strong>
@@ -266,6 +318,11 @@
 
       if (secondarySettings) {
         secondarySettings.style.display = isPrimary ? 'none' : 'block';
+      }
+
+      const setupDiscoverySection = document.getElementById('setupDiscoverySection');
+      if (setupDiscoverySection) {
+        setupDiscoverySection.style.display = isPrimary ? 'block' : 'none';
       }
     }
 
