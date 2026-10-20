@@ -188,6 +188,7 @@
                           <label class="form-label small">IP Address</label>
                           <input type="text" class="form-control form-control-sm secondary-ip"
                             name="secondary_pis[{{ loop.index0 }}][ip]" value="{{ pi.ip }}" placeholder="192.168.1.101">
+                          <input type="hidden" class="secondary-device-id" name="secondary_pis[{{ loop.index0 }}][device_id]" value="{{ pi.device_id or '' }}">
                         </div>
 
                         <div class="col-md-2">
@@ -361,7 +362,10 @@
         <input type="text"
                class="form-control form-control-sm secondary-ip"
                name="secondary_pis[${index}][ip]"
-               placeholder="192.168.1.101">
+               placeholder="192.168.1.101">        <input type="hidden"
+               class="secondary-device-id"
+               name="secondary_pis[${index}][device_id]"
+               value="">
       </div>
 
       <div class="col-md-2">
