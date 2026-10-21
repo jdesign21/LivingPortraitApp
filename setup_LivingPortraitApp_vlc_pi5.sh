@@ -82,6 +82,7 @@ log_success "System update"
 echo -e "\nChecking required packages..."
 
 REQUIRED_PKGS=(
+    ffmpeg
     curl
     unzip
     vlc
