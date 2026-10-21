@@ -47,12 +47,12 @@
           and schedules to determine which videos are available for playback.
         </p>
 
-        <div class="video-library-toolbar row g-2 align-items-center mb-3">
-          <div class="col-12 col-md-4">
+        <div class="video-library-toolbar d-flex flex-nowrap align-items-center gap-2 mb-3">
+          <div class="video-search-control flex-grow-1">
             <label class="visually-hidden" for="videoSearch">Search videos</label>
             <input type="search" class="form-control" id="videoSearch" placeholder="Search videos by name...">
           </div>
-          <div class="col-12 col-md-3">
+          <div class="video-tag-control">
             <label class="visually-hidden" for="videoTagFilter">Filter by tag</label>
             <select class="form-select" id="videoTagFilter">
               <option value="">All tags</option>
@@ -66,14 +66,14 @@
               {% endfor %}
             </select>
           </div>
-          <div class="col-6 col-md-2">
+          <div class="video-sort-control">
             <label class="visually-hidden" for="videoSort">Sort videos</label>
             <select class="form-select" id="videoSort">
               <option value="name-asc">Name (A–Z)</option>
               <option value="name-desc">Name (Z–A)</option>
             </select>
           </div>
-          <div class="col-6 col-md-3 d-flex justify-content-md-end gap-1">
+          <div class="video-layout-control d-flex justify-content-end gap-1 flex-shrink-0">
             <div class="btn-group" role="group" aria-label="Video layout">
               <button type="button" class="btn btn-outline-secondary active" id="videoListView" aria-pressed="true" title="List view">
                 <i class="bi bi-list-ul"></i> List
