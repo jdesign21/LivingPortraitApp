@@ -405,6 +405,44 @@ def _ensure_video_thumbnail(filename):
         return False
 
 
+def _get_video_resolution(filename):
+    """Return the video's width and height using ffprobe, if available."""
+    video_path = VIDEO_FOLDER / secure_filename(Path(filename).name)
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe or not video_path.is_file():
+        return None
+
+    try:
+        result = subprocess.run(
+            [
+                ffprobe,
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=width,height",
+                "-of", "csv=s=x:p=0",
+                str(video_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if result.returncode != 0:
+            return None
+
+        dimensions = result.stdout.strip().split("x")
+        if len(dimensions) != 2:
+            return None
+
+        width, height = (int(value) for value in dimensions)
+        if width <= 0 or height <= 0:
+            return None
+
+        return f"{width} × {height}"
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
 def format_ampm(time_str, time_format="12"):
     try:
         if time_format == "24":
@@ -658,9 +696,12 @@ def index():
         and entry.get("filename") in videos
     ]
 
-    # Generate cached thumbnails for existing videos the first time they are viewed.
+    # Generate cached thumbnails and attach each video's actual resolution.
     for video_filename in videos:
         _ensure_video_thumbnail(video_filename)
+
+    for video in manage_videos:
+        video["resolution"] = _get_video_resolution(video.get("filename", ""))
 
     manage_videosTags = settings.get(
         "playlist",
