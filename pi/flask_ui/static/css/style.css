@@ -760,3 +760,41 @@ body.dark-theme {
     padding-right: 0.4rem;
   }
 }
+
+
+/* Upload Video Bootstrap modal */
+.upload-drop-area {
+  cursor: pointer;
+  border-style: dashed !important;
+  border-width: 2px !important;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.upload-drop-area.border-primary {
+  border-color: var(--primary-color) !important;
+  background-color: rgba(13, 110, 253, 0.06);
+}
+
+#uploadModal .modal-content {
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+#uploadModal .modal-header,
+#uploadModal .modal-footer {
+  background-color: rgba(13, 110, 253, 0.035);
+}
+
+#uploadModal #fileName .list-group-item {
+  background: transparent;
+}
+
+@media (max-width: 575.98px) {
+  #uploadModal .modal-body {
+    padding: 1rem;
+  }
+
+  #uploadModal .upload-drop-area {
+    padding: 2rem 1rem !important;
+  }
+}
