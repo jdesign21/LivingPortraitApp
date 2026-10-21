@@ -1544,7 +1544,10 @@ def thumbnail_file(filename):
 def upload():
     files = request.files.getlist("file")
     if not files or not any(file.filename for file in files):
-        flash("Select at least one MP4 video to upload.", "danger")
+        message = "Select at least one MP4 video to upload."
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for("index"))
 
     settings = load_settings()
@@ -1588,6 +1591,12 @@ def upload():
 
     for error in errors:
         flash(error, "danger")
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        if errors or not uploaded:
+            return jsonify(success=False, uploaded=uploaded, errors=errors,
+                           error="; ".join(errors) if errors else "No files were uploaded."), 400
+        return jsonify(success=True, uploaded=uploaded)
 
     return redirect(url_for("index"))
 
