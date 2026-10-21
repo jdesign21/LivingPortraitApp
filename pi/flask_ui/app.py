@@ -2090,6 +2090,38 @@ def reboot():
 
     return redirect(url_for("index"))
 
+# Add/link a discovered Secondary during setup without navigating away.
+@app.route("/setup/add_discovered_secondary_ajax", methods=["POST"])
+def setup_add_discovered_secondary_ajax():
+    device_id = request.form.get("device_id", "").strip()
+    device = next(
+        (item for item in get_discovered_secondary_pis() if item.get("device_id") == device_id),
+        None,
+    )
+    if not device:
+        return jsonify({
+            "success": False,
+            "message": "That device is no longer being discovered. Wait for its next announcement and refresh.",
+        }), 404
+
+    if not verify_secondary_device(device["ip"], device_id):
+        return jsonify({
+            "success": False,
+            "message": "Could not verify a live LivingPortraitApp Secondary at that address. Check that it is running on the same local network.",
+        }), 400
+
+    return jsonify({
+        "success": True,
+        "device": {
+            "device_id": device_id,
+            "name": device.get("name", "Secondary Pi"),
+            "ip": device.get("ip", ""),
+            "version": device.get("version", ""),
+            "last_seen_label": device.get("last_seen_label", ""),
+        },
+    })
+
+
 # Refresh the discovery list during initial setup without reloading the wizard.
 @app.route("/setup/refresh_discovered_secondary", methods=["POST"])
 def setup_refresh_discovered_secondary():
