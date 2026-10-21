@@ -8,32 +8,15 @@
     </button>
   </div>
 
-  <!-- Tabs -->
-  <ul class="nav nav-tabs mb-3" id="manageTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-      <button class="nav-link active" id="videos-tab" data-bs-toggle="tab" data-bs-target="#videos-pane"
-        type="button" role="tab" aria-controls="videos-pane" aria-selected="true">
-        Videos
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="schedule-tags-tab" data-bs-toggle="tab" data-bs-target="#schedule-tags-pane"
-        type="button" role="tab" aria-controls="schedule-tags-pane" aria-selected="false">
-        Schedule Tags
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="sync-tags-tab" data-bs-toggle="tab" data-bs-target="#sync-tags-pane"
-        type="button" role="tab" aria-controls="sync-tags-pane" aria-selected="false">
-        Sync Tags
-      </button>
-    </li>
-  </ul>
+  <div class="d-flex flex-wrap gap-2 mb-3" aria-label="Manage video tools">
+    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#scheduleTagsModal"><i class="bi bi-tags me-1"></i> Schedule Tags</button>
+    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#syncTagsModal"><i class="bi bi-arrow-repeat me-1"></i> Sync Tags</button>
+  </div>
 
-  <div class="tab-content" id="manageTabsContent">
+  <div id="manageTabsContent">
 
     <!-- Videos Tab -->
-<div class="tab-pane fade show active" id="videos-pane" role="tabpanel" aria-labelledby="videos-tab">
+<div id="videos-pane">
   <form method="POST" action="{{ url_for('update_all') }}">
     <div class="card shadow-sm">
       <div class="card-header bg-primary text-white">
@@ -190,7 +173,10 @@
 </div>
 
     <!-- Schedule Tags Tab -->
-    <div class="tab-pane fade" id="schedule-tags-pane" role="tabpanel" aria-labelledby="schedule-tags-tab">
+    <div class="modal fade" id="scheduleTagsModal" tabindex="-1" aria-labelledby="scheduleTagsModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title fw-bold" id="scheduleTagsModalLabel"><i class="bi bi-tags me-2"></i>Manage Schedule Tags</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body">
       <div class="card shadow-sm">
         <div class="card-header bg-primary text-white">
           <strong>Schedule Tags</strong>
@@ -281,7 +267,10 @@
     </div>
 
     <!-- Sync Tags Tab -->
-    <div class="tab-pane fade" id="sync-tags-pane" role="tabpanel" aria-labelledby="sync-tags-tab">
+    <div class="modal fade" id="syncTagsModal" tabindex="-1" aria-labelledby="syncTagsModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title fw-bold" id="syncTagsModalLabel"><i class="bi bi-arrow-repeat me-2"></i>Manage Sync Tags</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body">
       <div class="card shadow-sm">
         <div class="card-header bg-primary text-white">
           <strong>Sync Tags</strong>
@@ -390,6 +379,10 @@
           {% endif %}
         </div>
       </div>
+        </div><!-- /.card-body -->
+      </div><!-- /.card -->
+        </div><!-- /.modal-body -->
+      </div></div>
     </div>
 
   </div>
