@@ -1070,6 +1070,11 @@ def setup():
         settings["setup_complete"] = True
         save_settings(settings)
 
+        # MQTT configuration changes require a reboot before the service
+        # connections are reliably initialized.
+        if enable == "1":
+            session["reboot_required"] = True
+
         flash(
             "LivingPortraitApp setup completed successfully.",
             "success"
