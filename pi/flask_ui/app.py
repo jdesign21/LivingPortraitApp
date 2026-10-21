@@ -2090,6 +2090,28 @@ def reboot():
 
     return redirect(url_for("index"))
 
+# Refresh the discovery list during initial setup without reloading the wizard.
+@app.route("/setup/refresh_discovered_secondary", methods=["POST"])
+def setup_refresh_discovered_secondary():
+    try:
+        submitted = json.loads(request.form.get("secondary_pis_json", "[]"))
+        if not isinstance(submitted, list):
+            submitted = []
+        secondary_pis = [
+            item for item in submitted
+            if isinstance(item, dict)
+            and str(item.get("name", "")).strip()
+            and str(item.get("ip", "")).strip()
+        ]
+    except (TypeError, ValueError):
+        secondary_pis = []
+
+    return jsonify({
+        "success": True,
+        "devices": _get_discovered_secondary_pis_for_config(secondary_pis),
+    })
+
+
 # Add a discovered secondary Pi during initial setup.
 @app.route("/setup/add_discovered_secondary", methods=["POST"])
 def setup_add_discovered_secondary():
