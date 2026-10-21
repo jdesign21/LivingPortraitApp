@@ -617,3 +617,34 @@ body.dark-theme {
     width: 100%;
   }
 }
+
+/* Cached MP4 frame previews in Manage Videos */
+.video-thumbnail {
+  position: relative;
+  width: 112px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #34495c;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #152433, #080e15);
+}
+.video-thumbnail img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.video-thumbnail-placeholder {
+  color: #7890a8;
+  font-size: 1.6rem;
+}
+.video-filename {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767.98px) {
+  .video-thumbnail { width: 100px; }
+}
