@@ -150,13 +150,13 @@
         <div id="setupDiscoverySection" class="card shadow-sm mb-4">
           <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
             <strong><i class="bi bi-radar me-1"></i> Discover Secondary Pis</strong>
-            <button type="button" class="btn btn-light btn-sm" onclick="window.location.href='{{ url_for('setup', role='primary') }}'">
+            <button type="button" class="btn btn-light btn-sm" id="refreshDiscoveredPisBtn">
               <i class="bi bi-arrow-clockwise me-1"></i> Refresh
             </button>
           </div>
           <div class="card-body">
             <p class="text-muted small">Find compatible Secondary Pis on your local network and add them without manually entering their IP addresses.</p>
-            <div class="list-group mb-3">
+            <div class="list-group mb-3" id="setupDiscoveryList">
               {% for device in discovered_secondary_pis %}
               <div class="list-group-item">
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
@@ -412,6 +412,7 @@
       if (item) {
         item.remove();
         updateSecondaryMessage();
+        refreshDiscoveredPis();
       }
     });
 
@@ -650,6 +651,122 @@
     }
     if (setupBackBtn) {
       setupBackBtn.addEventListener('click', () => showSetupStep(1));
+    }
+
+    const refreshDiscoveredPisBtn = document.getElementById('refreshDiscoveredPisBtn');
+    const setupDiscoveryList = document.getElementById('setupDiscoveryList');
+
+    function getCurrentSecondaryPis() {
+      if (!secondaryPisContainer) return [];
+      return Array.from(secondaryPisContainer.querySelectorAll('.secondary-pi')).map(item => ({
+        name: item.querySelector('.secondary-name')?.value.trim() || '',
+        ip: item.querySelector('.secondary-ip')?.value.trim() || '',
+        device_id: item.querySelector('.secondary-device-id')?.value.trim() || ''
+      })).filter(item => item.name && item.ip);
+    }
+
+    function makeDiscoveryButton(label, deviceId, className) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = className + ' setup-add-discovered';
+      button.dataset.deviceId = deviceId || '';
+      button.textContent = label;
+      return button;
+    }
+
+    function renderDiscoveredPis(devices) {
+      if (!setupDiscoveryList) return;
+      setupDiscoveryList.replaceChildren();
+
+      if (!devices || devices.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'border rounded text-center text-muted p-4';
+        const title = document.createElement('div');
+        title.textContent = 'No Secondary Pis found yet.';
+        const hint = document.createElement('div');
+        hint.className = 'small mt-1';
+        hint.textContent = 'Make sure the Secondary is running LivingPortraitApp on the same local network, then refresh.';
+        empty.append(title, hint);
+        setupDiscoveryList.appendChild(empty);
+        return;
+      }
+
+      devices.forEach(device => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item';
+        const row = document.createElement('div');
+        row.className = 'd-flex flex-wrap justify-content-between align-items-center gap-3';
+        const details = document.createElement('div');
+        details.className = 'flex-grow-1';
+        const name = document.createElement('div');
+        name.className = 'fw-semibold';
+        name.textContent = device.name || 'Secondary Pi';
+        const ip = document.createElement('div');
+        ip.className = 'text-muted small';
+        ip.textContent = device.ip || '';
+        const meta = document.createElement('div');
+        meta.className = 'text-muted small';
+        meta.textContent = 'Version ' + (device.version || 'Unknown') + ' · Seen ' + (device.last_seen_label || 'recently');
+        details.append(name, ip, meta);
+
+        const actions = document.createElement('div');
+        if (device.ip_changed) {
+          actions.appendChild(makeDiscoveryButton('Update IP', device.device_id, 'btn btn-outline-primary btn-sm'));
+        } else if (device.needs_link) {
+          actions.appendChild(makeDiscoveryButton('Link Device', device.device_id, 'btn btn-outline-primary btn-sm'));
+        } else if (device.is_configured) {
+          const badge = document.createElement('span');
+          badge.className = 'badge bg-success';
+          badge.textContent = 'Added';
+          actions.appendChild(badge);
+        } else {
+          actions.appendChild(makeDiscoveryButton('Add', device.device_id, 'btn btn-primary btn-sm'));
+        }
+
+        row.append(details, actions);
+        item.appendChild(row);
+        setupDiscoveryList.appendChild(item);
+      });
+    }
+
+    async function refreshDiscoveredPis() {
+      if (!setupForm || !setupDiscoveryList) return;
+      const button = refreshDiscoveredPisBtn;
+      if (button) {
+        button.disabled = true;
+        button.dataset.originalText = button.textContent.trim();
+        button.textContent = 'Refreshing…';
+      }
+
+      try {
+        const csrfInput = setupForm.querySelector('input[name="csrf_token"]');
+        if (!csrfInput) throw new Error('Missing CSRF token.');
+        const formData = new FormData();
+        formData.append('csrf_token', csrfInput.value);
+        formData.append('secondary_pis_json', JSON.stringify(getCurrentSecondaryPis()));
+
+        const response = await fetch('{{ url_for("setup_refresh_discovered_secondary") }}', {
+          method: 'POST',
+          body: formData,
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        if (!response.ok) throw new Error('Refresh request failed.');
+        const result = await response.json();
+        if (!result.success) throw new Error('Refresh request failed.');
+        renderDiscoveredPis(result.devices);
+      } catch (error) {
+        showSetupError('Could not refresh discovered Secondary Pis. Please try again.');
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = button.dataset.originalText || 'Refresh';
+        }
+      }
+    }
+
+    if (refreshDiscoveredPisBtn) {
+      refreshDiscoveredPisBtn.addEventListener('click', refreshDiscoveredPis);
     }
 
     document.addEventListener('click', event => {
