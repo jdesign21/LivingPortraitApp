@@ -648,3 +648,63 @@ body.dark-theme {
 @media (max-width: 767.98px) {
   .video-thumbnail { width: 100px; }
 }
+
+
+/* Manage Videos: search/filter controls and list/grid layouts */
+.video-library-toolbar .form-control,
+.video-library-toolbar .form-select {
+  min-width: 0;
+}
+
+.video-library-item[hidden] {
+  display: none !important;
+}
+
+.video-library-list-view .video-library-item {
+  width: 100%;
+}
+
+.video-library-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  border: 0;
+}
+
+.video-library-grid .video-library-item {
+  min-width: 0;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 0.5rem;
+}
+
+.video-library-grid .video-library-item > .row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch !important;
+  gap: 0.85rem;
+}
+
+.video-library-grid .video-library-item > .row > [class*="col-"] {
+  width: 100%;
+  max-width: 100%;
+}
+
+.video-library-grid .video-thumbnail {
+  width: 120px;
+}
+
+.video-library-grid .video-library-item .btn-danger {
+  width: auto !important;
+}
+
+.video-library-toolbar .btn.active {
+  background-color: var(--primary-color, #0d6efd);
+  border-color: var(--primary-color, #0d6efd);
+  color: #fff;
+}
+
+@media (max-width: 575.98px) {
+  .video-library-grid {
+    grid-template-columns: 1fr;
+  }
+}
