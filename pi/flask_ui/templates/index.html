@@ -443,8 +443,9 @@
             </form>
 
             <!-- Sync Tags to Secondaries -->
+          {% if role == "primary" %}
             <form method="POST" action="{{ url_for('sync_tags_to_secondaries') }}"
-              class="col-12 col-md-auto" id="syncTagsForm">
+              class="mt-3 mb-3" id="syncTagsForm">
               <button type="submit" class="btn btn-primary" id="syncTagsSubmitBtn">
                 <span class="spinner-border spinner-border-sm me-2 d-none" id="syncTagsSpinner" role="status" aria-hidden="true"></span>
                 <i class="bi bi-arrow-repeat me-1" id="syncTagsIcon"></i>
@@ -455,10 +456,9 @@
               </div>
               <div class="mt-3 d-none" id="syncTagsResult" role="status" aria-live="polite"></div>
             </form>
-          </div>
           {% endif %}
 
-          <!-- Available Sync Tags -->
+                    <!-- Available Sync Tags -->
           <div class="d-flex align-items-center mb-2">
             <i class="bi bi-tags text-primary me-2"></i>
             <strong>Available Sync Tags</strong>
