@@ -337,6 +337,18 @@
       }
     }
 
+    function renumberSecondaryRows() {
+      if (!secondaryPisContainer) return;
+      secondaryPisContainer.querySelectorAll('.secondary-pi').forEach((row, index) => {
+        const nameInput = row.querySelector('.secondary-name');
+        const ipInput = row.querySelector('.secondary-ip');
+        const idInput = row.querySelector('.secondary-device-id');
+        if (nameInput) nameInput.name = `secondary_pis[${index}][name]`;
+        if (ipInput) ipInput.name = `secondary_pis[${index}][ip]`;
+        if (idInput) idInput.name = `secondary_pis[${index}][device_id]`;
+      });
+    }
+
     function updateSecondaryMessage() {
       if (!noSecondariesMessage || !secondaryPisContainer) {
         return;
@@ -387,6 +399,7 @@
   `;
 
       secondaryPisContainer.appendChild(wrapper);
+      renumberSecondaryRows();
       updateSecondaryMessage();
     }
 
@@ -411,6 +424,7 @@
 
       if (item) {
         item.remove();
+        renumberSecondaryRows();
         updateSecondaryMessage();
         refreshDiscoveredPis();
       }
