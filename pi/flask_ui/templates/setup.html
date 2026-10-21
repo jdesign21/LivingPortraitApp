@@ -38,66 +38,24 @@
 
         <div id="setupError" class="alert alert-danger d-none" role="alert"></div>
 
-        <!-- AUTOMATIC SECONDARY DISCOVERY -->
-        <div id="setupDiscoverySection" class="card shadow-sm mb-4">
-          <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <strong><i class="bi bi-radar me-1"></i> Discover Secondary Pis</strong>
-            <button type="button" class="btn btn-light btn-sm" onclick="window.location.href='{{ url_for('setup', role='primary') }}'">
-              <i class="bi bi-arrow-clockwise me-1"></i> Refresh
-            </button>
-          </div>
-          <div class="card-body">
-            <p class="text-muted small">Find compatible Secondary Pis on your local network and add them without manually entering their IP addresses.</p>
-            <div class="list-group mb-3">
-              {% for device in discovered_secondary_pis %}
-              <div class="list-group-item">
-                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-                  <div class="flex-grow-1">
-                    <div class="fw-semibold">{{ device.name }}</div>
-                    <div class="text-muted small">{{ device.ip }}</div>
-                    <div class="text-muted small">Version {{ device.version }} <span class="mx-1">·</span> Seen {{ device.last_seen_label }}</div>
-                  </div>
-                  <div>
-                    {% if device.ip_changed %}
-                    <form method="POST" action="{{ url_for('setup_add_discovered_secondary') }}" class="d-inline">
-                      <input type="hidden" name="device_id" value="{{ device.device_id }}">
-                      <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-left-right me-1"></i> Update IP</button>
-                    </form>
-                    {% elif device.needs_link %}
-                    <form method="POST" action="{{ url_for('setup_add_discovered_secondary') }}" class="d-inline">
-                      <input type="hidden" name="device_id" value="{{ device.device_id }}">
-                      <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-link-45deg me-1"></i> Link Device</button>
-                    </form>
-                    {% elif device.is_configured %}
-                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Added</span>
-                    {% else %}
-                    <form method="POST" action="{{ url_for('setup_add_discovered_secondary') }}" class="d-inline">
-                      <input type="hidden" name="device_id" value="{{ device.device_id }}">
-                      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i> Add</button>
-                    </form>
-                    {% endif %}
-                  </div>
-                </div>
-              </div>
-              {% else %}
-              <div class="border rounded text-center text-muted p-4">
-                <i class="bi bi-radar fs-4 d-block mb-2"></i>
-                <div>No Secondary Pis found yet.</div>
-                <div class="small mt-1">Make sure the Secondary is running LivingPortraitApp on the same local network, then refresh.</div>
-              </div>
-              {% endfor %}
-            </div>
-            <div class="small text-muted">If a device does not appear, you can still add it manually in the Secondary Pis section below.</div>
-          </div>
-        </div>
         <div class="card shadow-sm">
           <div class="card-header bg-primary text-white">
             <strong>Initial Setup</strong>
           </div>
 
           <div class="card-body">
+            <div class="mb-4" aria-label="Setup progress">
+              <div class="d-flex justify-content-between small mb-2">
+                <span id="setupStepLabel1" class="fw-semibold text-primary">1. Basic Setup</span>
+                <span id="setupStepLabel2" class="text-muted">2. Network Setup</span>
+              </div>
+              <div class="progress" role="progressbar" aria-label="Setup progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" style="height:6px;">
+                <div id="setupProgressBar" class="progress-bar" style="width:50%;"></div>
+              </div>
+            </div>
             <form id="setupForm" method="POST" action="{{ url_for('setup') }}" enctype="multipart/form-data">
 
+              <div id="setupStep1">
               <!-- Device Role -->
               <div class="mb-4">
                 <label class="form-label fw-semibold">Device Role</label>
@@ -119,7 +77,57 @@
                 </div>
               </div>
 
-              <!-- MQTT -->
+              <!-- Audio Output -->
+              <div class="mb-4">
+                <label for="audio_output" class="form-label fw-semibold">
+                  Audio Output
+                </label>
+                <div class="small text-muted mb-2">
+                  Select where LivingPortraitApp should play audio.
+                </div>
+
+                <select class="form-select" id="audio_output" name="audio_output">
+                  {% for output in audio_outputs %}
+                  <option value="{{ output.id }}" {% if output.id==audio_output %}selected{% endif %}>
+                    {{ output.name }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <!-- First Video -->
+              {% if not videos %}
+              <div class="mb-4">
+                <div class="border rounded p-3">
+                  <div class="fw-semibold mb-1">First Video</div>
+                  <div class="small text-muted mb-3">
+                    Upload your first MP4 video to enable playback.
+                  </div>
+
+                  <div id="dropArea" class="border border-2 border-secondary rounded p-4 text-center bg-light">
+                    <p class="mb-2">Drag &amp; drop an MP4 file here</p>
+                    <p class="small text-muted">or choose a file below</p>
+
+                    <input type="file" id="setupVideo" name="video" accept=".mp4" hidden>
+
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="chooseVideoBtn">
+                      <i class="bi bi-folder2-open me-1"></i>
+                      Choose File
+                    </button>
+
+                    <div id="setupVideoName" class="mt-3 fw-semibold text-success"></div>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+
+              <div class="d-flex justify-content-end mt-4">
+                <button type="button" class="btn btn-primary" id="setupNextBtn">Next <i class="bi bi-arrow-right ms-1"></i></button>
+              </div>
+              </div>
+
+              <div id="setupStep2" style="display:none;">
+                            <!-- MQTT -->
               <div class="mb-4">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
@@ -138,23 +146,49 @@
                 </div>
               </div>
 
-              <!-- Audio Output -->
-              <div class="mb-4">
-                <label for="audio_output" class="form-label fw-semibold">
-                  Audio Output
-                </label>
-                <div class="small text-muted mb-2">
-                  Select where LivingPortraitApp should play audio.
+        <!-- AUTOMATIC SECONDARY DISCOVERY -->
+        <div id="setupDiscoverySection" class="card shadow-sm mb-4">
+          <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <strong><i class="bi bi-radar me-1"></i> Discover Secondary Pis</strong>
+            <button type="button" class="btn btn-light btn-sm" onclick="window.location.href='{{ url_for('setup', role='primary') }}'">
+              <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            </button>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">Find compatible Secondary Pis on your local network and add them without manually entering their IP addresses.</p>
+            <div class="list-group mb-3">
+              {% for device in discovered_secondary_pis %}
+              <div class="list-group-item">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                  <div class="flex-grow-1">
+                    <div class="fw-semibold">{{ device.name }}</div>
+                    <div class="text-muted small">{{ device.ip }}</div>
+                    <div class="text-muted small">Version {{ device.version }} <span class="mx-1">·</span> Seen {{ device.last_seen_label }}</div>
+                  </div>
+                  <div>
+                    {% if device.ip_changed %}
+                    <button type="button" class="btn btn-outline-primary btn-sm setup-add-discovered" data-device-id="{{ device.device_id }}"><i class="bi bi-arrow-left-right me-1"></i> Update IP</button>
+                    {% elif device.needs_link %}
+                    <button type="button" class="btn btn-outline-primary btn-sm setup-add-discovered" data-device-id="{{ device.device_id }}"><i class="bi bi-link-45deg me-1"></i> Link Device</button>
+                    {% elif device.is_configured %}
+                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Added</span>
+                    {% else %}
+                    <button type="button" class="btn btn-primary btn-sm setup-add-discovered" data-device-id="{{ device.device_id }}"><i class="bi bi-plus-lg me-1"></i> Add</button>
+                    {% endif %}
+                  </div>
                 </div>
-
-                <select class="form-select" id="audio_output" name="audio_output">
-                  {% for output in audio_outputs %}
-                  <option value="{{ output.id }}" {% if output.id==audio_output %}selected{% endif %}>
-                    {{ output.name }}
-                  </option>
-                  {% endfor %}
-                </select>
               </div>
+              {% else %}
+              <div class="border rounded text-center text-muted p-4">
+                <i class="bi bi-radar fs-4 d-block mb-2"></i>
+                <div>No Secondary Pis found yet.</div>
+                <div class="small mt-1">Make sure the Secondary is running LivingPortraitApp on the same local network, then refresh.</div>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="small text-muted">If a device does not appear, you can still add it manually in the Secondary Pis section below.</div>
+          </div>
+        </div>
 
               <!-- Primary Settings -->
               <div id="primarySettings" class="mb-4">
@@ -222,38 +256,14 @@
                 </div>
               </div>
 
-              <!-- First Video -->
-              {% if not videos %}
-              <div class="mb-4">
-                <div class="border rounded p-3">
-                  <div class="fw-semibold mb-1">First Video</div>
-                  <div class="small text-muted mb-3">
-                    Upload your first MP4 video to enable playback.
-                  </div>
-
-                  <div id="dropArea" class="border border-2 border-secondary rounded p-4 text-center bg-light">
-                    <p class="mb-2">Drag &amp; drop an MP4 file here</p>
-                    <p class="small text-muted">or choose a file below</p>
-
-                    <input type="file" id="setupVideo" name="video" accept=".mp4" hidden>
-
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="chooseVideoBtn">
-                      <i class="bi bi-folder2-open me-1"></i>
-                      Choose File
-                    </button>
-
-                    <div id="setupVideoName" class="mt-3 fw-semibold text-success"></div>
-                  </div>
-                </div>
-              </div>
-              {% endif %}
-
               <!-- Complete -->
-              <div class="text-end">
+              <div class="d-flex justify-content-between align-items-center mt-4">
+                <button type="button" class="btn btn-outline-secondary" id="setupBackBtn"><i class="bi bi-arrow-left me-1"></i> Back</button>
                 <button type="submit" class="btn btn-success" id="completeSetupBtn">
                   <i class="bi bi-check-circle me-1"></i>
                   Complete Setup
                 </button>
+              </div>
               </div>
 
             </form>
@@ -524,7 +534,7 @@
       });
     }
 
-    function validateSetup() {
+    function validateSetup(step = 2) {
       clearSetupError();
 
       const isPrimary = rolePrimary && rolePrimary.checked;
@@ -535,6 +545,7 @@
         return false;
       }
 
+      if (step === 2) {
       if (!isPrimary && mqttEnabled) {
         const ip = primaryIp ? primaryIp.value.trim() : '';
 
@@ -592,6 +603,8 @@
         }
       }
 
+      }
+
       if (setupVideo) {
         if (!setupVideo.files || setupVideo.files.length === 0) {
           showSetupError('Please upload your first MP4 video before completing setup.');
@@ -613,6 +626,56 @@
     }
 
 
+    function showSetupStep(step) {
+      const onFirstStep = step === 1;
+      document.getElementById('setupStep1').style.display = onFirstStep ? 'block' : 'none';
+      document.getElementById('setupStep2').style.display = onFirstStep ? 'none' : 'block';
+      document.getElementById('setupStepLabel1').classList.toggle('text-primary', onFirstStep);
+      document.getElementById('setupStepLabel1').classList.toggle('text-muted', !onFirstStep);
+      document.getElementById('setupStepLabel1').classList.toggle('fw-semibold', onFirstStep);
+      document.getElementById('setupStepLabel2').classList.toggle('text-primary', !onFirstStep);
+      document.getElementById('setupStepLabel2').classList.toggle('text-muted', onFirstStep);
+      document.getElementById('setupStepLabel2').classList.toggle('fw-semibold', !onFirstStep);
+      document.getElementById('setupProgressBar').style.width = onFirstStep ? '50%' : '100%';
+      document.querySelector('[aria-label="Setup progress"][role="progressbar"]').setAttribute('aria-valuenow', onFirstStep ? '50' : '100');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    const setupNextBtn = document.getElementById('setupNextBtn');
+    const setupBackBtn = document.getElementById('setupBackBtn');
+    if (setupNextBtn) {
+      setupNextBtn.addEventListener('click', () => {
+        if (validateSetup(1)) showSetupStep(2);
+      });
+    }
+    if (setupBackBtn) {
+      setupBackBtn.addEventListener('click', () => showSetupStep(1));
+    }
+
+    document.addEventListener('click', event => {
+      const button = event.target.closest('.setup-add-discovered');
+      if (!button) return;
+      const csrfInput = setupForm ? setupForm.querySelector('input[name="csrf_token"]') : null;
+      if (!csrfInput) {
+        showSetupError('Unable to verify this request. Refresh the page and try again.');
+        return;
+      }
+      const discoveryForm = document.createElement('form');
+      discoveryForm.method = 'POST';
+      discoveryForm.action = '{{ url_for("setup_add_discovered_secondary") }}';
+      const deviceInput = document.createElement('input');
+      deviceInput.type = 'hidden';
+      deviceInput.name = 'device_id';
+      deviceInput.value = button.dataset.deviceId || '';
+      const csrfCopy = document.createElement('input');
+      csrfCopy.type = 'hidden';
+      csrfCopy.name = 'csrf_token';
+      csrfCopy.value = csrfInput.value;
+      discoveryForm.append(deviceInput, csrfCopy);
+      document.body.appendChild(discoveryForm);
+      discoveryForm.submit();
+    });
+
     // ========================================================
     // SETUP SUBMIT
     // ========================================================
@@ -621,7 +684,7 @@
       setupForm.addEventListener('submit', event => {
         event.preventDefault();
 
-        if (!validateSetup()) {
+        if (!validateSetup(2)) {
           return;
         }
 
