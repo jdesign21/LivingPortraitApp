@@ -10,6 +10,7 @@ import sys
 import json
 import time
 import subprocess
+import shutil
 import re
 import secrets
 
@@ -361,6 +362,49 @@ VIDEO_FOLDER.mkdir(parents=True, exist_ok=True)
 IMAGES_FOLDER.mkdir(parents=True, exist_ok=True)
 
 
+def _thumbnail_path(filename):
+    """Return the thumbnail path for a video filename without trusting user input."""
+    safe_name = secure_filename(Path(filename).name)
+    if not safe_name or not safe_name.lower().endswith(".mp4"):
+        return None
+    return IMAGES_FOLDER / f"{Path(safe_name).stem}.jpg"
+
+
+def _ensure_video_thumbnail(filename):
+    """Create a cached JPEG from about one second into an MP4, if possible."""
+    video_path = VIDEO_FOLDER / secure_filename(Path(filename).name)
+    thumbnail_path = _thumbnail_path(filename)
+    if thumbnail_path is None or not video_path.is_file():
+        return False
+
+    try:
+        if thumbnail_path.is_file() and thumbnail_path.stat().st_mtime >= video_path.stat().st_mtime:
+            return True
+    except OSError:
+        pass
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return False
+
+    try:
+        result = subprocess.run(
+            [
+                ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
+                "-ss", "1", "-i", str(video_path),
+                "-frames:v", "1", "-vf", "scale=320:-2",
+                "-q:v", "5", str(thumbnail_path),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+            check=False,
+        )
+        return result.returncode == 0 and thumbnail_path.is_file() and thumbnail_path.stat().st_size > 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def format_ampm(time_str, time_format="12"):
     try:
         if time_format == "24":
@@ -613,6 +657,10 @@ def index():
         if isinstance(entry, dict)
         and entry.get("filename") in videos
     ]
+
+    # Generate cached thumbnails for existing videos the first time they are viewed.
+    for video_filename in videos:
+        _ensure_video_thumbnail(video_filename)
 
     manage_videosTags = settings.get(
         "playlist",
@@ -1435,6 +1483,22 @@ def image_file(filename):
 
     return send_from_directory(IMAGES_FOLDER, filename)
 
+@app.route("/thumbnails/<filename>")
+def thumbnail_file(filename):
+    thumbnail_path = _thumbnail_path(filename)
+    if thumbnail_path is None:
+        return "Thumbnail not found", 404
+
+    video_path = VIDEO_FOLDER / secure_filename(Path(filename).name)
+    if not video_path.is_file():
+        return "Video not found", 404
+
+    _ensure_video_thumbnail(filename)
+    if not thumbnail_path.is_file():
+        return "Thumbnail unavailable", 404
+
+    return send_from_directory(IMAGES_FOLDER, thumbnail_path.name)
+
 @app.route("/upload", methods=["POST"])
 def upload():
     if "file" not in request.files:
@@ -1456,6 +1520,7 @@ def upload():
 
         save_path = VIDEO_FOLDER / filename
         file.save(save_path)
+        _ensure_video_thumbnail(filename)
 
         settings = load_settings()
         order = settings.get("playlist", {}).get("order", [])
@@ -1882,6 +1947,14 @@ def delete(filename):
     was_selected = Path(settings.get("selected_video", "")).name == filename
 
     filepath.unlink()
+
+    # Remove the cached thumbnail along with its video.
+    thumbnail_path = _thumbnail_path(filename)
+    if thumbnail_path is not None:
+        try:
+            thumbnail_path.unlink(missing_ok=True)
+        except OSError:
+            log(f"Could not remove thumbnail for {filename}.", "WARNING")
 
     # Remove from playlist order.
     order = [
