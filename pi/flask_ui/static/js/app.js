@@ -1788,7 +1788,18 @@ function deleteVideo(filename) {
     if (confirm(`Delete ${filename}?`)) {
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = `/delete/${filename}`;
+        form.action = `/delete/${encodeURIComponent(filename)}`;
+
+        // Every state-changing request must include the session CSRF token.
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        if (csrfToken) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrf_token';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+        }
+
         document.body.appendChild(form);
         form.submit();
     }
