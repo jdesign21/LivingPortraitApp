@@ -68,6 +68,9 @@
                     <label class="form-check-label fw-semibold video-filename" for="activeSwitch-{{ loop.index0 }}">
                       {{ video.filename }}
                     </label>
+                    {% if video.get('resolution') %}
+                    <div class="small text-muted">{{ video.resolution }}</div>
+                    {% endif %}
                   </div>
                 </div>
               </div>
