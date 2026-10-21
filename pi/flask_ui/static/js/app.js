@@ -599,13 +599,102 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
 
         const uploadForm = document.getElementById('uploadForm');
         if (uploadForm) {
-            uploadForm.addEventListener('submit', () => {
+            uploadForm.addEventListener('submit', async event => {
+                event.preventDefault();
+                const files = Array.from(fileInput.files);
+                if (!files.length) return;
+
                 uploadBtn.disabled = true;
+                const originalButton = uploadBtn.innerHTML;
                 uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...';
-                if (uploadError) uploadError.classList.add('d-none');
+                if (uploadError) {
+                    uploadError.classList.add('d-none');
+                    uploadError.textContent = '';
+                }
+
+                const rows = Array.from(fileName.querySelectorAll('[data-upload-row]'));
+                let completed = 0;
+                let failed = 0;
+
+                const uploadOne = file => new Promise(resolve => {
+                    const row = rows.find(element => element.dataset.filename === file.name);
+                    const progress = row?.querySelector('.upload-file-progress');
+                    const status = row?.querySelector('.upload-file-status');
+                    const bar = row?.querySelector('.progress-bar');
+                    const formData = new FormData();
+                    formData.append('file', file, file.name);
+
+                    const csrf = uploadForm.querySelector('input[name="csrf_token"]');
+                    if (csrf) formData.append('csrf_token', csrf.value);
+
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', uploadForm.action);
+                    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+                    xhr.upload.addEventListener('progress', event => {
+                        if (!event.lengthComputable || !bar || !status) return;
+                        const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+                        bar.style.width = percent + '%';
+                        bar.setAttribute('aria-valuenow', String(percent));
+                        status.textContent = percent + '%';
+                    });
+
+                    xhr.addEventListener('load', () => {
+                        let result = {};
+                        try { result = JSON.parse(xhr.responseText); } catch (_) {}
+                        if (xhr.status >= 200 && xhr.status < 300 && result.success) {
+                            completed++;
+                            if (bar) {
+                                bar.style.width = '100%';
+                                bar.classList.add('bg-success');
+                            }
+                            if (status) status.textContent = 'Complete';
+                            if (progress) progress.classList.add('upload-complete');
+                            resolve({ success: true, file });
+                        } else {
+                            failed++;
+                            if (bar) bar.classList.add('bg-danger');
+                            if (status) status.textContent = 'Failed';
+                            resolve({ success: false, file, error: result.error || 'Server rejected the upload.' });
+                        }
+                    });
+
+                    xhr.addEventListener('error', () => {
+                        failed++;
+                        if (bar) bar.classList.add('bg-danger');
+                        if (status) status.textContent = 'Network error';
+                        resolve({ success: false, file, error: 'Network error while uploading ' + file.name });
+                    });
+
+                    xhr.send(formData);
+                });
+
+                // Upload files one at a time so each file has its own accurate progress bar.
+                const results = [];
+                for (const file of files) {
+                    const row = rows.find(element => element.dataset.filename === file.name);
+                    const status = row?.querySelector('.upload-file-status');
+                    if (status) status.textContent = 'Uploading…';
+                    results.push(await uploadOne(file));
+                }
+
+                if (failed === 0) {
+                    if (uploadError) {
+                        uploadError.className = 'alert alert-success mt-3 mb-0';
+                        uploadError.textContent = 'Successfully uploaded ' + completed + ' video(s). Refreshing the video library…';
+                    }
+                    window.location.reload();
+                } else {
+                    if (uploadError) {
+                        uploadError.className = 'alert alert-danger mt-3 mb-0';
+                        uploadError.textContent = completed + ' uploaded; ' + failed + ' failed. Failed files are marked below. You can retry the failed uploads.';
+                    }
+                    uploadBtn.disabled = false;
+                    uploadBtn.innerHTML = originalButton;
+                    fileInput.value = '';
+                }
             });
         }
-    }
 
 
 // ========================================================
