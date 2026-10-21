@@ -560,39 +560,6 @@
         </form>
       </div>
     </div>
-
-    <!-- Upload Video Modal -->
-  <div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title fw-bold" id="uploadModalLabel"><i class="bi bi-cloud-arrow-up me-2"></i>Upload Videos</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <form id="uploadForm" method="POST" action="{{ url_for('upload') }}" enctype="multipart/form-data">
-          <div class="modal-body">
-            <p class="text-muted small mb-3">Drag and drop MP4 videos below, or select files from your device. You can upload multiple videos at once.</p>
-            <div id="dropArea" class="upload-drop-area border border-2 border-secondary rounded-3 p-5 text-center">
-              <i class="bi bi-cloud-arrow-up display-4 text-primary"></i>
-              <p class="fw-semibold mb-1">Drop video files here</p>
-              <p class="small text-muted mb-3">MP4 files only</p>
-              <input type="file" id="fileInput" name="file" accept=".mp4,video/mp4" multiple hidden>
-              <button type="button" class="btn btn-outline-primary" id="chooseFilesBtn">
-                <i class="bi bi-folder2-open me-1"></i> Select Videos
-              </button>
-              <div id="fileName" class="mt-3 text-start"></div>
-            </div>
-            <div id="uploadError" class="alert alert-danger mt-3 d-none mb-0" role="alert"></div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-primary" id="uploadBtn" disabled>
-              <i class="bi bi-upload me-1"></i> Upload
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
   </div>
 
   <!-- Sync Tags Loading Overlay -->
