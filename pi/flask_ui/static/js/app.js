@@ -583,14 +583,38 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
             list.className = 'list-group list-group-flush';
             validFiles.forEach(file => {
                 const item = document.createElement('li');
-                item.className = 'list-group-item d-flex justify-content-between gap-3 px-0';
+                item.className = 'list-group-item px-0';
+                item.dataset.uploadRow = 'true';
+                item.dataset.filename = file.name;
+
+                const top = document.createElement('div');
+                top.className = 'd-flex justify-content-between align-items-center gap-3 mb-2';
                 const name = document.createElement('span');
-                name.className = 'text-break';
+                name.className = 'text-break fw-medium';
                 name.textContent = file.name;
                 const size = document.createElement('span');
                 size.className = 'text-muted small text-nowrap';
                 size.textContent = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
-                item.append(name, size);
+                top.append(name, size);
+
+                const bottom = document.createElement('div');
+                bottom.className = 'd-flex align-items-center gap-2';
+                const progress = document.createElement('div');
+                progress.className = 'progress upload-file-progress flex-grow-1';
+                progress.setAttribute('role', 'progressbar');
+                progress.setAttribute('aria-label', 'Upload progress for ' + file.name);
+                progress.setAttribute('aria-valuemin', '0');
+                progress.setAttribute('aria-valuemax', '100');
+                progress.setAttribute('aria-valuenow', '0');
+                const bar = document.createElement('div');
+                bar.className = 'progress-bar';
+                bar.style.width = '0%';
+                progress.appendChild(bar);
+                const status = document.createElement('span');
+                status.className = 'upload-file-status small text-muted text-nowrap';
+                status.textContent = 'Waiting';
+                bottom.append(progress, status);
+                item.append(top, bottom);
                 list.appendChild(item);
             });
             fileName.appendChild(list);
