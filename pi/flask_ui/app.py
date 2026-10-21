@@ -391,7 +391,9 @@ def _ensure_video_thumbnail(filename):
         result = subprocess.run(
             [
                 ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
-                "-ss", "1", "-i", str(video_path),
+                "-ss", "1", "-autorotate", "-i", str(video_path),
+                # Respect the MP4 display-rotation metadata so thumbnails
+                # match the orientation viewers see during playback.
                 "-frames:v", "1", "-vf", "scale=320:-2",
                 "-q:v", "5", str(thumbnail_path),
             ],
