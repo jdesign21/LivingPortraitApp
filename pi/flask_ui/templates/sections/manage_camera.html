@@ -54,12 +54,21 @@
               <!-- Video / Enable -->
               <div class="col-12 col-lg-4">
                 <input type="hidden" name="videos[{{ loop.index0 }}][filename]" value="{{ video.filename }}">
-                <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" id="activeSwitch-{{ loop.index0 }}"
-                    name="videos[{{ loop.index0 }}][active]" value="true" {% if video.active %}checked{% endif %}>
-                  <label class="form-check-label fw-semibold" for="activeSwitch-{{ loop.index0 }}">
-                    {{ video.filename }}
-                  </label>
+                <div class="d-flex align-items-center gap-3">
+                  <div class="video-thumbnail flex-shrink-0">
+                    <i class="bi bi-film video-thumbnail-placeholder" aria-hidden="true"></i>
+                    <img src="{{ url_for('thumbnail_file', filename=video.filename) }}"
+                      alt="Thumbnail for {{ video.filename }}"
+                      loading="lazy"
+                      onerror="this.style.display='none'">
+                  </div>
+                  <div class="form-check form-switch min-w-0">
+                    <input class="form-check-input" type="checkbox" id="activeSwitch-{{ loop.index0 }}"
+                      name="videos[{{ loop.index0 }}][active]" value="true" {% if video.active %}checked{% endif %}>
+                    <label class="form-check-label fw-semibold video-filename" for="activeSwitch-{{ loop.index0 }}">
+                      {{ video.filename }}
+                    </label>
+                  </div>
                 </div>
               </div>
 
