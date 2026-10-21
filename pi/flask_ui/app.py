@@ -407,6 +407,35 @@ def _ensure_video_thumbnail(filename):
         return False
 
 
+def _get_video_duration(filename):
+    """Return a human-readable video duration using ffprobe, when available."""
+    video_path = VIDEO_FOLDER / secure_filename(Path(filename).name)
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe or not video_path.is_file():
+        return None
+
+    try:
+        result = subprocess.run(
+            [
+                ffprobe, "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(video_path),
+            ],
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+        if result.returncode != 0:
+            return None
+        seconds = int(float(result.stdout.strip()))
+        if seconds < 0:
+            return None
+        hours, remainder = divmod(seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes}:{seconds:02d}"
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
 def _get_video_resolution(filename):
     """Return the video's width and height using ffprobe, if available."""
     video_path = VIDEO_FOLDER / secure_filename(Path(filename).name)
@@ -703,7 +732,19 @@ def index():
         _ensure_video_thumbnail(video_filename)
 
     for video in manage_videos:
-        video["resolution"] = _get_video_resolution(video.get("filename", ""))
+        filename = video.get("filename", "")
+        video_path = VIDEO_FOLDER / secure_filename(Path(filename).name)
+        video["resolution"] = _get_video_resolution(filename)
+        video["duration"] = _get_video_duration(filename)
+        try:
+            size_bytes = video_path.stat().st_size
+            video["file_size"] = (
+                f"{size_bytes / (1024 * 1024):.1f} MB"
+                if size_bytes >= 1024 * 1024
+                else f"{max(1, size_bytes // 1024)} KB"
+            )
+        except OSError:
+            video["file_size"] = None
 
     manage_videosTags = settings.get(
         "playlist",
