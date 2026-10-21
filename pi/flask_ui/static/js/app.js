@@ -711,7 +711,7 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
                 } else {
                     if (uploadError) {
                         uploadError.className = 'alert alert-danger mt-3 mb-0';
-                        uploadError.textContent = completed + ' uploaded; ' + failed + ' failed. Failed files are marked below. You can retry the failed uploads.';
+                        uploadError.textContent = completed + ' uploaded; ' + failed + ' failed. Failed files are marked below. Close this dialog and select those files again to retry.';
                     }
                     uploadBtn.disabled = false;
                     uploadBtn.innerHTML = originalButton;
