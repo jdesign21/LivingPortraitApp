@@ -82,6 +82,26 @@ document.querySelectorAll(".tomselect").forEach(el => {
 
 document.addEventListener('DOMContentLoaded', () => {
 
+    // Reopen tag-management modals after Add/Delete POST redirects.
+    const pendingTagModal = sessionStorage.getItem('reopenTagModal');
+    if (pendingTagModal) {
+        sessionStorage.removeItem('reopenTagModal');
+        window.addEventListener('load', () => {
+            const modalElement = document.getElementById(pendingTagModal);
+            if (modalElement && window.bootstrap) {
+                bootstrap.Modal.getOrCreateInstance(modalElement).show();
+            }
+        }, { once: true });
+    }
+
+    document.querySelectorAll('#scheduleTagsModal form, #syncTagsModal form').forEach(form => {
+        form.addEventListener('submit', () => {
+            const modal = form.closest('.modal');
+            if (modal) sessionStorage.setItem('reopenTagModal', modal.id);
+        });
+    });
+
+
     
 
     // ========================================================
