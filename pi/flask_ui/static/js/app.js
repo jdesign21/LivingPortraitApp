@@ -521,42 +521,89 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
     // ========================================================
 
     if (dropArea && fileInput) {
+        const chooseFilesBtn = document.getElementById('chooseFilesBtn');
+        const uploadError = document.getElementById('uploadError');
+
+        if (chooseFilesBtn) {
+            chooseFilesBtn.addEventListener('click', () => fileInput.click());
+        }
+
         ['dragenter', 'dragover'].forEach(eventName => {
-            dropArea.addEventListener(eventName, e => {
-                e.preventDefault();
-                e.stopPropagation();
-                dropArea.classList.add('border-success', 'bg-light');
+            dropArea.addEventListener(eventName, event => {
+                event.preventDefault();
+                event.stopPropagation();
+                dropArea.classList.add('border-primary', 'bg-light');
             });
         });
 
         ['dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, e => {
-                e.preventDefault();
-                e.stopPropagation();
-                dropArea.classList.remove('border-success', 'bg-light');
+            dropArea.addEventListener(eventName, event => {
+                event.preventDefault();
+                event.stopPropagation();
+                dropArea.classList.remove('border-primary', 'bg-light');
             });
         });
 
-        dropArea.addEventListener('drop', e => {
-            const files = e.dataTransfer.files;
-            if (files.length > 0) handleFile(files[0]);
+        dropArea.addEventListener('drop', event => {
+            setSelectedFiles(Array.from(event.dataTransfer.files));
         });
 
-        fileInput.addEventListener('change', e => {
-            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        fileInput.addEventListener('change', () => {
+            setSelectedFiles(Array.from(fileInput.files));
         });
 
-        function handleFile(file) {
-            if (file.type === "video/mp4") {
-                const dt = new DataTransfer();
-                dt.items.add(file);
-                fileInput.files = dt.files;
-                fileName.textContent = `Selected: ${file.name}`;
-                uploadBtn.disabled = false;
-            } else {
-                fileName.textContent = "Please upload a valid MP4 file.";
-                uploadBtn.disabled = true;
+        function setSelectedFiles(files) {
+            const validFiles = files.filter(file =>
+                file.name.toLowerCase().endsWith('.mp4') &&
+                (!file.type || file.type === 'video/mp4' || file.type === 'application/octet-stream')
+            );
+
+            if (uploadError) {
+                uploadError.textContent = '';
+                uploadError.classList.add('d-none');
             }
+
+            if (validFiles.length !== files.length || files.length === 0) {
+                if (uploadError) {
+                    uploadError.textContent = 'Please select one or more valid MP4 files.';
+                    uploadError.classList.remove('d-none');
+                }
+                uploadBtn.disabled = true;
+                fileName.textContent = '';
+                fileInput.value = '';
+                return;
+            }
+
+            const transfer = new DataTransfer();
+            validFiles.forEach(file => transfer.items.add(file));
+            fileInput.files = transfer.files;
+
+            fileName.replaceChildren();
+            const list = document.createElement('ul');
+            list.className = 'list-group list-group-flush';
+            validFiles.forEach(file => {
+                const item = document.createElement('li');
+                item.className = 'list-group-item d-flex justify-content-between gap-3 px-0';
+                const name = document.createElement('span');
+                name.className = 'text-break';
+                name.textContent = file.name;
+                const size = document.createElement('span');
+                size.className = 'text-muted small text-nowrap';
+                size.textContent = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+                item.append(name, size);
+                list.appendChild(item);
+            });
+            fileName.appendChild(list);
+            uploadBtn.disabled = false;
+        }
+
+        const uploadForm = document.getElementById('uploadForm');
+        if (uploadForm) {
+            uploadForm.addEventListener('submit', () => {
+                uploadBtn.disabled = true;
+                uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...';
+                if (uploadError) uploadError.classList.add('d-none');
+            });
         }
     }
 
