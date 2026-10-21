@@ -445,10 +445,14 @@
             <!-- Sync Tags to Secondaries -->
             <form method="POST" action="{{ url_for('sync_tags_to_secondaries') }}"
               class="col-12 col-md-auto" id="syncTagsForm">
-              <button type="submit" class="btn btn-primary">
-                <i class="bi bi-arrow-repeat me-1"></i>
-                Sync Tags to Secondaries
+              <button type="submit" class="btn btn-primary" id="syncTagsSubmitBtn">
+                <span class="spinner-border spinner-border-sm me-2 d-none" id="syncTagsSpinner" role="status" aria-hidden="true"></span>
+                <i class="bi bi-arrow-repeat me-1" id="syncTagsIcon"></i>
+                <span id="syncTagsButtonText">Sync Tags to Secondaries</span>
               </button>
+              <div class="small text-primary mt-2 d-none" id="syncTagsProgress" role="status" aria-live="polite">
+                Syncing tags to secondary Pis. Please wait...
+              </div>
             </form>
           </div>
           {% endif %}
