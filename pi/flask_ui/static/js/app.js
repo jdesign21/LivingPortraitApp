@@ -95,6 +95,19 @@ document.addEventListener('DOMContentLoaded', () => {
             button.disabled = true;
         });
 
+        // Give visible feedback while tags are being pushed to secondary Pis.
+        if (form.id === 'syncTagsForm') {
+            const spinner = document.getElementById('syncTagsSpinner');
+            const icon = document.getElementById('syncTagsIcon');
+            const buttonText = document.getElementById('syncTagsButtonText');
+            const progress = document.getElementById('syncTagsProgress');
+
+            spinner?.classList.remove('d-none');
+            icon?.classList.add('d-none');
+            if (buttonText) buttonText.textContent = 'Syncing Tags...';
+            progress?.classList.remove('d-none');
+        }
+
         try {
             const response = await fetch(form.action, {
                 method: (form.method || 'POST').toUpperCase(),
