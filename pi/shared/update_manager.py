@@ -243,7 +243,7 @@ def install_application(pi_folder):
     )
 
 
-def restart_services(backup_path):
+def restart_services(backup_path, dependency_warning=None):
     write_status(
         "restarting",
         "Restarting LivingPortraitApp..."
@@ -305,13 +305,17 @@ def restart_services(backup_path):
             "UPDATE"
         )
 
+    complete_message = "LivingPortraitApp update completed successfully."
+    if dependency_warning:
+        complete_message += " " + dependency_warning
+
     write_status(
         "complete",
-        "LivingPortraitApp update completed successfully."
+        complete_message
     )
 
     log(
-        "LivingPortraitApp update completed successfully.",
+        complete_message,
         "UPDATE"
     )
 
@@ -435,8 +439,18 @@ def perform_update(tag_name):
                 "UPDATE"
             )
 
+            dependency_warning = None
+            if not shutil.which("ffmpeg"):
+                dependency_warning = (
+                    "WARNING: FFmpeg is not installed, so video thumbnails "
+                    "cannot be generated. Install it manually with: "
+                    "sudo apt install ffmpeg"
+                )
+                log(dependency_warning, "WARNING")
+
             restart_services(
-                backup_path
+                backup_path,
+                dependency_warning=dependency_warning
             )
 
     except Exception as e:
