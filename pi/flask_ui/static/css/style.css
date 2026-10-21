@@ -708,3 +708,55 @@ body.dark-theme {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Keep Manage Videos toolbar controls in a single horizontal row */
+.video-library-toolbar {
+  width: 100%;
+}
+
+.video-library-toolbar .video-search-control {
+  flex: 1 1 0;
+  min-width: 120px;
+}
+
+.video-library-toolbar .video-tag-control {
+  flex: 0 1 190px;
+  min-width: 110px;
+}
+
+.video-library-toolbar .video-sort-control {
+  flex: 0 1 145px;
+  min-width: 105px;
+}
+
+.video-library-toolbar .form-control,
+.video-library-toolbar .form-select {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 575.98px) {
+  .video-library-toolbar {
+    gap: 0.35rem !important;
+  }
+
+  .video-library-toolbar .video-search-control {
+    min-width: 95px;
+  }
+
+  .video-library-toolbar .video-tag-control {
+    flex-basis: 105px;
+    min-width: 90px;
+  }
+
+  .video-library-toolbar .video-sort-control {
+    flex-basis: 95px;
+    min-width: 85px;
+  }
+
+  .video-library-toolbar .video-layout-control .btn {
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
+}
