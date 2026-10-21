@@ -73,8 +73,8 @@
               data-video-name="{{ video.filename|lower }}"
               data-video-tags="{% for tag in schedule_tags %}{% if tag.id in video.get('tags', []) %}{{ tag.name|lower }} {% endif %}{% endfor %}{{ video.get('sync_tag', '')|lower }}">
             <div class="row g-3 align-items-center">
-              <!-- Video / Enable -->
-              <div class="col-12 col-lg-4">
+              <!-- Thumbnail and filename -->
+              <div class="col-12 col-lg-3">
                 <input type="hidden" name="videos[{{ loop.index0 }}][filename]" value="{{ video.filename }}">
                 <div class="d-flex align-items-center gap-3">
                   <div class="video-thumbnail flex-shrink-0">
@@ -84,16 +84,26 @@
                       loading="lazy"
                       onerror="this.style.display='none'">
                   </div>
-                  <div class="form-check form-switch min-w-0">
-                    <input class="form-check-input" type="checkbox" id="activeSwitch-{{ loop.index0 }}"
-                      name="videos[{{ loop.index0 }}][active]" value="true" {% if video.active %}checked{% endif %}>
-                    <label class="form-check-label fw-semibold video-filename" for="activeSwitch-{{ loop.index0 }}">
-                      {{ video.filename }}
-                    </label>
-                    {% if video.get('resolution') %}
-                    <div class="small text-muted">{{ video.resolution }}</div>
-                    {% endif %}
+                  <div class="min-w-0">
+                    <div class="fw-semibold video-filename text-break">{{ video.filename }}</div>
                   </div>
+                </div>
+              </div>
+
+              <!-- Video details -->
+              <div class="col-6 col-lg-2">
+                <label class="form-label small text-muted mb-1 d-block">File Details</label>
+                <div class="small">{{ video.get('file_size') or '—' }}</div>
+                <div class="small text-muted">{{ video.get('resolution') or '—' }}</div>
+                <div class="small text-muted">Length: {{ video.get('duration') or '—' }}</div>
+              </div>
+
+              <!-- Enable (separate column) -->
+              <div class="col-6 col-lg-1">
+                <label class="form-label small text-muted mb-1 d-block" for="activeSwitch-{{ loop.index0 }}">Enable</label>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="activeSwitch-{{ loop.index0 }}"
+                    name="videos[{{ loop.index0 }}][active]" value="true" {% if video.active %}checked{% endif %}>
                 </div>
               </div>
 
