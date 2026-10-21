@@ -82,29 +82,53 @@ document.querySelectorAll(".tomselect").forEach(el => {
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // Reopen tag-management modals after Add/Delete POST redirects.
-    const pendingTagModal = sessionStorage.getItem('reopenTagModal');
-    if (pendingTagModal) {
-        sessionStorage.removeItem('reopenTagModal');
-        window.addEventListener('load', () => {
-            const modalElement = document.getElementById(pendingTagModal);
-            if (modalElement && window.bootstrap) {
-                bootstrap.Modal.getOrCreateInstance(modalElement).show();
-            }
-        }, { once: true });
+    // Submit tag-management forms without navigating away, so the modal stays open.
+    async function handleTagFormSubmit(event) {
+        if (event.defaultPrevented) return; // Respect delete confirmation prompts.
+
+        event.preventDefault();
+        const form = event.currentTarget;
+        const modal = form.closest('.modal');
+        if (!modal) return;
+
+        form.querySelectorAll('button[type="submit"], button:not([type])').forEach(button => {
+            button.disabled = true;
+        });
+
+        try {
+            const response = await fetch(form.action, {
+                method: (form.method || 'POST').toUpperCase(),
+                body: new FormData(form),
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) throw new Error(`Request failed (${response.status})`);
+
+            const html = await response.text();
+            const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
+            const updatedModal = parsedDocument.getElementById(modal.id);
+            if (!updatedModal) throw new Error('Updated tag modal was not found in the response.');
+
+            modal.innerHTML = updatedModal.innerHTML;
+            bindTagForms(modal);
+        } catch (error) {
+            console.error('Unable to update tags:', error);
+            window.location.reload();
+        }
     }
 
-    document.querySelectorAll('#scheduleTagsModal form, #syncTagsModal form').forEach(form => {
-        form.addEventListener('submit', () => {
-            const modal = form.closest('.modal');
-            if (modal) sessionStorage.setItem('reopenTagModal', modal.id);
+    function bindTagForms(container) {
+        if (!container) return;
+        container.querySelectorAll('form').forEach(form => {
+            if (form.dataset.ajaxTagFormBound === 'true') return;
+            form.dataset.ajaxTagFormBound = 'true';
+            form.addEventListener('submit', handleTagFormSubmit);
         });
-    });
+    }
 
+    bindTagForms(document.getElementById('scheduleTagsModal'));
+    bindTagForms(document.getElementById('syncTagsModal'));
 
-    
-
-    // ========================================================
     // FILE UPLOAD
     // ========================================================
 
