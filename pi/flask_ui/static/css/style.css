@@ -798,3 +798,31 @@ body.dark-theme {
     padding: 2rem 1rem !important;
   }
 }
+
+
+/* Per-file upload progress */
+#uploadModal .upload-file-progress {
+  height: 0.55rem;
+  min-width: 4rem;
+  background-color: var(--bs-secondary-bg, #e9ecef);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+#uploadModal .upload-file-progress .progress-bar {
+  transition: width 0.12s linear;
+}
+
+#uploadModal .upload-file-progress.upload-complete .progress-bar {
+  background-color: var(--bs-success);
+}
+
+#uploadModal [data-upload-row] {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+#uploadModal .upload-file-status {
+  min-width: 5.5rem;
+  text-align: right;
+}
