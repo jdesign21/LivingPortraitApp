@@ -769,28 +769,99 @@
       refreshDiscoveredPisBtn.addEventListener('click', refreshDiscoveredPis);
     }
 
-    document.addEventListener('click', event => {
-      const button = event.target.closest('.setup-add-discovered');
-      if (!button) return;
+    async function addDiscoveredSecondary(button) {
       const csrfInput = setupForm ? setupForm.querySelector('input[name="csrf_token"]') : null;
       if (!csrfInput) {
         showSetupError('Unable to verify this request. Refresh the page and try again.');
         return;
       }
-      const discoveryForm = document.createElement('form');
-      discoveryForm.method = 'POST';
-      discoveryForm.action = '{{ url_for("setup_add_discovered_secondary") }}';
-      const deviceInput = document.createElement('input');
-      deviceInput.type = 'hidden';
-      deviceInput.name = 'device_id';
-      deviceInput.value = button.dataset.deviceId || '';
-      const csrfCopy = document.createElement('input');
-      csrfCopy.type = 'hidden';
-      csrfCopy.name = 'csrf_token';
-      csrfCopy.value = csrfInput.value;
-      discoveryForm.append(deviceInput, csrfCopy);
-      document.body.appendChild(discoveryForm);
-      discoveryForm.submit();
+
+      const originalText = button.textContent.trim();
+      button.disabled = true;
+      button.textContent = 'Adding…';
+
+      try {
+        const formData = new FormData();
+        formData.append('csrf_token', csrfInput.value);
+        formData.append('device_id', button.dataset.deviceId || '');
+        const response = await fetch('{{ url_for("setup_add_discovered_secondary_ajax") }}', {
+          method: 'POST',
+          body: formData,
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Could not add this Secondary Pi.');
+        }
+
+        const device = result.device;
+        const rows = secondaryPisContainer
+          ? Array.from(secondaryPisContainer.querySelectorAll('.secondary-pi'))
+          : [];
+        const existingById = rows.find(row =>
+          row.querySelector('.secondary-device-id')?.value.trim() === device.device_id
+        );
+        const existingByIp = rows.find(row =>
+          row.querySelector('.secondary-ip')?.value.trim() === device.ip
+        );
+
+        if (originalText.includes('Update IP')) {
+          const row = existingById || existingByIp;
+          if (row) {
+            const ipInput = row.querySelector('.secondary-ip');
+            const idInput = row.querySelector('.secondary-device-id');
+            if (ipInput) ipInput.value = device.ip;
+            if (idInput) idInput.value = device.device_id;
+          } else {
+            addSecondary();
+            const rowAdded = secondaryPisContainer.querySelector('.secondary-pi:last-child');
+            rowAdded.querySelector('.secondary-name').value = device.name;
+            rowAdded.querySelector('.secondary-ip').value = device.ip;
+            rowAdded.querySelector('.secondary-device-id').value = device.device_id;
+          }
+        } else if (originalText.includes('Link Device')) {
+          const row = existingByIp || existingById;
+          if (row) {
+            const idInput = row.querySelector('.secondary-device-id');
+            if (idInput) idInput.value = device.device_id;
+          } else {
+            addSecondary();
+            const rowAdded = secondaryPisContainer.querySelector('.secondary-pi:last-child');
+            rowAdded.querySelector('.secondary-name').value = device.name;
+            rowAdded.querySelector('.secondary-ip').value = device.ip;
+            rowAdded.querySelector('.secondary-device-id').value = device.device_id;
+          }
+        } else {
+          const row = existingById || existingByIp;
+          if (row) {
+            const idInput = row.querySelector('.secondary-device-id');
+            if (idInput) idInput.value = device.device_id;
+            const ipInput = row.querySelector('.secondary-ip');
+            if (ipInput) ipInput.value = device.ip;
+          } else {
+            addSecondary();
+            const rowAdded = secondaryPisContainer.querySelector('.secondary-pi:last-child');
+            rowAdded.querySelector('.secondary-name').value = device.name;
+            rowAdded.querySelector('.secondary-ip').value = device.ip;
+            rowAdded.querySelector('.secondary-device-id').value = device.device_id;
+          }
+        }
+
+        updateSecondaryMessage();
+        await refreshDiscoveredPis();
+      } catch (error) {
+        showSetupError(error.message || 'Could not add this Secondary Pi. Please try again.');
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    }
+
+    document.addEventListener('click', event => {
+      const button = event.target.closest('.setup-add-discovered');
+      if (!button) return;
+      addDiscoveredSecondary(button);
     });
 
     // ========================================================
