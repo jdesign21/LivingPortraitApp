@@ -117,6 +117,41 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             if (!response.ok) throw new Error(`Request failed (${response.status})`);
 
+            if (form.id === 'syncTagsForm') {
+                const data = await response.json();
+                const spinner = document.getElementById('syncTagsSpinner');
+                const icon = document.getElementById('syncTagsIcon');
+                const buttonText = document.getElementById('syncTagsButtonText');
+                const progress = document.getElementById('syncTagsProgress');
+                const resultContainer = document.getElementById('syncTagsResult');
+                const syncButton = document.getElementById('syncTagsSubmitBtn');
+
+                spinner?.classList.add('d-none');
+                icon?.classList.remove('d-none');
+                progress?.classList.add('d-none');
+                if (syncButton) syncButton.disabled = false;
+                if (buttonText) buttonText.textContent = 'Sync Tags to Secondaries';
+
+                if (resultContainer) {
+                    resultContainer.className = `mt-3 alert ${data.success ? 'alert-success' : 'alert-warning'}`;
+                    resultContainer.replaceChildren();
+
+                    const heading = document.createElement('div');
+                    heading.className = 'fw-semibold mb-2';
+                    heading.textContent = data.message || 'Sync completed.';
+                    resultContainer.appendChild(heading);
+
+                    (data.results || []).forEach(item => {
+                        const row = document.createElement('div');
+                        row.className = item.success ? 'text-success' : 'text-danger';
+                        row.textContent = `${item.name}${item.ip ? ' — ' + item.ip : ''}: ${item.message}`;
+                        resultContainer.appendChild(row);
+                    });
+                    resultContainer.classList.remove('d-none');
+                }
+                return;
+            }
+
             const html = await response.text();
             const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
             const updatedModal = parsedDocument.getElementById(modal.id);
