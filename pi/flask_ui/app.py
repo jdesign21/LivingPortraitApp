@@ -1912,6 +1912,14 @@ def sync_tags_to_secondaries():
 
     network_settings = load_network_settings()
     secondary_pis = network_settings.get("secondary_pis", [])
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+    if not secondary_pis:
+        message = "No Secondary Pis are configured."
+        if is_ajax:
+            return jsonify({"success": False, "message": message, "results": []})
+        flash(message, "warning")
+        return redirect(url_for("index"))
 
     # Clear acknowledgments from any previous sync.
     mqtt_client.clear_sync_tag_acknowledgments()
@@ -1927,46 +1935,55 @@ def sync_tags_to_secondaries():
 
     # Give Secondaries time to receive, process, and acknowledge.
     time.sleep(2)
-
     acknowledgments = mqtt_client.get_sync_tag_acknowledgments()
 
-    # Check every configured Secondary.
-    if not secondary_pis:
-        flash("No Secondary Pis are configured.", "warning")
-        return redirect(url_for("index"))
-
+    results = []
     for secondary in secondary_pis:
         secondary_name = secondary.get("name", "Unknown")
         secondary_ip = secondary.get("ip", "").strip()
 
         if not secondary_ip:
-            flash(
-                f"{secondary_name} — No IP address configured.",
-                "danger"
-            )
+            results.append({
+                "name": secondary_name,
+                "success": False,
+                "message": "No IP address configured."
+            })
             continue
 
         result = acknowledgments.get(secondary_ip)
-
         if result is None:
-            flash(
-                f"{secondary_name} — {secondary_ip} — No response",
-                "danger"
-            )
-            continue
-
-        if result.get("success"):
-            flash(
-                f"{secondary_name} — {secondary_ip} — Sync successful",
-                "success"
-            )
+            results.append({
+                "name": secondary_name,
+                "ip": secondary_ip,
+                "success": False,
+                "message": "No response from Secondary. It may be offline or disconnected."
+            })
+        elif result.get("success"):
+            results.append({
+                "name": secondary_name,
+                "ip": secondary_ip,
+                "success": True,
+                "message": "Sync successful."
+            })
         else:
-            message = result.get("message", "Unknown error")
-            flash(
-                f"{secondary_name} — {secondary_ip} — "
-                f"Sync failed: {message}",
-                "danger"
-            )
+            results.append({
+                "name": secondary_name,
+                "ip": secondary_ip,
+                "success": False,
+                "message": f"Sync failed: {result.get('message', 'Unknown error')}"
+            })
+
+    if is_ajax:
+        return jsonify({
+            "success": all(item["success"] for item in results),
+            "message": "Sync completed." if all(item["success"] for item in results) else "Sync completed with errors.",
+            "results": results
+        })
+
+    for item in results:
+        location = f" — {item['ip']}" if item.get("ip") else ""
+        flash(f"{item['name']}{location} — {item['message']}",
+              "success" if item["success"] else "danger")
 
     return redirect(url_for("index"))
 
