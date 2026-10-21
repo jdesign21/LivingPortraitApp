@@ -1542,41 +1542,52 @@ def thumbnail_file(filename):
 
 @app.route("/upload", methods=["POST"])
 def upload():
-    if "file" not in request.files:
-        flash("No file part", "danger")
+    files = request.files.getlist("file")
+    if not files or not any(file.filename for file in files):
+        flash("Select at least one MP4 video to upload.", "danger")
         return redirect(url_for("index"))
 
-    file = request.files["file"]
+    settings = load_settings()
+    playlist = settings.setdefault("playlist", {})
+    order = playlist.setdefault("order", [])
+    existing_names = {item.get("filename") for item in order if isinstance(item, dict)}
+    uploaded = []
+    errors = []
 
-    if file.filename == "":
-        flash("No selected file", "danger")
-        return redirect(url_for("index"))
+    for file in files:
+        if not file or not file.filename:
+            continue
 
-    if file and file.filename.lower().endswith(".mp4"):
+        if not file.filename.lower().endswith(".mp4"):
+            errors.append(f"{file.filename}: only MP4 files are allowed.")
+            continue
+
         filename = secure_filename(file.filename)
-
         if not filename:
-            flash("Invalid filename", "danger")
-            return redirect(url_for("index"))
+            errors.append("A selected file has an invalid filename.")
+            continue
 
-        save_path = VIDEO_FOLDER / filename
-        file.save(save_path)
-        _ensure_video_thumbnail(filename)
+        try:
+            save_path = VIDEO_FOLDER / filename
+            file.save(save_path)
+            _ensure_video_thumbnail(filename)
 
-        settings = load_settings()
-        order = settings.get("playlist", {}).get("order", [])
+            if filename not in existing_names:
+                order.append({"filename": filename, "active": True})
+                existing_names.add(filename)
+            uploaded.append(filename)
+        except Exception as exc:
+            log(f"Upload failed for {filename}: {exc}", "UPLOAD")
+            errors.append(f"{filename}: upload failed.")
 
-        if not any(item["filename"] == filename for item in order):
-            order.append({
-                "filename": filename,
-                "active": True
-            })
-            settings["playlist"]["order"] = order
-            save_settings(settings)
+    if uploaded:
+        playlist["order"] = order
+        settings["playlist"] = playlist
+        save_settings(settings)
+        flash(f"Uploaded {len(uploaded)} video(s): {', '.join(uploaded)}", "success")
 
-        flash(f"Uploaded: {filename}", "success")
-    else:
-        flash("Only .mp4 files are allowed", "danger")
+    for error in errors:
+        flash(error, "danger")
 
     return redirect(url_for("index"))
 
