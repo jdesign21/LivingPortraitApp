@@ -47,9 +47,49 @@
           and schedules to determine which videos are available for playback.
         </p>
 
-        <ul class="list-group">
+        <div class="video-library-toolbar row g-2 align-items-center mb-3">
+          <div class="col-12 col-md-4">
+            <label class="visually-hidden" for="videoSearch">Search videos</label>
+            <input type="search" class="form-control" id="videoSearch" placeholder="Search videos by name...">
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="visually-hidden" for="videoTagFilter">Filter by tag</label>
+            <select class="form-select" id="videoTagFilter">
+              <option value="">All tags</option>
+              {% for tag in schedule_tags %}
+              <option value="{{ tag.name|lower }}">{{ tag.name }}</option>
+              {% endfor %}
+              {% for tag in sync_tags %}
+              {% if tag|lower not in schedule_tags|map(attribute='name')|map('lower')|list %}
+              <option value="{{ tag|lower }}">{{ tag }} (Sync)</option>
+              {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-md-2">
+            <label class="visually-hidden" for="videoSort">Sort videos</label>
+            <select class="form-select" id="videoSort">
+              <option value="name-asc">Name (A–Z)</option>
+              <option value="name-desc">Name (Z–A)</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-3 d-flex justify-content-md-end gap-1">
+            <div class="btn-group" role="group" aria-label="Video layout">
+              <button type="button" class="btn btn-outline-secondary active" id="videoListView" aria-pressed="true" title="List view">
+                <i class="bi bi-list-ul"></i> List
+              </button>
+              <button type="button" class="btn btn-outline-secondary" id="videoGridView" aria-pressed="false" title="Grid view">
+                <i class="bi bi-grid-3x3-gap"></i> Grid
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <ul class="list-group video-library-list" id="videoLibraryList">
           {% for video in manage_videos %}
-          <li class="list-group-item">
+          <li class="list-group-item video-library-item"
+              data-video-name="{{ video.filename|lower }}"
+              data-video-tags="{% for tag in schedule_tags %}{% if tag.id in video.get('tags', []) %}{{ tag.name|lower }} {% endif %}{% endfor %}{{ video.get('sync_tag', '')|lower }}">
             <div class="row g-3 align-items-center">
               <!-- Video / Enable -->
               <div class="col-12 col-lg-4">
@@ -393,5 +433,57 @@
     </div>
 
   </div>
+  <script>
+    (() => {
+      const list = document.getElementById("videoLibraryList");
+      if (!list || list.dataset.controlsReady === "true") return;
+      list.dataset.controlsReady = "true";
+
+      const search = document.getElementById("videoSearch");
+      const tagFilter = document.getElementById("videoTagFilter");
+      const sort = document.getElementById("videoSort");
+      const listButton = document.getElementById("videoListView");
+      const gridButton = document.getElementById("videoGridView");
+
+      const items = () => Array.from(list.querySelectorAll(".video-library-item"));
+
+      function applyVideoFilters() {
+        const query = search.value.trim().toLowerCase();
+        const tag = tagFilter.value.trim().toLowerCase();
+
+        items().forEach(item => {
+          const name = item.dataset.videoName || "";
+          const tags = (item.dataset.videoTags || "").split(/\\s+/).filter(Boolean);
+          item.hidden = !(name.includes(query) && (!tag || tags.includes(tag)));
+        });
+
+        const sorted = items().sort((a, b) => {
+          const aName = a.dataset.videoName || "";
+          const bName = b.dataset.videoName || "";
+          return sort.value === "name-desc"
+            ? bName.localeCompare(aName)
+            : aName.localeCompare(bName);
+        });
+        sorted.forEach(item => list.appendChild(item));
+      }
+
+      function setVideoLayout(layout) {
+        const grid = layout === "grid";
+        list.classList.toggle("video-library-grid", grid);
+        list.classList.toggle("video-library-list-view", !grid);
+        listButton.classList.toggle("active", !grid);
+        gridButton.classList.toggle("active", grid);
+        listButton.setAttribute("aria-pressed", String(!grid));
+        gridButton.setAttribute("aria-pressed", String(grid));
+      }
+
+      search.addEventListener("input", applyVideoFilters);
+      tagFilter.addEventListener("change", applyVideoFilters);
+      sort.addEventListener("change", applyVideoFilters);
+      listButton.addEventListener("click", () => setVideoLayout("list"));
+      gridButton.addEventListener("click", () => setVideoLayout("grid"));
+      applyVideoFilters();
+    })();
+  </script>
 </section>
 
