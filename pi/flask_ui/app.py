@@ -706,7 +706,7 @@ def index():
         sched["slots"] = slots
 
     # Get today's name
-    today = datetime.now().strftime("%A")
+    today = request_now.strftime("%A")
     today_schedule = days_schedule.get(today, {})
 
     # Check if schedule is enabled right now
