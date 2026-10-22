@@ -230,7 +230,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const currentTags = data.tags || [];
             document.querySelectorAll('select').forEach(select => {
-                if (!/tag|category|sync/i.test((select.name || '') + ' ' + (select.id || ''))) return;
+                const selectorName = (select.name || '') + ' ' + (select.id || '');
+                if (isSchedule) {
+                    if (!/tag|category/i.test(selectorName) || /sync/i.test(selectorName)) return;
+                } else if (!/sync/i.test(selectorName)) {
+                    return;
+                }
                 const selected = Array.from(select.selectedOptions).map(option => option.value);
                 const values = isSchedule
                     ? currentTags.map(tag => ({ value: tag.id, label: tag.name }))
