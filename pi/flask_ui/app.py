@@ -10,11 +10,25 @@ import sys
 import json
 import time
 import subprocess
+import re
+import secrets
 
 HOME = Path(os.path.expanduser("~"))
 
 # Add the shared folder to sys.path
 sys.path.append(str(HOME))
+
+from shared.auth_manager import (
+    get_or_create_secret_key,
+    load_auth_data,
+    validate_username,
+    validate_password,
+    verify_password,
+    create_admin,
+    update_admin,
+    save_auth_data,
+)
+
 
 from shared.vlc_helper import (
     log,
@@ -46,6 +60,11 @@ from shared.network import (
     get_sync_start_lead_ms
 )
 from shared.system_info import get_system_info
+from shared.discovery_service import (
+    start_discovery_service,
+    get_discovered_secondary_pis,
+    verify_secondary_device,
+)
 from shared.update_helper import check_for_update
 from shared.update_manager import start_update
 from shared.display_helper import (
@@ -64,8 +83,271 @@ from shared.audio import (
 )
 
 app = Flask(__name__)
-app.secret_key = 'replace-this-with-a-secure-random-key'
+app.secret_key = get_or_create_secret_key()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    # The current server is HTTP-only. Enable this when HTTPS is configured.
+    SESSION_COOKIE_SECURE=False,
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8),
+    SESSION_REFRESH_EACH_REQUEST=True,
+)
 start_power_scheduler()
+start_discovery_service()
+
+_LOGIN_FAILURES = {}
+_LOGIN_WINDOW_SECONDS = 15 * 60
+SESSION_TIMEOUT_OPTIONS = (0.25, 0.5, 1, 4, 8, 12, 24, 48)
+_DEFAULT_SESSION_TIMEOUT_HOURS = 8
+_LOGIN_MAX_FAILURES = 5
+
+
+def _csrf_token():
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+
+def _get_session_timeout_hours(auth_data=None):
+    auth_data = auth_data if isinstance(auth_data, dict) else load_auth_data()
+    try:
+        timeout_hours = float(auth_data.get("session_timeout_hours", _DEFAULT_SESSION_TIMEOUT_HOURS))
+    except (TypeError, ValueError):
+        timeout_hours = _DEFAULT_SESSION_TIMEOUT_HOURS
+    return timeout_hours if timeout_hours in SESSION_TIMEOUT_OPTIONS else _DEFAULT_SESSION_TIMEOUT_HOURS
+
+
+@app.context_processor
+def inject_auth_template_values():
+    return {
+        "csrf_token": _csrf_token,
+        "session_timeout_hours": _get_session_timeout_hours(),
+        "session_timeout_options": SESSION_TIMEOUT_OPTIONS,
+    }
+
+
+@app.before_request
+def enforce_authentication_and_csrf():
+    # All state-changing requests, including login and setup, require a session token.
+    if request.method not in ("GET", "HEAD", "OPTIONS", "TRACE"):
+        expected = session.get("_csrf_token", "")
+        supplied = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token", "")
+        if not expected or not supplied or not secrets.compare_digest(str(expected), str(supplied)):
+            return "CSRF validation failed. Reload the page and try again.", 400
+
+    auth_data = load_auth_data()
+    configured = bool(auth_data.get("username") and auth_data.get("password"))
+    timeout_hours = _get_session_timeout_hours(auth_data)
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=timeout_hours)
+    endpoint = request.endpoint or ""
+
+    if endpoint in ("static", "login", "admin_setup"):
+        if endpoint == "login" and not configured:
+            return redirect(url_for("admin_setup"))
+        if endpoint == "admin_setup" and configured:
+            return redirect(url_for("login"))
+        return None
+
+    # The logo is the only image available before login; all other media is private.
+    if endpoint == "image_file" and request.view_args and request.view_args.get("filename") == "logo.png":
+        return None
+
+    if not configured:
+        return redirect(url_for("admin_setup", next=request.path))
+
+    if not session.get("auth_user"):
+        return redirect(url_for("login", next=request.path))
+
+    if session.get("auth_version") != auth_data.get("session_version"):
+        session.clear()
+        flash("Your session has ended because the account credentials changed. Please sign in again.", "warning")
+        return redirect(url_for("login"))
+
+    last_activity = session.get("last_activity", 0)
+    if not isinstance(last_activity, (int, float)) or time.time() - last_activity > timeout_hours * 60 * 60:
+        session.clear()
+        flash("Your session expired. Please sign in again.", "warning")
+        return redirect(url_for("login"))
+
+    session["last_activity"] = time.time()
+    return None
+
+
+@app.after_request
+def add_csrf_tokens_to_forms(response):
+    if response.mimetype == "text/html" and response.status_code < 400:
+        # Generate a token even on public login/setup pages whose templates do not
+        # explicitly call csrf_token(). Flask saves this session after after_request.
+        token = _csrf_token()
+        html = response.get_data(as_text=True)
+        hidden = '<input type="hidden" name="csrf_token" value="' + token + '">'
+        html = re.sub(r"(<form\b[^>]*>)", lambda match: match.group(1) + hidden, html, flags=re.IGNORECASE)
+        response.set_data(html)
+    return response
+
+
+def _login_is_rate_limited(key):
+    now = time.monotonic()
+    failures = [stamp for stamp in _LOGIN_FAILURES.get(key, []) if now - stamp < _LOGIN_WINDOW_SECONDS]
+    _LOGIN_FAILURES[key] = failures
+    return len(failures) >= _LOGIN_MAX_FAILURES
+
+
+def _record_login_failure(key):
+    now = time.monotonic()
+    failures = [stamp for stamp in _LOGIN_FAILURES.get(key, []) if now - stamp < _LOGIN_WINDOW_SECONDS]
+    failures.append(now)
+    _LOGIN_FAILURES[key] = failures
+
+
+@app.route("/admin-setup", methods=["GET", "POST"])
+def admin_setup():
+    auth_data = load_auth_data()
+    if auth_data.get("username") and auth_data.get("password"):
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        username = validate_username(request.form.get("username", ""))
+        password = request.form.get("password", "")
+        confirmation = request.form.get("confirm_password", "")
+
+        if not username:
+            flash("Username must be 3–32 characters using letters, numbers, periods, underscores, or hyphens.", "danger")
+        elif not validate_password(password):
+            flash("Password must be at least 12 characters and have no leading or trailing whitespace.", "danger")
+        elif password != confirmation:
+            flash("The passwords do not match.", "danger")
+        else:
+            # Re-check immediately before writing so only one first-run request wins.
+            auth_data = load_auth_data()
+            if auth_data.get("username") and auth_data.get("password"):
+                return redirect(url_for("login"))
+            created = create_admin(username, password)
+            saved = load_auth_data()
+            session.clear()
+            session.permanent = True
+            session["auth_user"] = saved.get("username", username)
+            session["auth_version"] = saved.get("session_version")
+            session["last_activity"] = time.time()
+            _csrf_token()
+            flash("Administrator account created. Complete the LivingPortraitApp setup below.", "success")
+            return redirect(url_for("index"))
+
+    return render_template("admin_setup.html")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    auth_data = load_auth_data()
+    if not auth_data.get("username") or not auth_data.get("password"):
+        return redirect(url_for("admin_setup"))
+
+    if (
+        request.method == "GET"
+        and session.get("auth_user")
+        and session.get("auth_version") == auth_data.get("session_version")
+    ):
+        return redirect(url_for("index"))
+
+    if request.method == "POST":
+        remote = request.remote_addr or "unknown"
+        key = remote[:128]
+        if _login_is_rate_limited(key):
+            flash("Too many sign-in attempts. Wait 15 minutes before trying again.", "danger")
+            return redirect(url_for("login"))
+
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        if verify_password(password, auth_data.get("password")) and username.strip().casefold() == str(auth_data.get("username", "")).casefold():
+            _LOGIN_FAILURES.pop(key, None)
+            session.clear()
+            session.permanent = True
+            session["auth_user"] = auth_data["username"]
+            session["auth_version"] = auth_data.get("session_version")
+            session["last_activity"] = time.time()
+            _csrf_token()
+            return redirect(url_for("index"))
+
+        _record_login_failure(key)
+        flash("Invalid username or password.", "danger")
+
+    return render_template("login.html")
+
+
+@app.route("/account-session-settings", methods=["POST"])
+def account_session_settings():
+    auth_data = load_auth_data()
+    try:
+        timeout_hours = float(request.form.get("session_timeout_hours", ""))
+    except (TypeError, ValueError):
+        timeout_hours = None
+
+    if timeout_hours not in SESSION_TIMEOUT_OPTIONS:
+        flash("Select a valid session timeout.", "danger")
+        return redirect(url_for("index") + "#account_security")
+
+    auth_data["session_timeout_hours"] = timeout_hours
+    save_auth_data(auth_data)
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=timeout_hours)
+    session.permanent = True
+    session["last_activity"] = time.time()
+    flash("Session timeout updated successfully.", "success")
+    return redirect(url_for("index") + "#account_security")
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    flash("You have been signed out.", "success")
+    return redirect(url_for("login"))
+
+
+@app.route("/account-security", methods=["POST"])
+def account_security():
+    auth_data = load_auth_data()
+    current_password = request.form.get("current_password", "")
+    action = request.form.get("action", "")
+
+    if not verify_password(current_password, auth_data.get("password")):
+        flash("The current password is incorrect.", "danger")
+        return redirect(url_for("index") + "#account_security")
+
+    if action == "change_username":
+        username = validate_username(request.form.get("new_username", ""))
+        if not username:
+            flash("Username must be 3–32 characters using letters, numbers, periods, underscores, or hyphens.", "danger")
+            return redirect(url_for("index") + "#account_security")
+
+        updated = update_admin(username, None)
+        session["auth_user"] = updated["username"]
+        session["auth_version"] = updated.get("session_version")
+        session["last_activity"] = time.time()
+        flash("Administrator username updated successfully.", "success")
+        return redirect(url_for("index") + "#account_security")
+
+    if action == "change_password":
+        new_password = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_new_password", "")
+
+        if new_password != confirm_password:
+            flash("The new passwords do not match.", "danger")
+            return redirect(url_for("index") + "#account_security")
+        if not validate_password(new_password):
+            flash("New password must be at least 12 characters and have no leading or trailing whitespace.", "danger")
+            return redirect(url_for("index") + "#account_security")
+
+        updated = update_admin(auth_data.get("username", ""), new_password)
+        session["auth_user"] = updated["username"]
+        session["auth_version"] = updated.get("session_version")
+        session["last_activity"] = time.time()
+        flash("Administrator password updated successfully.", "success")
+        return redirect(url_for("index") + "#account_security")
+
+    flash("Unknown account action. Please try again.", "danger")
+    return redirect(url_for("index") + "#account_security")
+
 
 VIDEO_FOLDER = HOME / "videos"
 IMAGES_FOLDER = HOME / "images"
@@ -184,6 +466,29 @@ def index():
     sync_start_delay_ms = get_sync_start_delay_ms()
     sync_start_lead_ms = get_sync_start_lead_ms()
     secondary_pis = check_secondary_status()
+    discovered_secondary_pis = get_discovered_secondary_pis()
+    configured_device_ips = {
+        str(pi.get("device_id")): str(pi.get("ip", "")).strip()
+        for pi in secondary_pis
+        if pi.get("device_id")
+    }
+    configured_device_ids = set(configured_device_ips)
+    configured_ips = {
+        str(pi.get("ip", "")).strip()
+        for pi in secondary_pis
+        if str(pi.get("ip", "")).strip()
+    }
+    for discovered_pi in discovered_secondary_pis:
+        device_id = discovered_pi.get("device_id")
+        discovered_ip = str(discovered_pi.get("ip", "")).strip()
+        matched_by_id = device_id in configured_device_ids
+        matched_by_ip = discovered_ip in configured_ips
+        discovered_pi["is_configured"] = matched_by_id or matched_by_ip
+        discovered_pi["ip_changed"] = (
+            matched_by_id
+            and configured_device_ips.get(device_id, "") != discovered_ip
+        )
+        discovered_pi["needs_link"] = matched_by_ip and not matched_by_id
 
     # Read MQTT status without importing mqtt_client.
     # This prevents Flask from starting a second MQTT worker.
@@ -472,6 +777,7 @@ def index():
 
     return render_template(
         "index.html",
+        auth_username=session.get("auth_user", ""),
         logs=logs,
         recent_activity=recent_activity,
         videos=fixed_order,
@@ -507,6 +813,7 @@ def index():
         primary_ip=primary_ip,
         enable=enable,
         secondary_pis=secondary_pis,
+        discovered_secondary_pis=discovered_secondary_pis,
         mqtt_connected=mqtt_connected,
         sync_start_delay_ms=sync_start_delay_ms,
         sync_start_lead_ms=sync_start_lead_ms,
@@ -523,6 +830,25 @@ def index():
     )
 
 
+def _get_discovered_secondary_pis_for_config(secondary_pis):
+    """Annotate discovered devices with their current configuration state."""
+    discovered = get_discovered_secondary_pis()
+    configured_device_ips = {
+        str(pi.get("device_id")): str(pi.get("ip", "")).strip()
+        for pi in secondary_pis if pi.get("device_id")
+    }
+    configured_device_ids = set(configured_device_ips)
+    configured_ips = {str(pi.get("ip", "")).strip() for pi in secondary_pis if str(pi.get("ip", "")).strip()}
+    for device in discovered:
+        device_id = device.get("device_id")
+        ip = str(device.get("ip", "")).strip()
+        matched_by_id = device_id in configured_device_ids
+        matched_by_ip = ip in configured_ips
+        device["is_configured"] = matched_by_id or matched_by_ip
+        device["ip_changed"] = matched_by_id and configured_device_ips.get(device_id, "") != ip
+        device["needs_link"] = matched_by_ip and not matched_by_id
+    return discovered
+
 @app.route("/setup", methods=["GET", "POST"])
 def setup():
     settings = load_settings()
@@ -532,10 +858,13 @@ def setup():
     if settings.get("setup_complete", False):
         return redirect(url_for("index"))
 
-    role = network_settings.get("role", "secondary")
+    role = request.args.get("role", network_settings.get("role", "secondary"))
+    if role not in ("primary", "secondary"):
+        role = network_settings.get("role", "secondary")
     enable = network_settings.get("enable", "0")
     primary_ip = network_settings.get("primary_ip", "")
     secondary_pis = network_settings.get("secondary_pis", [])
+    discovered_secondary_pis = _get_discovered_secondary_pis_for_config(secondary_pis)
     audio_outputs = get_audio_outputs()
     audio_output = get_audio_output()
 
@@ -563,6 +892,7 @@ def setup():
                 enable=enable,
                 primary_ip=primary_ip,
                 secondary_pis=secondary_pis,
+                    discovered_secondary_pis=discovered_secondary_pis,
                 videos=videos,
                 audio_outputs=audio_outputs,
                 audio_output=audio_output
@@ -594,15 +924,20 @@ def setup():
                     enable=enable,
                     primary_ip=primary_ip,
                     secondary_pis=new_secondary_pis,
+                    discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
                     audio_output=audio_output
                 )
 
-            new_secondary_pis.append({
+            secondary_entry = {
                 "name": name[:50],
                 "ip": ip
-            })
+            }
+            device_id = request.form.get(f"secondary_pis[{index}][device_id]", "").strip()
+            if device_id:
+                secondary_entry["device_id"] = device_id
+            new_secondary_pis.append(secondary_entry)
 
             index += 1
 
@@ -637,6 +972,7 @@ def setup():
                 enable=enable,
                 primary_ip=primary_ip,
                 secondary_pis=new_secondary_pis,
+                    discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                 videos=videos,
                 audio_outputs=audio_outputs,
                 audio_output=audio_output
@@ -655,6 +991,7 @@ def setup():
                     enable=enable,
                     primary_ip=primary_ip,
                     secondary_pis=new_secondary_pis,
+                    discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
                     audio_output=audio_output
@@ -671,6 +1008,7 @@ def setup():
                     enable=enable,
                     primary_ip=primary_ip,
                     secondary_pis=new_secondary_pis,
+                    discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
                     audio_output=audio_output
@@ -732,6 +1070,11 @@ def setup():
         settings["setup_complete"] = True
         save_settings(settings)
 
+        # MQTT configuration changes require a reboot before the service
+        # connections are reliably initialized.
+        if enable == "1":
+            session["reboot_required"] = True
+
         flash(
             "LivingPortraitApp setup completed successfully.",
             "success"
@@ -745,6 +1088,7 @@ def setup():
         enable=enable,
         primary_ip=primary_ip,
         secondary_pis=secondary_pis,
+                    discovered_secondary_pis=_get_discovered_secondary_pis_for_config(secondary_pis),
         videos=videos,
         audio_outputs=audio_outputs,
         audio_output=audio_output
@@ -1751,6 +2095,156 @@ def reboot():
 
     return redirect(url_for("index"))
 
+# Add/link a discovered Secondary during setup without navigating away.
+@app.route("/setup/add_discovered_secondary_ajax", methods=["POST"])
+def setup_add_discovered_secondary_ajax():
+    device_id = request.form.get("device_id", "").strip()
+    device = next(
+        (item for item in get_discovered_secondary_pis() if item.get("device_id") == device_id),
+        None,
+    )
+    if not device:
+        return jsonify({
+            "success": False,
+            "message": "That device is no longer being discovered. Wait for its next announcement and refresh.",
+        }), 404
+
+    if not verify_secondary_device(device["ip"], device_id):
+        return jsonify({
+            "success": False,
+            "message": "Could not verify a live LivingPortraitApp Secondary at that address. Check that it is running on the same local network.",
+        }), 400
+
+    return jsonify({
+        "success": True,
+        "device": {
+            "device_id": device_id,
+            "name": device.get("name", "Secondary Pi"),
+            "ip": device.get("ip", ""),
+            "version": device.get("version", ""),
+            "last_seen_label": device.get("last_seen_label", ""),
+        },
+    })
+
+
+# Refresh the discovery list during initial setup without reloading the wizard.
+@app.route("/setup/refresh_discovered_secondary", methods=["POST"])
+def setup_refresh_discovered_secondary():
+    try:
+        submitted = json.loads(request.form.get("secondary_pis_json", "[]"))
+        if not isinstance(submitted, list):
+            submitted = []
+        secondary_pis = [
+            item for item in submitted
+            if isinstance(item, dict)
+            and str(item.get("name", "")).strip()
+            and str(item.get("ip", "")).strip()
+        ]
+    except (TypeError, ValueError):
+        secondary_pis = []
+
+    return jsonify({
+        "success": True,
+        "devices": _get_discovered_secondary_pis_for_config(secondary_pis),
+    })
+
+
+# Add a discovered secondary Pi during initial setup.
+@app.route("/setup/add_discovered_secondary", methods=["POST"])
+def setup_add_discovered_secondary():
+    device_id = request.form.get("device_id", "").strip()
+    device = next((item for item in get_discovered_secondary_pis() if item.get("device_id") == device_id), None)
+    if not device:
+        flash("That device is no longer being discovered. Wait for its next announcement and refresh the page.", "warning")
+        return redirect(url_for("setup", role="primary"))
+    if not verify_secondary_device(device["ip"], device_id):
+        flash("Could not verify a live LivingPortraitApp Secondary at that address. Make sure it is running and on the same local network, then try again.", "warning")
+        return redirect(url_for("setup", role="primary"))
+    network_settings = load_network_settings()
+    secondary_pis = network_settings.get("secondary_pis", [])
+    existing = next((item for item in secondary_pis if item.get("device_id") == device_id or str(item.get("ip", "")).strip() == str(device.get("ip", "")).strip()), None)
+    if existing:
+        same_device = existing.get("device_id") == device_id
+        existing["device_id"] = device_id
+        if same_device:
+            existing["ip"] = device["ip"]
+        network_settings["secondary_pis"] = secondary_pis
+        save_network_settings(network_settings)
+        flash(f"{existing.get('name', device['name'])} is already configured. Device information was refreshed.", "info")
+        return redirect(url_for("setup", role="primary"))
+    secondary_pis.append({"name": device["name"], "ip": device["ip"], "device_id": device_id})
+    network_settings["secondary_pis"] = secondary_pis
+    save_network_settings(network_settings)
+    log(f"Discovered Secondary Pi added during setup: {device['name']} ({device['ip']})", "NETWORK")
+    flash(f"Added Secondary Pi: {device['name']} ({device['ip']}).", "success")
+    return redirect(url_for("setup", role="primary"))
+
+# Add a discovered secondary Pi to the configured list.
+@app.route("/network/add_discovered_secondary", methods=["POST"])
+def network_add_discovered_secondary():
+    device_id = request.form.get("device_id", "").strip()
+    discovered = get_discovered_secondary_pis()
+    device = next(
+        (item for item in discovered if item.get("device_id") == device_id),
+        None,
+    )
+
+    network_settings = load_network_settings()
+    if network_settings.get("role") != "primary":
+        flash("Only the Primary Pi can add Secondary Pis.", "danger")
+        return redirect(url_for("index"))
+
+    if not device:
+        flash(
+            "That device is no longer being discovered. Wait for its next announcement and refresh the page.",
+            "warning",
+        )
+        return redirect(url_for("index"))
+
+    if not verify_secondary_device(device["ip"], device_id):
+        flash(
+            "Could not verify a live LivingPortraitApp Secondary at that address. Make sure it is running and on the same local network, then try again.",
+            "warning",
+        )
+        return redirect(url_for("index"))
+
+    secondary_pis = network_settings.get("secondary_pis", [])
+    existing = next(
+        (
+            item for item in secondary_pis
+            if item.get("device_id") == device_id
+            or str(item.get("ip", "")).strip() == str(device.get("ip", "")).strip()
+        ),
+        None,
+    )
+
+    if existing:
+        same_device = existing.get("device_id") == device_id
+        existing["device_id"] = device_id
+        if same_device:
+            existing["ip"] = device["ip"]
+        save_network_settings(network_settings)
+        flash(
+            f"{existing.get('name', device['name'])} is already configured. Device information was refreshed.",
+            "info",
+        )
+        return redirect(url_for("index"))
+
+    secondary_pis.append({
+        "name": device["name"],
+        "ip": device["ip"],
+        "device_id": device_id,
+    })
+    network_settings["secondary_pis"] = secondary_pis
+    save_network_settings(network_settings)
+    log(
+        f"Discovered Secondary Pi added: {device['name']} ({device['ip']})",
+        "NETWORK",
+    )
+    flash(f"Added Secondary Pi: {device['name']} ({device['ip']}).", "success")
+    return redirect(url_for("index"))
+
+
 # Add a new secondary Pi
 @app.route("/network/add_secondary", methods=["POST"])
 def network_add_secondary():
@@ -2034,12 +2528,35 @@ def save_appearance_settings():
 
     save_settings(settings)
 
-    subprocess.run(
-        ["sudo", "systemctl", "restart", "motion_vlc.service"],
-        check=False
-    )
-
-    flash("Appearance settings saved. Playback restarted.", "success")
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "systemctl", "restart", "motion_vlc"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+        if result.returncode == 0:
+            flash("Appearance settings saved. Playback restarted.", "success")
+        else:
+            detail = (result.stderr or result.stdout or "").strip()
+            log(
+                "Appearance settings saved, but playback restart failed."
+                + (f" Details: {detail}" if detail else ""),
+                "ERROR",
+            )
+            flash(
+                "Appearance settings were saved, but playback could not be restarted. "
+                "Check the application log and service permissions.",
+                "warning",
+            )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        log(f"Appearance settings saved, but playback restart failed: {exc}", "ERROR")
+        flash(
+            "Appearance settings were saved, but playback could not be restarted. "
+            "Check the application log and service permissions.",
+            "warning",
+        )
 
     return redirect(url_for("index"))
 

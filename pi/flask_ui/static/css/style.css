@@ -617,3 +617,320 @@ body.dark-theme {
     width: 100%;
   }
 }
+
+/* Cached MP4 frame previews in Manage Videos */
+.video-thumbnail {
+  position: relative;
+  width: 112px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #34495c;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #152433, #080e15);
+}
+.video-thumbnail img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.video-thumbnail-placeholder {
+  color: #7890a8;
+  font-size: 1.6rem;
+}
+.video-filename {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767.98px) {
+  .video-thumbnail { width: 100px; }
+}
+
+
+/* Manage Videos: search/filter controls and list/grid layouts */
+.video-library-toolbar .form-control,
+.video-library-toolbar .form-select {
+  min-width: 0;
+}
+
+.video-library-item[hidden] {
+  display: none !important;
+}
+
+.video-library-list-view .video-library-item {
+  width: 100%;
+}
+
+.video-library-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  border: 0;
+}
+
+.video-library-grid .video-library-item {
+  min-width: 0;
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 0.5rem;
+}
+
+.video-library-grid .video-library-item > .row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch !important;
+  gap: 0.85rem;
+}
+
+.video-library-grid .video-library-item > .row > [class*="col-"] {
+  width: 100%;
+  max-width: 100%;
+}
+
+.video-library-grid .video-thumbnail {
+  width: 120px;
+}
+
+.video-library-grid .video-library-item .btn-danger {
+  width: auto !important;
+}
+
+.video-library-toolbar .btn.active {
+  background-color: var(--primary-color, #0d6efd);
+  border-color: var(--primary-color, #0d6efd);
+  color: #fff;
+}
+
+@media (max-width: 575.98px) {
+  .video-library-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* Keep Manage Videos toolbar controls in a single horizontal row */
+.video-library-toolbar {
+  width: 100%;
+}
+
+.video-library-toolbar .video-search-control {
+  flex: 1 1 0;
+  min-width: 120px;
+}
+
+.video-library-toolbar .video-tag-control {
+  flex: 0 1 190px;
+  min-width: 110px;
+}
+
+.video-library-toolbar .video-sort-control {
+  flex: 0 1 145px;
+  min-width: 105px;
+}
+
+.video-library-toolbar .form-control,
+.video-library-toolbar .form-select {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 575.98px) {
+  .video-library-toolbar {
+    gap: 0.35rem !important;
+  }
+
+  .video-library-toolbar .video-search-control {
+    min-width: 95px;
+  }
+
+  .video-library-toolbar .video-tag-control {
+    flex-basis: 105px;
+    min-width: 90px;
+  }
+
+  .video-library-toolbar .video-sort-control {
+    flex-basis: 95px;
+    min-width: 85px;
+  }
+
+  .video-library-toolbar .video-layout-control .btn {
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
+}
+
+
+/* Upload Video Bootstrap modal */
+.upload-drop-area {
+  cursor: pointer;
+  border-style: dashed !important;
+  border-width: 2px !important;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.upload-drop-area.border-primary {
+  border-color: var(--primary-color) !important;
+  background-color: rgba(13, 110, 253, 0.06);
+}
+
+#uploadModal .modal-content {
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+#uploadModal .modal-header,
+#uploadModal .modal-footer {
+  background-color: rgba(13, 110, 253, 0.035);
+}
+
+#uploadModal #fileName .list-group-item {
+  background: transparent;
+}
+
+@media (max-width: 575.98px) {
+  #uploadModal .modal-body {
+    padding: 1rem;
+  }
+
+  #uploadModal .upload-drop-area {
+    padding: 2rem 1rem !important;
+  }
+}
+
+
+/* Per-file upload progress */
+#uploadModal .upload-file-progress {
+  height: 0.55rem;
+  min-width: 4rem;
+  background-color: var(--bs-secondary-bg, #e9ecef);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+#uploadModal .upload-file-progress .progress-bar {
+  transition: width 0.12s linear;
+}
+
+#uploadModal .upload-file-progress.upload-complete .progress-bar {
+  background-color: var(--bs-success);
+}
+
+#uploadModal [data-upload-row] {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+#uploadModal .upload-file-status {
+  min-width: 5.5rem;
+  text-align: right;
+}
+
+/* Compact Manage Videos layouts */
+@media (min-width: 992px) {
+  .video-library-list-view .video-library-item > .row {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.6fr) minmax(220px, 1.7fr) 64px minmax(150px, 1.3fr) minmax(115px, 1fr) 82px 34px;
+    gap: 0.5rem;
+    align-items: center;
+    margin: 0;
+  }
+
+  .video-library-list-view .video-library-item > .row > [class*="col-"] {
+    width: auto;
+    max-width: none;
+    padding: 0;
+    min-width: 0;
+  }
+
+  .video-library-list-view .video-thumbnail {
+    width: 88px;
+  }
+
+  .video-library-list-view .video-library-item {
+    padding: 0.55rem 0.75rem;
+  }
+
+  .video-library-list-view .video-library-item .form-label {
+    margin-bottom: 0.2rem !important;
+  }
+
+  .video-library-list-view .video-library-item .video-file-details {
+    font-size: 0.78rem !important;
+    letter-spacing: -0.02em;
+  }
+
+  .video-library-list-view .video-library-item .form-select {
+    font-size: 0.8rem;
+  }
+
+  .video-library-list-view .video-library-item .tomselect .ts-control {
+    min-height: 31px;
+    padding: 0.25rem 0.4rem;
+  }
+
+  .video-library-list-view .video-library-item .form-check {
+    margin-bottom: 0;
+  }
+}
+
+/* Grid cards: reduce whitespace while keeping controls easy to use */
+.video-library-grid {
+  gap: 0.55rem;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.video-library-grid .video-library-item {
+  padding: 0.65rem;
+}
+
+.video-library-grid .video-library-item > .row {
+  gap: 0.4rem;
+}
+
+.video-library-grid .video-library-item > .row > [class*="col-"] {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
+.video-library-grid .video-thumbnail {
+  width: 88px;
+}
+
+.video-library-grid .video-library-item .form-label {
+  margin-bottom: 0.15rem !important;
+}
+
+.video-library-grid .video-library-item .form-select,
+.video-library-grid .video-library-item .form-check-label {
+  font-size: 0.85rem;
+}
+
+.video-library-grid .video-library-item .form-select {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.video-library-grid .video-library-item .form-check {
+  margin-bottom: 0;
+}
+
+/* Field labels remain visible in both List and Grid layouts, including mobile. */
+.video-field-label {
+  margin-bottom: 0.25rem;
+  color: var(--bs-secondary-color, #6c757d);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+}
+
+@media (min-width: 992px) {
+  .video-library-list-view .video-field-label {
+    display: none;
+  }
+}
+
+

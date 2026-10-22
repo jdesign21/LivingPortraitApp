@@ -1,4 +1,3 @@
-
 #!/usr/bin/python3
 """Restricted root helper for changing only one HDMI video= override."""
 

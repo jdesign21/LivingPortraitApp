@@ -142,7 +142,7 @@ log_success "MQTT listener configuration"
 echo -e "\nSetting up MQTT service permissions..."
 
 sudo tee /etc/sudoers.d/livingportrait > /dev/null << EOF
-$USERNAME ALL=(root) NOPASSWD: /usr/bin/systemctl enable mosquitto, /usr/bin/systemctl disable mosquitto, /usr/bin/systemctl start mosquitto, /usr/bin/systemctl stop mosquitto, /usr/bin/systemctl restart mosquitto
+$USERNAME ALL=(root) NOPASSWD: /usr/bin/systemctl enable mosquitto, /usr/bin/systemctl disable mosquitto, /usr/bin/systemctl start mosquitto, /usr/bin/systemctl stop mosquitto, /usr/bin/systemctl restart mosquitto, /usr/bin/systemctl restart motion_vlc, /usr/bin/systemctl restart flask_ui
 EOF
 
 sudo chmod 440 /etc/sudoers.d/livingportrait

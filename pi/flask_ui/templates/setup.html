@@ -44,8 +44,18 @@
           </div>
 
           <div class="card-body">
+            <div class="mb-4" aria-label="Setup progress">
+              <div class="d-flex justify-content-between small mb-2">
+                <span id="setupStepLabel1" class="fw-semibold text-primary">1. Basic Setup</span>
+                <span id="setupStepLabel2" class="text-muted">2. Network Setup</span>
+              </div>
+              <div class="progress" role="progressbar" aria-label="Setup progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" style="height:6px;">
+                <div id="setupProgressBar" class="progress-bar" style="width:50%;"></div>
+              </div>
+            </div>
             <form id="setupForm" method="POST" action="{{ url_for('setup') }}" enctype="multipart/form-data">
 
+              <div id="setupStep1">
               <!-- Device Role -->
               <div class="mb-4">
                 <label class="form-label fw-semibold">Device Role</label>
@@ -67,7 +77,57 @@
                 </div>
               </div>
 
-              <!-- MQTT -->
+              <!-- Audio Output -->
+              <div class="mb-4">
+                <label for="audio_output" class="form-label fw-semibold">
+                  Audio Output
+                </label>
+                <div class="small text-muted mb-2">
+                  Select where LivingPortraitApp should play audio.
+                </div>
+
+                <select class="form-select" id="audio_output" name="audio_output">
+                  {% for output in audio_outputs %}
+                  <option value="{{ output.id }}" {% if output.id==audio_output %}selected{% endif %}>
+                    {{ output.name }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <!-- First Video -->
+              {% if not videos %}
+              <div class="mb-4">
+                <div class="border rounded p-3">
+                  <div class="fw-semibold mb-1">First Video</div>
+                  <div class="small text-muted mb-3">
+                    Upload your first MP4 video to enable playback.
+                  </div>
+
+                  <div id="dropArea" class="border border-2 border-secondary rounded p-4 text-center bg-light">
+                    <p class="mb-2">Drag &amp; drop an MP4 file here</p>
+                    <p class="small text-muted">or choose a file below</p>
+
+                    <input type="file" id="setupVideo" name="video" accept=".mp4" hidden>
+
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="chooseVideoBtn">
+                      <i class="bi bi-folder2-open me-1"></i>
+                      Choose File
+                    </button>
+
+                    <div id="setupVideoName" class="mt-3 fw-semibold text-success"></div>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+
+              <div class="d-flex justify-content-end mt-4">
+                <button type="button" class="btn btn-primary" id="setupNextBtn">Next <i class="bi bi-arrow-right ms-1"></i></button>
+              </div>
+              </div>
+
+              <div id="setupStep2" style="display:none;">
+                            <!-- MQTT -->
               <div class="mb-4">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
@@ -86,23 +146,49 @@
                 </div>
               </div>
 
-              <!-- Audio Output -->
-              <div class="mb-4">
-                <label for="audio_output" class="form-label fw-semibold">
-                  Audio Output
-                </label>
-                <div class="small text-muted mb-2">
-                  Select where LivingPortraitApp should play audio.
+        <!-- AUTOMATIC SECONDARY DISCOVERY -->
+        <div id="setupDiscoverySection" class="card shadow-sm mb-4">
+          <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <strong><i class="bi bi-radar me-1"></i> Discover Secondary Pis</strong>
+            <button type="button" class="btn btn-light btn-sm" id="refreshDiscoveredPisBtn">
+              <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            </button>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">Find compatible Secondary Pis on your local network and add them without manually entering their IP addresses.</p>
+            <div class="list-group mb-3" id="setupDiscoveryList">
+              {% for device in discovered_secondary_pis %}
+              <div class="list-group-item">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                  <div class="flex-grow-1">
+                    <div class="fw-semibold">{{ device.name }}</div>
+                    <div class="text-muted small">{{ device.ip }}</div>
+                    <div class="text-muted small">Version {{ device.version }} <span class="mx-1">·</span> Seen {{ device.last_seen_label }}</div>
+                  </div>
+                  <div>
+                    {% if device.ip_changed %}
+                    <button type="button" class="btn btn-outline-primary btn-sm setup-add-discovered" data-device-id="{{ device.device_id }}"><i class="bi bi-arrow-left-right me-1"></i> Update IP</button>
+                    {% elif device.needs_link %}
+                    <button type="button" class="btn btn-outline-primary btn-sm setup-add-discovered" data-device-id="{{ device.device_id }}"><i class="bi bi-link-45deg me-1"></i> Link Device</button>
+                    {% elif device.is_configured %}
+                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Added</span>
+                    {% else %}
+                    <button type="button" class="btn btn-primary btn-sm setup-add-discovered" data-device-id="{{ device.device_id }}"><i class="bi bi-plus-lg me-1"></i> Add</button>
+                    {% endif %}
+                  </div>
                 </div>
-
-                <select class="form-select" id="audio_output" name="audio_output">
-                  {% for output in audio_outputs %}
-                  <option value="{{ output.id }}" {% if output.id==audio_output %}selected{% endif %}>
-                    {{ output.name }}
-                  </option>
-                  {% endfor %}
-                </select>
               </div>
+              {% else %}
+              <div class="border rounded text-center text-muted p-4">
+                <i class="bi bi-radar fs-4 d-block mb-2"></i>
+                <div>No Secondary Pis found yet.</div>
+                <div class="small mt-1">Make sure the Secondary is running LivingPortraitApp on the same local network, then refresh.</div>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="small text-muted">If a device does not appear, you can still add it manually in the Secondary Pis section below.</div>
+          </div>
+        </div>
 
               <!-- Primary Settings -->
               <div id="primarySettings" class="mb-4">
@@ -136,6 +222,7 @@
                           <label class="form-label small">IP Address</label>
                           <input type="text" class="form-control form-control-sm secondary-ip"
                             name="secondary_pis[{{ loop.index0 }}][ip]" value="{{ pi.ip }}" placeholder="192.168.1.101">
+                          <input type="hidden" class="secondary-device-id" name="secondary_pis[{{ loop.index0 }}][device_id]" value="{{ pi.device_id or '' }}">
                         </div>
 
                         <div class="col-md-2">
@@ -169,38 +256,14 @@
                 </div>
               </div>
 
-              <!-- First Video -->
-              {% if not videos %}
-              <div class="mb-4">
-                <div class="border rounded p-3">
-                  <div class="fw-semibold mb-1">First Video</div>
-                  <div class="small text-muted mb-3">
-                    Upload your first MP4 video to enable playback.
-                  </div>
-
-                  <div id="dropArea" class="border border-2 border-secondary rounded p-4 text-center bg-light">
-                    <p class="mb-2">Drag &amp; drop an MP4 file here</p>
-                    <p class="small text-muted">or choose a file below</p>
-
-                    <input type="file" id="setupVideo" name="video" accept=".mp4" hidden>
-
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="chooseVideoBtn">
-                      <i class="bi bi-folder2-open me-1"></i>
-                      Choose File
-                    </button>
-
-                    <div id="setupVideoName" class="mt-3 fw-semibold text-success"></div>
-                  </div>
-                </div>
-              </div>
-              {% endif %}
-
               <!-- Complete -->
-              <div class="text-end">
+              <div class="d-flex justify-content-between align-items-center mt-4">
+                <button type="button" class="btn btn-outline-secondary" id="setupBackBtn"><i class="bi bi-arrow-left me-1"></i> Back</button>
                 <button type="submit" class="btn btn-success" id="completeSetupBtn">
                   <i class="bi bi-check-circle me-1"></i>
                   Complete Setup
                 </button>
+              </div>
               </div>
 
             </form>
@@ -267,6 +330,23 @@
       if (secondarySettings) {
         secondarySettings.style.display = isPrimary ? 'none' : 'block';
       }
+
+      const setupDiscoverySection = document.getElementById('setupDiscoverySection');
+      if (setupDiscoverySection) {
+        setupDiscoverySection.style.display = isPrimary ? 'block' : 'none';
+      }
+    }
+
+    function renumberSecondaryRows() {
+      if (!secondaryPisContainer) return;
+      secondaryPisContainer.querySelectorAll('.secondary-pi').forEach((row, index) => {
+        const nameInput = row.querySelector('.secondary-name');
+        const ipInput = row.querySelector('.secondary-ip');
+        const idInput = row.querySelector('.secondary-device-id');
+        if (nameInput) nameInput.name = `secondary_pis[${index}][name]`;
+        if (ipInput) ipInput.name = `secondary_pis[${index}][ip]`;
+        if (idInput) idInput.name = `secondary_pis[${index}][device_id]`;
+      });
     }
 
     function updateSecondaryMessage() {
@@ -304,7 +384,10 @@
         <input type="text"
                class="form-control form-control-sm secondary-ip"
                name="secondary_pis[${index}][ip]"
-               placeholder="192.168.1.101">
+               placeholder="192.168.1.101">        <input type="hidden"
+               class="secondary-device-id"
+               name="secondary_pis[${index}][device_id]"
+               value="">
       </div>
 
       <div class="col-md-2">
@@ -316,6 +399,7 @@
   `;
 
       secondaryPisContainer.appendChild(wrapper);
+      renumberSecondaryRows();
       updateSecondaryMessage();
     }
 
@@ -340,7 +424,9 @@
 
       if (item) {
         item.remove();
+        renumberSecondaryRows();
         updateSecondaryMessage();
+        refreshDiscoveredPis();
       }
     });
 
@@ -463,7 +549,7 @@
       });
     }
 
-    function validateSetup() {
+    function validateSetup(step = 2) {
       clearSetupError();
 
       const isPrimary = rolePrimary && rolePrimary.checked;
@@ -474,6 +560,7 @@
         return false;
       }
 
+      if (step === 2) {
       if (!isPrimary && mqttEnabled) {
         const ip = primaryIp ? primaryIp.value.trim() : '';
 
@@ -531,6 +618,8 @@
         }
       }
 
+      }
+
       if (setupVideo) {
         if (!setupVideo.files || setupVideo.files.length === 0) {
           showSetupError('Please upload your first MP4 video before completing setup.');
@@ -552,6 +641,243 @@
     }
 
 
+    function showSetupStep(step) {
+      const onFirstStep = step === 1;
+      document.getElementById('setupStep1').style.display = onFirstStep ? 'block' : 'none';
+      document.getElementById('setupStep2').style.display = onFirstStep ? 'none' : 'block';
+      document.getElementById('setupStepLabel1').classList.toggle('text-primary', onFirstStep);
+      document.getElementById('setupStepLabel1').classList.toggle('text-muted', !onFirstStep);
+      document.getElementById('setupStepLabel1').classList.toggle('fw-semibold', onFirstStep);
+      document.getElementById('setupStepLabel2').classList.toggle('text-primary', !onFirstStep);
+      document.getElementById('setupStepLabel2').classList.toggle('text-muted', onFirstStep);
+      document.getElementById('setupStepLabel2').classList.toggle('fw-semibold', !onFirstStep);
+      document.getElementById('setupProgressBar').style.width = onFirstStep ? '50%' : '100%';
+      document.querySelector('[aria-label="Setup progress"][role="progressbar"]').setAttribute('aria-valuenow', onFirstStep ? '50' : '100');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    const setupNextBtn = document.getElementById('setupNextBtn');
+    const setupBackBtn = document.getElementById('setupBackBtn');
+    if (setupNextBtn) {
+      setupNextBtn.addEventListener('click', () => {
+        if (validateSetup(1)) showSetupStep(2);
+      });
+    }
+    if (setupBackBtn) {
+      setupBackBtn.addEventListener('click', () => showSetupStep(1));
+    }
+
+    const refreshDiscoveredPisBtn = document.getElementById('refreshDiscoveredPisBtn');
+    const setupDiscoveryList = document.getElementById('setupDiscoveryList');
+
+    function getCurrentSecondaryPis() {
+      if (!secondaryPisContainer) return [];
+      return Array.from(secondaryPisContainer.querySelectorAll('.secondary-pi')).map(item => ({
+        name: item.querySelector('.secondary-name')?.value.trim() || '',
+        ip: item.querySelector('.secondary-ip')?.value.trim() || '',
+        device_id: item.querySelector('.secondary-device-id')?.value.trim() || ''
+      })).filter(item => item.name && item.ip);
+    }
+
+    function makeDiscoveryButton(label, deviceId, className) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = className + ' setup-add-discovered';
+      button.dataset.deviceId = deviceId || '';
+      button.textContent = label;
+      return button;
+    }
+
+    function renderDiscoveredPis(devices) {
+      if (!setupDiscoveryList) return;
+      setupDiscoveryList.replaceChildren();
+
+      if (!devices || devices.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'border rounded text-center text-muted p-4';
+        const title = document.createElement('div');
+        title.textContent = 'No Secondary Pis found yet.';
+        const hint = document.createElement('div');
+        hint.className = 'small mt-1';
+        hint.textContent = 'Make sure the Secondary is running LivingPortraitApp on the same local network, then refresh.';
+        empty.append(title, hint);
+        setupDiscoveryList.appendChild(empty);
+        return;
+      }
+
+      devices.forEach(device => {
+        const item = document.createElement('div');
+        item.className = 'list-group-item';
+        const row = document.createElement('div');
+        row.className = 'd-flex flex-wrap justify-content-between align-items-center gap-3';
+        const details = document.createElement('div');
+        details.className = 'flex-grow-1';
+        const name = document.createElement('div');
+        name.className = 'fw-semibold';
+        name.textContent = device.name || 'Secondary Pi';
+        const ip = document.createElement('div');
+        ip.className = 'text-muted small';
+        ip.textContent = device.ip || '';
+        const meta = document.createElement('div');
+        meta.className = 'text-muted small';
+        meta.textContent = 'Version ' + (device.version || 'Unknown') + ' · Seen ' + (device.last_seen_label || 'recently');
+        details.append(name, ip, meta);
+
+        const actions = document.createElement('div');
+        if (device.ip_changed) {
+          actions.appendChild(makeDiscoveryButton('Update IP', device.device_id, 'btn btn-outline-primary btn-sm'));
+        } else if (device.needs_link) {
+          actions.appendChild(makeDiscoveryButton('Link Device', device.device_id, 'btn btn-outline-primary btn-sm'));
+        } else if (device.is_configured) {
+          const badge = document.createElement('span');
+          badge.className = 'badge bg-success';
+          badge.textContent = 'Added';
+          actions.appendChild(badge);
+        } else {
+          actions.appendChild(makeDiscoveryButton('Add', device.device_id, 'btn btn-primary btn-sm'));
+        }
+
+        row.append(details, actions);
+        item.appendChild(row);
+        setupDiscoveryList.appendChild(item);
+      });
+    }
+
+    async function refreshDiscoveredPis() {
+      if (!setupForm || !setupDiscoveryList) return;
+      const button = refreshDiscoveredPisBtn;
+      if (button) {
+        button.disabled = true;
+        button.dataset.originalText = button.textContent.trim();
+        button.textContent = 'Refreshing…';
+      }
+
+      try {
+        const csrfInput = setupForm.querySelector('input[name="csrf_token"]');
+        if (!csrfInput) throw new Error('Missing CSRF token.');
+        const formData = new FormData();
+        formData.append('csrf_token', csrfInput.value);
+        formData.append('secondary_pis_json', JSON.stringify(getCurrentSecondaryPis()));
+
+        const response = await fetch('{{ url_for("setup_refresh_discovered_secondary") }}', {
+          method: 'POST',
+          body: formData,
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        if (!response.ok) throw new Error('Refresh request failed.');
+        const result = await response.json();
+        if (!result.success) throw new Error('Refresh request failed.');
+        renderDiscoveredPis(result.devices);
+      } catch (error) {
+        showSetupError('Could not refresh discovered Secondary Pis. Please try again.');
+      } finally {
+        if (button) {
+          button.disabled = false;
+          button.textContent = button.dataset.originalText || 'Refresh';
+        }
+      }
+    }
+
+    if (refreshDiscoveredPisBtn) {
+      refreshDiscoveredPisBtn.addEventListener('click', refreshDiscoveredPis);
+    }
+
+    async function addDiscoveredSecondary(button) {
+      const csrfInput = setupForm ? setupForm.querySelector('input[name="csrf_token"]') : null;
+      if (!csrfInput) {
+        showSetupError('Unable to verify this request. Refresh the page and try again.');
+        return;
+      }
+
+      const originalText = button.textContent.trim();
+      button.disabled = true;
+      button.textContent = 'Adding…';
+
+      try {
+        const formData = new FormData();
+        formData.append('csrf_token', csrfInput.value);
+        formData.append('device_id', button.dataset.deviceId || '');
+        const response = await fetch('{{ url_for("setup_add_discovered_secondary_ajax") }}', {
+          method: 'POST',
+          body: formData,
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'Could not add this Secondary Pi.');
+        }
+
+        const device = result.device;
+        const rows = secondaryPisContainer
+          ? Array.from(secondaryPisContainer.querySelectorAll('.secondary-pi'))
+          : [];
+        const existingById = rows.find(row =>
+          row.querySelector('.secondary-device-id')?.value.trim() === device.device_id
+        );
+        const existingByIp = rows.find(row =>
+          row.querySelector('.secondary-ip')?.value.trim() === device.ip
+        );
+
+        if (originalText.includes('Update IP')) {
+          const row = existingById || existingByIp;
+          if (row) {
+            const ipInput = row.querySelector('.secondary-ip');
+            const idInput = row.querySelector('.secondary-device-id');
+            if (ipInput) ipInput.value = device.ip;
+            if (idInput) idInput.value = device.device_id;
+          } else {
+            addSecondary();
+            const rowAdded = secondaryPisContainer.querySelector('.secondary-pi:last-child');
+            rowAdded.querySelector('.secondary-name').value = device.name;
+            rowAdded.querySelector('.secondary-ip').value = device.ip;
+            rowAdded.querySelector('.secondary-device-id').value = device.device_id;
+          }
+        } else if (originalText.includes('Link Device')) {
+          const row = existingByIp || existingById;
+          if (row) {
+            const idInput = row.querySelector('.secondary-device-id');
+            if (idInput) idInput.value = device.device_id;
+          } else {
+            addSecondary();
+            const rowAdded = secondaryPisContainer.querySelector('.secondary-pi:last-child');
+            rowAdded.querySelector('.secondary-name').value = device.name;
+            rowAdded.querySelector('.secondary-ip').value = device.ip;
+            rowAdded.querySelector('.secondary-device-id').value = device.device_id;
+          }
+        } else {
+          const row = existingById || existingByIp;
+          if (row) {
+            const idInput = row.querySelector('.secondary-device-id');
+            if (idInput) idInput.value = device.device_id;
+            const ipInput = row.querySelector('.secondary-ip');
+            if (ipInput) ipInput.value = device.ip;
+          } else {
+            addSecondary();
+            const rowAdded = secondaryPisContainer.querySelector('.secondary-pi:last-child');
+            rowAdded.querySelector('.secondary-name').value = device.name;
+            rowAdded.querySelector('.secondary-ip').value = device.ip;
+            rowAdded.querySelector('.secondary-device-id').value = device.device_id;
+          }
+        }
+
+        updateSecondaryMessage();
+        await refreshDiscoveredPis();
+      } catch (error) {
+        showSetupError(error.message || 'Could not add this Secondary Pi. Please try again.');
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    }
+
+    document.addEventListener('click', event => {
+      const button = event.target.closest('.setup-add-discovered');
+      if (!button) return;
+      addDiscoveredSecondary(button);
+    });
+
     // ========================================================
     // SETUP SUBMIT
     // ========================================================
@@ -560,7 +886,7 @@
       setupForm.addEventListener('submit', event => {
         event.preventDefault();
 
-        if (!validateSetup()) {
+        if (!validateSetup(2)) {
           return;
         }
 
