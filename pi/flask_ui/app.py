@@ -1854,13 +1854,16 @@ def add_sync_tag():
     """
     Add a new Sync Tag to the Primary master list.
     """
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     settings = load_settings()
     sync_tags = settings.get("sync_tags", [])
 
     new_tag = request.form.get("sync_tag", "").strip()
 
     if not new_tag:
-        flash("Sync Tag cannot be blank.", "danger")
+        message = "Sync Tag cannot be blank."
+        if is_ajax: return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for("index"))
 
     # Enforce maximum length.
@@ -1873,7 +1876,9 @@ def add_sync_tag():
     }
 
     if new_tag.lower() in existing_tags_lower:
-        flash(f'Sync Tag "{new_tag}" already exists.', "warning")
+        message = f'Sync Tag "{new_tag}" already exists.'
+        if is_ajax: return jsonify(success=False, error=message), 409
+        flash(message, "warning")
         return redirect(url_for("index"))
 
     sync_tags.append(new_tag)
@@ -1884,11 +1889,14 @@ def add_sync_tag():
     settings["sync_tags"] = sync_tags
     save_settings(settings)
 
-    flash(f'Sync Tag "{new_tag}" added.', "success")
+    message = f'Sync Tag "{new_tag}" added.'
+    if is_ajax: return jsonify(success=True, message=message, tag=new_tag, tags=sync_tags)
+    flash(message, "success")
     return redirect(url_for("index"))
 
 @app.route("/delete_sync_tag", methods=["POST"])
 def delete_sync_tag():
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     """
     Delete a Sync Tag from the Primary master list.
 
@@ -1901,7 +1909,9 @@ def delete_sync_tag():
     tag_to_delete = request.form.get("sync_tag", "").strip()
 
     if not tag_to_delete:
-        flash("No Sync Tag was specified.", "danger")
+        message = "No Sync Tag was specified."
+        if is_ajax: return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for("index"))
 
     tag_key = tag_to_delete.lower()
@@ -1917,7 +1927,9 @@ def delete_sync_tag():
     )
 
     if matching_tag is None:
-        flash(f'Sync Tag "{tag_to_delete}" was not found.', "warning")
+        message = f'Sync Tag "{tag_to_delete}" was not found.'
+        if is_ajax: return jsonify(success=False, error=message), 404
+        flash(message, "warning")
         return redirect(url_for("index"))
 
     # Remove the tag from the master list.
@@ -1941,15 +1953,9 @@ def delete_sync_tag():
     settings["playlist"]["order"] = order
     save_settings(settings)
 
-    if assignments_removed:
-        flash(
-            f'Sync Tag "{matching_tag}" deleted and removed '
-            f'from {assignments_removed} video assignment(s).',
-            "success"
-        )
-    else:
-        flash(f'Sync Tag "{matching_tag}" deleted.', "success")
-
+    message = (f'Sync Tag "{matching_tag}" deleted and removed from {assignments_removed} video assignment(s).' if assignments_removed else f'Sync Tag "{matching_tag}" deleted.')
+    if is_ajax: return jsonify(success=True, message=message, tag=matching_tag, tags=settings["sync_tags"])
+    flash(message, "success")
     return redirect(url_for("index"))
 
 @app.route("/sync_tags_to_secondaries", methods=["POST"])
@@ -2601,13 +2607,16 @@ def update_status():
 
 @app.route("/add_schedule_tag", methods=["POST"])
 def add_schedule_tag():
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     settings = load_settings()
     schedule_tags = settings.get("schedule_tags", [])
 
     new_tag = request.form.get("schedule_tag", "").strip()
 
     if not new_tag:
-        flash("Schedule Tag cannot be blank.", "danger")
+        message = "Schedule Tag cannot be blank."
+        if is_ajax: return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for("index"))
 
     new_tag = new_tag[:50]
@@ -2623,7 +2632,9 @@ def add_schedule_tag():
     )
 
     if not tag_id:
-        flash("Invalid Schedule Tag name.", "danger")
+        message = "Invalid Schedule Tag name."
+        if is_ajax: return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for("index"))
 
     existing_ids = {
@@ -2637,7 +2648,9 @@ def add_schedule_tag():
     }
 
     if tag_id.lower() in existing_ids or new_tag.lower() in existing_names:
-        flash(f'Schedule Tag "{new_tag}" already exists.', "warning")
+        message = f'Schedule Tag "{new_tag}" already exists.'
+        if is_ajax: return jsonify(success=False, error=message), 409
+        flash(message, "warning")
         return redirect(url_for("index"))
 
     schedule_tags.append({
@@ -2652,18 +2665,23 @@ def add_schedule_tag():
     settings["schedule_tags"] = schedule_tags
     save_settings(settings)
 
-    flash(f'Schedule Tag "{new_tag}" added.', "success")
+    message = f'Schedule Tag "{new_tag}" added.'
+    if is_ajax: return jsonify(success=True, message=message, tag={"id": tag_id, "name": new_tag}, tags=schedule_tags)
+    flash(message, "success")
     return redirect(url_for("index"))
 
 @app.route("/delete_schedule_tag", methods=["POST"])
 def delete_schedule_tag():
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     settings = load_settings()
     schedule_tags = settings.get("schedule_tags", [])
 
     tag_to_delete = request.form.get("schedule_tag", "").strip()
 
     if not tag_to_delete:
-        flash("No Schedule Tag was specified.", "danger")
+        message = "No Schedule Tag was specified."
+        if is_ajax: return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for("index"))
 
     tag_key = tag_to_delete.lower()
@@ -2678,7 +2696,9 @@ def delete_schedule_tag():
     )
 
     if matching_tag is None:
-        flash(f'Schedule Tag "{tag_to_delete}" was not found.', "warning")
+        message = f'Schedule Tag "{tag_to_delete}" was not found.'
+        if is_ajax: return jsonify(success=False, error=message), 404
+        flash(message, "warning")
         return redirect(url_for("index"))
 
     tag_id = matching_tag.get("id", "")
@@ -2707,11 +2727,9 @@ def delete_schedule_tag():
                 schedule_count += 1
 
     if video_count > 0 or schedule_count > 0:
-        flash(
-            f'Cannot delete Schedule Tag "{matching_tag.get("name", tag_id)}" '
-            f'because it is currently in use.',
-            "danger"
-        )
+        message = f'Cannot delete Schedule Tag "{matching_tag.get("name", tag_id)}" because it is currently in use.'
+        if is_ajax: return jsonify(success=False, error=message), 409
+        flash(message, "danger")
         return redirect(url_for("index"))
 
     settings["schedule_tags"] = [
@@ -2722,11 +2740,9 @@ def delete_schedule_tag():
 
     save_settings(settings)
 
-    flash(
-        f'Schedule Tag "{matching_tag.get("name", tag_id)}" deleted.',
-        "success"
-    )
-
+    message = f'Schedule Tag "{matching_tag.get("name", tag_id)}" deleted.'
+    if is_ajax: return jsonify(success=True, message=message, tag_id=tag_id, tags=settings["schedule_tags"])
+    flash(message, "success")
     return redirect(url_for("index"))
 
 @app.route("/save_appearance_settings", methods=["POST"])
