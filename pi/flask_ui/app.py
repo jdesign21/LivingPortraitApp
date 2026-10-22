@@ -825,103 +825,144 @@ def index():
     if LOG_FOLDER.exists():
         log_files = list(LOG_FOLDER.glob("*.txt"))
 
-        for f in log_files:
-            if time_format == "24":
-                log_mtime = datetime.fromtimestamp(
-                    f.stat().st_mtime
-                ).strftime("%Y-%m-%d %H:%M")
-            else:
-                log_mtime = datetime.fromtimestamp(
-                    f.stat().st_mtime
-                ).strftime("%Y-%m-%d %I:%M %p")
+        # Keep the log-file management list complete, but read activity only
+        # from newest files and newest lines until eight entries are collected.
+        log_files.sort(
+            key=lambda path: path.stat().st_mtime if path.exists() else 0,
+            reverse=True
+        )
 
-            logs.append({
-                "name": f.name,
-                "mtime": log_mtime,
-                "size": f.stat().st_size
-            })
+        for f in log_files:
+            try:
+                file_stat = f.stat()
+                log_mtime = datetime.fromtimestamp(file_stat.st_mtime)
+                if time_format == "24":
+                    formatted_mtime = log_mtime.strftime("%Y-%m-%d %H:%M")
+                else:
+                    formatted_mtime = log_mtime.strftime("%Y-%m-%d %I:%M %p")
+
+                logs.append({
+                    "name": f.name,
+                    "mtime": formatted_mtime,
+                    "size": file_stat.st_size
+                })
+            except OSError as e:
+                log(f"Error reading log file metadata for {f.name}: {e}", "ERROR")
+
+        # Parse activity backwards, avoiding loading whole historical log files.
+        for f in log_files:
+            if len(recent_activity) >= 8:
+                break
 
             try:
-                with open(
-                    f,
-                    "r",
-                    errors="replace"
-                ) as log_file:
+                file_mtime = datetime.fromtimestamp(f.stat().st_mtime)
+                with open(f, "rb") as log_file:
+                    log_file.seek(0, os.SEEK_END)
+                    position = log_file.tell()
+                    pending = b""
+                    parsed_entries = []
 
-                    for line in log_file:
-                        line = line.strip()
+                    while position > 0 and len(parsed_entries) < (8 - len(recent_activity)):
+                        chunk_size = min(8192, position)
+                        position -= chunk_size
+                        log_file.seek(position)
+                        chunk = log_file.read(chunk_size)
+                        lines = (chunk + pending).splitlines()
+                        pending = lines.pop(0) if position > 0 and lines else b""
 
-                        if not line:
-                            continue
+                        # These lines are in reverse chronological order.
+                        for raw_line in reversed(lines):
+                            line = raw_line.decode("utf-8", errors="replace").strip()
+                            if not line:
+                                continue
 
-                        timestamp = None
-                        category = "SYSTEM"
-                        message = line
+                            timestamp = None
+                            category = "SYSTEM"
+                            message = line
 
-                        if line.startswith("["):
-                            first_end = line.find("]")
+                            if line.startswith("["):
+                                first_end = line.find("]")
+                                if first_end != -1:
+                                    timestamp_text = line[1:first_end]
+                                    try:
+                                        timestamp = datetime.fromisoformat(timestamp_text)
+                                    except ValueError:
+                                        timestamp = file_mtime
 
-                            if first_end != -1:
-                                timestamp_text = line[1:first_end]
-
-                                try:
-                                    timestamp = datetime.fromisoformat(
-                                        timestamp_text
-                                    )
-                                except ValueError:
-                                    timestamp = datetime.fromtimestamp(
-                                        f.stat().st_mtime
-                                    )
-
-                                remainder = line[
-                                    first_end + 1:
-                                ].strip()
-
-                                if remainder.startswith("["):
-                                    category_end = remainder.find("]")
-
-                                    if category_end != -1:
-                                        category = remainder[
-                                            1:category_end
-                                        ]
-
-                                        message = remainder[
-                                            category_end + 1:
-                                        ].strip()
+                                    remainder = line[first_end + 1:].strip()
+                                    if remainder.startswith("["):
+                                        category_end = remainder.find("]")
+                                        if category_end != -1:
+                                            category = remainder[1:category_end]
+                                            message = remainder[category_end + 1:].strip()
+                                        else:
+                                            message = remainder
                                     else:
                                         message = remainder
-                                else:
-                                    message = remainder
 
-                        if timestamp is None:
-                            timestamp = datetime.fromtimestamp(
-                                f.stat().st_mtime
-                            )
+                            if timestamp is None:
+                                timestamp = file_mtime
 
-                        if time_format == "24":
-                            activity_time = timestamp.strftime(
-                                "%H:%M"
-                            )
-                        else:
-                            activity_time = timestamp.strftime(
-                                "%I:%M %p"
-                            ).lstrip("0")
+                            if time_format == "24":
+                                activity_time = timestamp.strftime("%H:%M")
+                            else:
+                                activity_time = timestamp.strftime("%I:%M %p").lstrip("0")
 
-                        recent_activity.append({
-                            "time": activity_time,
-                            "category": category,
-                            "message": message,
-                            "timestamp": timestamp
-                        })
+                            parsed_entries.append({
+                                "time": activity_time,
+                                "category": category,
+                                "message": message,
+                                "timestamp": timestamp
+                            })
+
+                            if len(parsed_entries) >= (8 - len(recent_activity)):
+                                break
+
+                    # Include a partial first line if the file did not start at byte zero.
+                    if position == 0 and pending and len(parsed_entries) < (8 - len(recent_activity)):
+                        line = pending.decode("utf-8", errors="replace").strip()
+                        if line:
+                            timestamp = file_mtime
+                            category = "SYSTEM"
+                            message = line
+                            if line.startswith("["):
+                                first_end = line.find("]")
+                                if first_end != -1:
+                                    try:
+                                        timestamp = datetime.fromisoformat(line[1:first_end])
+                                    except ValueError:
+                                        pass
+                                    remainder = line[first_end + 1:].strip()
+                                    if remainder.startswith("["):
+                                        category_end = remainder.find("]")
+                                        if category_end != -1:
+                                            category = remainder[1:category_end]
+                                            message = remainder[category_end + 1:].strip()
+                                        else:
+                                            message = remainder
+                                    else:
+                                        message = remainder
+                            if time_format == "24":
+                                activity_time = timestamp.strftime("%H:%M")
+                            else:
+                                activity_time = timestamp.strftime("%I:%M %p").lstrip("0")
+                            parsed_entries.append({
+                                "time": activity_time,
+                                "category": category,
+                                "message": message,
+                                "timestamp": timestamp
+                            })
+
+                    recent_activity.extend(parsed_entries)
 
             except Exception as e:
-                log(
-                    f"Error reading recent activity from {f.name}: {e}",
-                    "ERROR"
-                )
+                log(f"Error reading recent activity from {f.name}: {e}", "ERROR")
 
         logs.sort(
-            key=lambda x: x["mtime"],
+            key=lambda x: datetime.strptime(
+                x["mtime"],
+                "%Y-%m-%d %H:%M" if time_format == "24" else "%Y-%m-%d %I:%M %p"
+            ),
             reverse=True
         )
 
@@ -930,7 +971,6 @@ def index():
             reverse=True
         )
 
-        recent_activity = recent_activity[:8]
         system_info = get_system_info()
 
     return render_template(
