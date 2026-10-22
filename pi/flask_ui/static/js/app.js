@@ -162,6 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isDelete) {
                 const row = form.closest('.d-flex.align-items-center.justify-content-between');
                 row?.remove();
+                refreshTagRowDividers(modal);
                 const remainingRows = modal.querySelectorAll('.border.rounded:not(.text-center) > .d-flex.align-items-center.justify-content-between');
                 if (!remainingRows.length) {
                     const currentList = modal.querySelector('.border.rounded:not(.text-center)');
@@ -209,7 +210,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const deleteButton = document.createElement('button');
                     deleteButton.type = 'submit';
                     deleteButton.className = 'btn btn-outline-danger btn-sm';
-                    deleteButton.textContent = 'Delete';
+                    const deleteIcon = document.createElement('i');
+                    deleteIcon.className = 'bi bi-trash me-1';
+                    deleteIcon.setAttribute('aria-hidden', 'true');
+                    deleteButton.appendChild(deleteIcon);
+                    deleteButton.appendChild(document.createTextNode('Delete'));
                     deleteForm.appendChild(deleteButton);
                     row.appendChild(deleteForm);
 
@@ -221,6 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         modal.querySelector('.card-body')?.appendChild(targetList);
                     }
                     targetList.appendChild(row);
+                    refreshTagRowDividers(modal);
                     bindTagForms(modal);
                     const addInput = modal.querySelector('input[type="text"][name="' + (isSchedule ? 'schedule_tag' : 'sync_tag') + '"]');
                     if (addInput) addInput.value = '';
@@ -264,6 +270,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typeof showToast === 'function') showToast(error.message || 'Unable to update tags.', 'danger');
             else window.alert(error.message || 'Unable to update tags.');
         }
+    }
+
+    function refreshTagRowDividers(modal) {
+        if (!modal) return;
+        const list = modal.querySelector('.border.rounded:not(.text-center)');
+        if (!list) return;
+        const rows = Array.from(list.querySelectorAll(':scope > .d-flex.align-items-center.justify-content-between'));
+        rows.forEach((row, index) => {
+            row.classList.toggle('border-bottom', index < rows.length - 1);
+        });
     }
 
     function bindTagForms(container) {
