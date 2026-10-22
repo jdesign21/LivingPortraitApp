@@ -927,9 +927,10 @@ body.dark-theme {
     grid-template-columns: minmax(180px, 1.6fr) minmax(220px, 1.7fr) 64px minmax(150px, 1.3fr) minmax(115px, 1fr) 82px 34px;
     gap: 0.5rem;
     align-items: end;
-    padding: 0.35rem 0.75rem;
-    color: var(--bs-secondary-color, #6c757d);
-    font-size: 0.78rem;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--bs-table-bg, #f8f9fa);
+    color: var(--bs-table-color, #212529);
+    font-size: 0.75rem;
     font-weight: 600;
     border-bottom: 1px solid var(--bs-border-color, #dee2e6);
   }
