@@ -93,9 +93,13 @@
               <!-- Video details -->
               <div class="col-6 col-lg-2">
                 <label class="form-label small text-muted mb-1 d-block">File Details</label>
-                <div class="small">{{ video.get('file_size') or '—' }}</div>
-                <div class="small text-muted">{{ video.get('resolution') or '—' }}</div>
-                <div class="small text-muted">Length: {{ video.get('duration') or '—' }}</div>
+                <div class="small text-nowrap video-file-details">
+                  <span>{{ video.get('file_size') or '—' }}</span>
+                  <span class="text-muted mx-1">·</span>
+                  <span>{{ video.get('resolution') or '—' }}</span>
+                  <span class="text-muted mx-1">·</span>
+                  <span>{{ video.get('duration') or '—' }}</span>
+                </div>
               </div>
 
               <!-- Enable (separate column) -->
