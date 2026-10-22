@@ -837,7 +837,7 @@ body.dark-theme {
 @media (min-width: 992px) {
   .video-library-list-view .video-library-item > .row {
     display: grid;
-    grid-template-columns: minmax(180px, 1.6fr) minmax(220px, 1.7fr) 64px minmax(150px, 1.3fr) minmax(115px, 1fr) 82px 34px;
+    grid-template-columns: minmax(180px, 1.55fr) minmax(150px, 1.2fr) 64px 70px minmax(150px, 1.3fr) minmax(115px, 1fr) 34px;
     gap: 0.5rem;
     align-items: center;
     margin: 0;
@@ -935,4 +935,79 @@ body.dark-theme {
 
 /* Keep field titles visible in List view on desktop as well as Grid view. */
 
+/* Refined Manage Videos list rows */
+.video-library-list-view .video-library-item {
+  border-color: #e2e8f0;
+  padding: 0.8rem 0.9rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.video-library-list-view .video-library-item:hover {
+  background-color: #f8fbff;
+  border-color: #cbdcf3;
+  box-shadow: inset 3px 0 0 var(--primary-color);
+}
+
+.video-library-list-view .video-thumbnail {
+  width: 96px;
+  border-color: #d4deea;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+.video-library-list-view .video-filename {
+  font-size: 0.94rem;
+  line-height: 1.35;
+  font-weight: 650 !important;
+}
+
+.video-library-list-view .video-field-label {
+  color: #64748b;
+  font-size: 0.68rem;
+  letter-spacing: 0.055em;
+}
+
+.video-library-list-view .video-file-details {
+  color: #475569;
+  line-height: 1.5;
+}
+
+.video-library-list-view .video-library-item .form-check-input {
+  cursor: pointer;
+}
+
+.video-library-list-view .video-audio-control {
+  white-space: nowrap;
+}
+
+.video-library-list-view .rotate-thumbnail-btn {
+  min-width: 64px;
+}
+
+.dark-theme .video-library-list-view .video-library-item {
+  border-color: #3a3a3a;
+}
+
+.dark-theme .video-library-list-view .video-library-item:hover {
+  background-color: #242b33;
+  border-color: #45617f;
+}
+
+.dark-theme .video-library-list-view .video-field-label,
+.dark-theme .video-library-list-view .video-file-details {
+  color: #cbd5e1;
+}
+
+@media (max-width: 991.98px) {
+  .video-library-list-view .video-library-item {
+    padding: 0.9rem;
+  }
+
+  .video-library-list-view .video-library-item > .row {
+    row-gap: 0.9rem;
+  }
+
+  .video-library-list-view .video-audio-control {
+    width: 50%;
+  }
+}
 
