@@ -1807,6 +1807,32 @@ def save_schedule():
     flash("Schedule saved successfully!", "success")
     return redirect(url_for("index"))
 
+@app.route("/update_thumbnail_rotation", methods=["POST"])
+def update_thumbnail_rotation():
+    """Persist a video's thumbnail display rotation immediately."""
+    filename = request.form.get("filename", "").strip()
+    try:
+        rotation = int(request.form.get("rotation", "0")) % 360
+    except (TypeError, ValueError):
+        return jsonify(success=False, error="Invalid thumbnail rotation."), 400
+
+    if rotation not in (0, 90, 180, 270):
+        return jsonify(success=False, error="Invalid thumbnail rotation."), 400
+    if not filename or Path(filename).name != filename:
+        return jsonify(success=False, error="Invalid video filename."), 400
+
+    settings = load_settings()
+    order = settings.get("playlist", {}).get("order", [])
+    video = next((entry for entry in order if entry.get("filename") == filename), None)
+    if video is None:
+        return jsonify(success=False, error="Video not found."), 404
+
+    video["thumbnail_rotation"] = rotation
+    settings["playlist"]["order"] = order
+    save_settings(settings)
+    return jsonify(success=True, filename=filename, rotation=rotation)
+
+
 @app.route("/update_all", methods=["POST"])
 def update_all():
     settings = load_settings()
