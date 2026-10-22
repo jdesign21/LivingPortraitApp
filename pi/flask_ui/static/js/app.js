@@ -247,6 +247,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     : currentTags.map(tag => ({ value: tag, label: tag }));
                 const placeholder = select.querySelector('option[value=""]');
                 const emptyOption = placeholder ? placeholder.cloneNode(true) : null;
+
+                // Update the underlying select and its TomSelect UI together.
+                // Replacing native options alone leaves TomSelect displaying stale tags.
+                const tomSelect = select.tomselect;
+                if (tomSelect) {
+                    tomSelect.clear(true);
+                    tomSelect.clearOptions();
+                }
+
                 select.replaceChildren();
                 if (emptyOption) select.appendChild(emptyOption);
                 values.forEach(item => {
@@ -255,7 +264,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     option.textContent = item.label;
                     option.selected = selected.includes(item.value);
                     select.appendChild(option);
+
+                    if (tomSelect) {
+                        tomSelect.addOption({ value: String(item.value), text: item.label });
+                    }
                 });
+
+                if (tomSelect) {
+                    const validSelected = selected.filter(value =>
+                        values.some(item => String(item.value) === String(value))
+                    );
+                    tomSelect.setValue(validSelected, true);
+                    tomSelect.refreshOptions(false);
+                }
             });
 
             form.querySelectorAll('button[type="submit"], button:not([type])').forEach(button => {
