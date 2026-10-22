@@ -89,6 +89,7 @@
                         onerror="this.style.display='none'">
                     </div>
                     <button type="button" class="btn btn-outline-secondary btn-sm rotate-thumbnail-btn"
+                      data-filename="{{ video.filename }}"
                       aria-label="Rotate thumbnail for {{ video.filename }}" title="Rotate thumbnail 90° clockwise">
                       <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Rotate
                     </button>
@@ -272,11 +273,45 @@
 
       list.querySelectorAll(".video-library-item").forEach(item => {
         applyThumbnailRotation(item);
-        item.querySelector(".rotate-thumbnail-btn")?.addEventListener("click", () => {
+        item.querySelector(".rotate-thumbnail-btn")?.addEventListener("click", async (event) => {
+          const button = event.currentTarget;
           const input = item.querySelector(".thumbnail-rotation-value");
-          if (!input) return;
-          input.value = String(((parseInt(input.value, 10) || 0) + 90) % 360);
+          if (!input || button.disabled) return;
+
+          const previousRotation = parseInt(input.value, 10) || 0;
+          const nextRotation = (previousRotation + 90) % 360;
+          const filename = button.dataset.filename;
+          const csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+
+          button.disabled = true;
+          input.value = String(nextRotation);
           applyThumbnailRotation(item);
+
+          try {
+            const body = new URLSearchParams({
+              filename: filename,
+              rotation: String(nextRotation),
+              csrf_token: csrfToken || ""
+            });
+            const response = await fetch("/update_thumbnail_rotation", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                "X-Requested-With": "XMLHttpRequest"
+              },
+              body: body.toString()
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+              throw new Error(result.error || "Could not save thumbnail rotation.");
+            }
+          } catch (error) {
+            input.value = String(previousRotation);
+            applyThumbnailRotation(item);
+            alert(error.message || "Could not save thumbnail rotation. Please try again.");
+          } finally {
+            button.disabled = false;
+          }
         });
       });
 
