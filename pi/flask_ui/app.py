@@ -408,71 +408,84 @@ def _ensure_video_thumbnail(filename):
         return False
 
 
-def _get_video_duration(filename):
-    """Return a human-readable video duration using ffprobe, when available."""
-    video_path = VIDEO_FOLDER / secure_filename(Path(filename).name)
-    ffprobe = shutil.which("ffprobe")
-    if not ffprobe or not video_path.is_file():
-        return None
+# Cache video metadata by filename, modification time, and size. This prevents
+# ffprobe from running repeatedly whenever the dashboard is rendered.
+_VIDEO_DETAILS_CACHE = {}
+
+
+def _get_video_file_details(filename):
+    """Return cached file size, resolution, and duration, probing only when stale."""
+    safe_name = secure_filename(Path(filename).name)
+    video_path = VIDEO_FOLDER / safe_name
+    details = {"file_size": None, "resolution": None, "duration": None}
+    if not safe_name or not video_path.is_file():
+        return details
 
     try:
-        result = subprocess.run(
-            [
-                ffprobe, "-v", "error",
-                "-show_entries", "format=duration",
-                "-of", "default=noprint_wrappers=1:nokey=1",
-                str(video_path),
-            ],
-            capture_output=True, text=True, timeout=10, check=False,
-        )
-        if result.returncode != 0:
-            return None
-        seconds = int(float(result.stdout.strip()))
-        if seconds < 0:
-            return None
-        hours, remainder = divmod(seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        return f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes}:{seconds:02d}"
-    except (OSError, ValueError, subprocess.SubprocessError):
-        return None
+        stat = video_path.stat()
+    except OSError:
+        return details
+
+    cache_key = (safe_name, stat.st_mtime_ns, stat.st_size)
+    cached = _VIDEO_DETAILS_CACHE.get(safe_name)
+    if cached and cached[0] == cache_key:
+        return dict(cached[1])
+
+    details["file_size"] = (
+        f"{stat.st_size / (1024 * 1024):.1f} MB"
+        if stat.st_size >= 1024 * 1024
+        else f"{max(1, stat.st_size // 1024)} KB"
+    )
+
+    ffprobe = shutil.which("ffprobe")
+    if ffprobe:
+        try:
+            result = subprocess.run(
+                [
+                    ffprobe, "-v", "error", "-select_streams", "v:0",
+                    "-show_entries", "stream=width,height:format=duration",
+                    "-of", "json", str(video_path),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if result.returncode == 0:
+                probe = json.loads(result.stdout or "{}")
+                streams = probe.get("streams", [])
+                if streams:
+                    width = streams[0].get("width")
+                    height = streams[0].get("height")
+                    if width and height:
+                        details["resolution"] = f"{width} × {height}"
+
+                duration = float(probe.get("format", {}).get("duration", 0) or 0)
+                if duration >= 0:
+                    total_seconds = int(duration + 0.5)
+                    hours, remainder = divmod(total_seconds, 3600)
+                    minutes, seconds = divmod(remainder, 60)
+                    details["duration"] = (
+                        f"{hours}:{minutes:02d}:{seconds:02d}"
+                        if hours else f"{minutes}:{seconds:02d}"
+                    )
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError, json.JSONDecodeError):
+            pass
+
+    _VIDEO_DETAILS_CACHE[safe_name] = (cache_key, dict(details))
+    return details
+
+
+def _get_video_duration(filename):
+    """Compatibility wrapper returning the cached duration."""
+    return _get_video_file_details(filename).get("duration")
 
 
 def _get_video_resolution(filename):
-    """Return the video's width and height using ffprobe, if available."""
-    video_path = VIDEO_FOLDER / secure_filename(Path(filename).name)
-    ffprobe = shutil.which("ffprobe")
-    if not ffprobe or not video_path.is_file():
-        return None
+    """Compatibility wrapper returning the cached resolution."""
+    return _get_video_file_details(filename).get("resolution")
 
-    try:
-        result = subprocess.run(
-            [
-                ffprobe,
-                "-v", "error",
-                "-select_streams", "v:0",
-                "-show_entries", "stream=width,height",
-                "-of", "csv=s=x:p=0",
-                str(video_path),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-        if result.returncode != 0:
-            return None
-
-        dimensions = result.stdout.strip().split("x")
-        if len(dimensions) != 2:
-            return None
-
-        width, height = (int(value) for value in dimensions)
-        if width <= 0 or height <= 0:
-            return None
-
-        return f"{width} × {height}"
-    except (OSError, ValueError, subprocess.SubprocessError):
-        return None
 
 
 def format_ampm(time_str, time_format="12"):
@@ -704,24 +717,10 @@ def index():
         and entry.get("filename") in videos
     ]
 
-    # Generate cached thumbnails and attach each video's actual resolution.
-    for video_filename in videos:
-        _ensure_video_thumbnail(video_filename)
-
+    # Attach cached file details. Thumbnail generation is left to the
+    # thumbnail endpoint when the browser actually requests a visible image.
     for video in manage_videos:
-        filename = video.get("filename", "")
-        video_path = VIDEO_FOLDER / secure_filename(Path(filename).name)
-        video["resolution"] = _get_video_resolution(filename)
-        video["duration"] = _get_video_duration(filename)
-        try:
-            size_bytes = video_path.stat().st_size
-            video["file_size"] = (
-                f"{size_bytes / (1024 * 1024):.1f} MB"
-                if size_bytes >= 1024 * 1024
-                else f"{max(1, size_bytes // 1024)} KB"
-            )
-        except OSError:
-            video["file_size"] = None
+        video.update(_get_video_file_details(video.get("filename", "")))
 
     manage_videosTags = settings.get(
         "playlist",
