@@ -414,7 +414,7 @@ _VIDEO_DETAILS_CACHE = {}
 
 
 def _get_video_file_details(filename, video_entry=None):
-    """Return video details, reusing persistent metadata until the file changes."""
+    """Return video details, reusing complete persistent metadata until the file changes."""
     safe_name = secure_filename(Path(filename).name)
     video_path = VIDEO_FOLDER / safe_name
     details = {"file_size": None, "resolution": None, "duration": None}
@@ -428,11 +428,15 @@ def _get_video_file_details(filename, video_entry=None):
 
     signature = {"mtime_ns": stat.st_mtime_ns, "size_bytes": stat.st_size}
     cached_info = video_entry.get("video_info", {}) if isinstance(video_entry, dict) else {}
-    if (
+    cache_matches = (
         isinstance(cached_info, dict)
         and cached_info.get("mtime_ns") == signature["mtime_ns"]
         and cached_info.get("size_bytes") == signature["size_bytes"]
-    ):
+    )
+
+    # Reuse saved metadata only when all displayed details are present. Older or
+    # incomplete entries must be probed again rather than preserving em dashes.
+    if cache_matches and all(cached_info.get(key) for key in ("file_size", "resolution", "duration")):
         details.update({
             "file_size": cached_info.get("file_size"),
             "resolution": cached_info.get("resolution"),
@@ -443,8 +447,9 @@ def _get_video_file_details(filename, video_entry=None):
 
     cache_key = (safe_name, stat.st_mtime_ns, stat.st_size)
     cached = _VIDEO_DETAILS_CACHE.get(safe_name)
-    if cached and cached[0] == cache_key:
+    if cached and cached[0] == cache_key and all(cached[1].get(key) for key in ("file_size", "resolution", "duration")):
         details.update(cached[1])
+        width = height = duration_seconds = None
     else:
         details["file_size"] = (
             f"{stat.st_size / (1024 * 1024):.1f} MB"
@@ -466,7 +471,7 @@ def _get_video_file_details(filename, video_entry=None):
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
                     text=True,
-                    timeout=5,
+                    timeout=10,
                     check=False,
                 )
                 if result.returncode == 0:
@@ -479,7 +484,7 @@ def _get_video_file_details(filename, video_entry=None):
                             details["resolution"] = f"{width} × {height}"
 
                     duration_seconds = float(probe.get("format", {}).get("duration", 0) or 0)
-                    if duration_seconds >= 0:
+                    if duration_seconds > 0:
                         total_seconds = int(duration_seconds + 0.5)
                         hours, remainder = divmod(total_seconds, 3600)
                         minutes, seconds = divmod(remainder, 60)
@@ -496,16 +501,15 @@ def _get_video_file_details(filename, video_entry=None):
         thumbnail_path = _thumbnail_path(safe_name)
         video_entry["video_info"] = {
             **signature,
-            "width": width if 'width' in locals() else None,
-            "height": height if 'height' in locals() else None,
-            "duration_seconds": duration_seconds if 'duration_seconds' in locals() else None,
+            "width": width,
+            "height": height,
+            "duration_seconds": duration_seconds,
             "file_size": details.get("file_size"),
             "resolution": details.get("resolution"),
             "duration": details.get("duration"),
             "thumbnail_path": f"images/{thumbnail_path.name}" if thumbnail_path else None,
         }
     return details
-
 
 def _get_video_duration(filename):
     """Compatibility wrapper returning the cached duration."""
