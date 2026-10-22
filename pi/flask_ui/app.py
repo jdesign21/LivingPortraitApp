@@ -759,14 +759,14 @@ def index():
     # not persist complete video metadata. After this flag is saved, normal
     # dashboard loads never stat or probe every managed video.
     if not settings.get("video_metadata_migration_complete", False):
-        metadata_changed = False
         for video in manage_videos:
-            old_info = video.get("video_info")
-            info = old_info if isinstance(old_info, dict) else {}
-            if not all(info.get(key) for key in ("file_size", "resolution", "duration")):
+            info = video.get("video_info")
+            info = info if isinstance(info, dict) else {}
+            required_metadata = (
+                "mtime_ns", "size_bytes", "file_size", "resolution", "duration"
+            )
+            if not all(info.get(key) for key in required_metadata):
                 video.update(_get_video_file_details(video.get("filename", ""), video))
-            if video.get("video_info") != old_info:
-                metadata_changed = True
 
         settings["video_metadata_migration_complete"] = True
         settings.setdefault("playlist", {})["order"] = order
