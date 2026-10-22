@@ -2042,7 +2042,10 @@ def sync_tags_to_secondaries():
 def delete(filename):
     filepath = VIDEO_FOLDER / filename
 
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if not filepath.exists():
+        if is_ajax:
+            return jsonify(success=False, error="File not found."), 404
         flash('File not found', 'danger')
         return redirect(url_for('index'))
 
@@ -2070,7 +2073,10 @@ def delete(filename):
 
     # Inactive videos can be deleted without affecting the active-video minimum.
     if target_is_active and len(active_videos) <= 1:
-        flash("At least one active video must remain.", "danger")
+        message = "At least one active video must remain."
+        if is_ajax:
+            return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for('index'))
 
     was_selected = Path(settings.get("selected_video", "")).name == filename
@@ -2143,13 +2149,16 @@ def delete(filename):
         settings["selected_video"] = only_video
         save_settings(settings)
 
-        flash(
-            f"Deleted {filename}. Only one active video remains. Switched to single mode with video: {only_video}",
-            "info"
+        message = (
+            f"Deleted {filename}. Only one active video remains. "
+            f"Switched to single mode with video: {only_video}"
         )
     else:
-        flash(f"Deleted {filename}", "success")
+        message = f"Deleted {filename}"
 
+    if is_ajax:
+        return jsonify(success=True, message=message, filename=filename)
+    flash(message, "info" if len(remaining_active) == 1 else "success")
     return redirect(url_for("index"))
 
 
