@@ -144,11 +144,9 @@
                   <input class="form-check-input" type="checkbox"
                     id="muteAudio-{{ loop.index0 }}"
                     name="videos[{{ loop.index0 }}][mute_audio]"
+                    aria-label="Mute Audio"
                     value="true"
                     {% if video.get('mute_audio', False) %}checked{% endif %}>
-                  <label class="form-check-label" for="muteAudio-{{ loop.index0 }}">
-                    Mute
-                  </label>
                 </div>
               </div>
 
