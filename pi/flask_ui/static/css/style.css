@@ -927,10 +927,6 @@ body.dark-theme {
   letter-spacing: 0.035em;
 }
 
-@media (min-width: 992px) {
-  .video-library-list-view .video-field-label {
-    display: none;
-  }
-}
+/* Keep field titles visible in List view on desktop as well as Grid view. */
 
 
