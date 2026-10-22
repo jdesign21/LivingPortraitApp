@@ -637,6 +637,12 @@ body.dark-theme {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.15s ease;
+}
+.rotate-thumbnail-btn {
+  padding: 0.1rem 0.4rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
 }
 .video-thumbnail-placeholder {
   color: #7890a8;
