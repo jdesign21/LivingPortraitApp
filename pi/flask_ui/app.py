@@ -580,30 +580,6 @@ def index():
     sync_start_delay_ms = get_sync_start_delay_ms()
     sync_start_lead_ms = get_sync_start_lead_ms()
     secondary_pis = check_secondary_status()
-    discovered_secondary_pis = get_discovered_secondary_pis()
-    configured_device_ips = {
-        str(pi.get("device_id")): str(pi.get("ip", "")).strip()
-        for pi in secondary_pis
-        if pi.get("device_id")
-    }
-    configured_device_ids = set(configured_device_ips)
-    configured_ips = {
-        str(pi.get("ip", "")).strip()
-        for pi in secondary_pis
-        if str(pi.get("ip", "")).strip()
-    }
-    for discovered_pi in discovered_secondary_pis:
-        device_id = discovered_pi.get("device_id")
-        discovered_ip = str(discovered_pi.get("ip", "")).strip()
-        matched_by_id = device_id in configured_device_ids
-        matched_by_ip = discovered_ip in configured_ips
-        discovered_pi["is_configured"] = matched_by_id or matched_by_ip
-        discovered_pi["ip_changed"] = (
-            matched_by_id
-            and configured_device_ips.get(device_id, "") != discovered_ip
-        )
-        discovered_pi["needs_link"] = matched_by_ip and not matched_by_id
-
     # Read MQTT status without importing mqtt_client.
     # This prevents Flask from starting a second MQTT worker.
     mqtt_connected = get_mqtt_status()
@@ -946,7 +922,6 @@ def index():
         primary_ip=primary_ip,
         enable=enable,
         secondary_pis=secondary_pis,
-        discovered_secondary_pis=discovered_secondary_pis,
         mqtt_connected=mqtt_connected,
         sync_start_delay_ms=sync_start_delay_ms,
         sync_start_lead_ms=sync_start_lead_ms,
