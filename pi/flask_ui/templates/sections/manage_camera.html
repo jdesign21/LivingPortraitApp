@@ -76,13 +76,22 @@
               <!-- Thumbnail and filename -->
               <div class="col-12 col-lg-3">
                 <input type="hidden" name="videos[{{ loop.index0 }}][filename]" value="{{ video.filename }}">
+                <input type="hidden" name="videos[{{ loop.index0 }}][thumbnail_rotation]"
+                  value="{{ video.get('thumbnail_rotation', 0) }}" class="thumbnail-rotation-value">
                 <div class="d-flex align-items-center gap-3">
-                  <div class="video-thumbnail flex-shrink-0">
-                    <i class="bi bi-film video-thumbnail-placeholder" aria-hidden="true"></i>
-                    <img data-src="{{ url_for('thumbnail_file', filename=video.filename) }}"
-                      alt="Thumbnail for {{ video.filename }}"
-                      loading="lazy"
-                      onerror="this.style.display='none'">
+                  <div class="d-flex flex-column align-items-center gap-1 flex-shrink-0">
+                    <div class="video-thumbnail">
+                      <i class="bi bi-film video-thumbnail-placeholder" aria-hidden="true"></i>
+                      <img data-src="{{ url_for('thumbnail_file', filename=video.filename) }}"
+                        alt="Thumbnail for {{ video.filename }}"
+                        data-rotation="{{ video.get('thumbnail_rotation', 0) }}"
+                        loading="lazy"
+                        onerror="this.style.display='none'">
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm rotate-thumbnail-btn"
+                      aria-label="Rotate thumbnail for {{ video.filename }}" title="Rotate thumbnail 90° clockwise">
+                      <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Rotate
+                    </button>
                   </div>
                   <div class="min-w-0">
                     <div class="fw-semibold video-filename text-break">{{ video.filename }}</div>
@@ -218,6 +227,17 @@
       const listButton = document.getElementById("videoListView");
       const gridButton = document.getElementById("videoGridView");
 
+      function applyThumbnailRotation(item) {
+        const image = item.querySelector(".video-thumbnail img");
+        const input = item.querySelector(".thumbnail-rotation-value");
+        if (!image || !input) return;
+        const rotation = ((parseInt(input.value, 10) || 0) % 360 + 360) % 360;
+        image.dataset.rotation = String(rotation);
+        image.style.transform = rotation === 90 || rotation === 270
+          ? `rotate(${rotation}deg) scale(.56)`
+          : `rotate(${rotation}deg)`;
+      }
+
       const items = () => Array.from(list.querySelectorAll(".video-library-item"));
 
       function applyVideoFilters() {
@@ -249,6 +269,16 @@
         listButton.setAttribute("aria-pressed", String(!grid));
         gridButton.setAttribute("aria-pressed", String(grid));
       }
+
+      list.querySelectorAll(".video-library-item").forEach(item => {
+        applyThumbnailRotation(item);
+        item.querySelector(".rotate-thumbnail-btn")?.addEventListener("click", () => {
+          const input = item.querySelector(".thumbnail-rotation-value");
+          if (!input) return;
+          input.value = String(((parseInt(input.value, 10) || 0) + 90) % 360);
+          applyThumbnailRotation(item);
+        });
+      });
 
       search.addEventListener("input", applyVideoFilters);
       tagFilter.addEventListener("change", applyVideoFilters);
