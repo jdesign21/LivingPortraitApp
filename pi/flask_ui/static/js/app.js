@@ -222,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     targetList.appendChild(row);
                     bindTagForms(modal);
-                    const addInput = modal.querySelector('input[name="' + (isSchedule ? 'schedule_tag' : 'sync_tag') + '"]');
+                    const addInput = modal.querySelector('input[type="text"][name="' + (isSchedule ? 'schedule_tag' : 'sync_tag') + '"]');
                     if (addInput) addInput.value = '';
                 }
             }
