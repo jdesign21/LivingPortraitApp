@@ -628,7 +628,9 @@ def index():
     enable = network_settings.get("enable", "0")
     sync_start_delay_ms = get_sync_start_delay_ms()
     sync_start_lead_ms = get_sync_start_lead_ms()
-    secondary_pis = check_secondary_status()
+    # Display the last known status on page loads. Network checks are triggered
+    # explicitly by the Check Status action, not by every dashboard refresh.
+    secondary_pis = network_settings.get("secondary_pis", [])
     # Read MQTT status without importing mqtt_client.
     # This prevents Flask from starting a second MQTT worker.
     mqtt_connected = get_mqtt_status()
