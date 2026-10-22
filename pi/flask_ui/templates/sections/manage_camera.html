@@ -228,7 +228,7 @@
 
         items().forEach(item => {
           const name = item.dataset.videoName || "";
-          const tags = (item.dataset.videoTags || "").split(/\\s+/).filter(Boolean);
+          const tags = (item.dataset.videoTags || "").split('|').filter(Boolean);
           item.hidden = !(name.includes(query) && (!tag || tags.includes(tag)));
         });
 
