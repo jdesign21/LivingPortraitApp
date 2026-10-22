@@ -67,17 +67,7 @@
           </div>
         </div>
 
-        <div class="video-library-list-header table-light small text-uppercase" aria-hidden="true">
-          <div>Video</div>
-          <div>File Details</div>
-          <div>Enable</div>
-          <div>Schedule Tags</div>
-          <div>Sync Tag</div>
-          <div>Mute Audio</div>
-          <div></div>
-        </div>
-
-        <ul class="list-group video-library-list" id="videoLibraryList">
+        <ul class="list-group video-library-list id="videoLibraryList">
           {% for video in manage_videos %}
           <li class="list-group-item video-library-item"
               data-video-name="{{ video.filename|lower }}"
@@ -102,6 +92,7 @@
 
               <!-- Video details -->
               <div class="col-6 col-lg-2">
+                <div class="video-field-label">File Details</div>
                 <div class="small text-nowrap video-file-details">
                   <span>{{ video.get('file_size') or '—' }}</span>
                   <span class="text-muted mx-1">·</span>
@@ -113,6 +104,7 @@
 
               <!-- Enable (separate column) -->
               <div class="col-6 col-lg-1">
+                <div class="video-field-label">Enable</div>
                 <div class="form-check form-switch">
                   <input class="form-check-input" type="checkbox" id="activeSwitch-{{ loop.index0 }}"
                     name="videos[{{ loop.index0 }}][active]" value="true" {% if video.active %}checked{% endif %}>
@@ -121,6 +113,7 @@
 
               <!-- Schedule Tags -->
               <div class="col-12 col-lg-3">
+                <div class="video-field-label">Schedule Tags</div>
                 <select name="videos[{{ loop.index0 }}][tags][]" class="form-select form-select-sm tomselect" multiple>
                   {% for tag in schedule_tags %}
                   <option value="{{ tag.id }}" {% if tag.id in video.get('tags', []) %}selected{% endif %}>
@@ -132,6 +125,7 @@
 
               <!-- Sync Tag -->
               <div class="col-12 col-lg-2">
+                <div class="video-field-label">Sync Tag</div>
                 <select class="form-select form-select-sm" id="syncTag-{{ loop.index0 }}"
                   name="videos[{{ loop.index0 }}][sync_tag]">
                   <option value="">None</option>
@@ -145,6 +139,7 @@
 
               <!-- Mute Audio -->
               <div class="col-12 col-lg-2">
+                <div class="video-field-label">Mute Audio</div>
                 <div class="form-check form-switch">
                   <input class="form-check-input" type="checkbox"
                     id="muteAudio-{{ loop.index0 }}"
