@@ -756,7 +756,19 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
                 if (cancelButton) cancelButton.textContent = 'Close & Refresh';
                 const modalElement = document.getElementById('uploadModal');
                 if (modalElement) {
-                    modalElement.addEventListener('hidden.bs.modal', () => window.location.reload(), { once: true });
+                    modalElement.addEventListener('hidden.bs.modal', () => {
+                        // The upload is complete, but rebuilding the video list can
+                        // take several seconds while metadata is collected and saved.
+                        // Keep the user informed while the page reloads.
+                        const loadingMessage = overlay
+                            ? overlay.querySelector('p')
+                            : null;
+                        if (loadingMessage) {
+                            loadingMessage.textContent = 'Refreshing video list, please wait...';
+                        }
+                        if (overlay) overlay.style.display = 'flex';
+                        window.location.reload();
+                    }, { once: true });
                 }
                 if (uploadButton) {
                     uploadButton.disabled = true;
