@@ -258,8 +258,25 @@
       listButton.addEventListener("click", () => setVideoLayout("list"));
       gridButton.addEventListener("click", () => setVideoLayout("grid"));
 
-      // Always initialize the page in compact List view after a refresh.
-      setVideoLayout("list");
+      // Keep the user's selected layout across form saves and page refreshes.
+      const savedLayout = (() => {
+        try {
+          return window.localStorage.getItem("livingPortraitVideoLayout") === "grid"
+            ? "grid"
+            : "list";
+        } catch (_) {
+          return "list";
+        }
+      })();
+
+      listButton.addEventListener("click", () => {
+        try { window.localStorage.setItem("livingPortraitVideoLayout", "list"); } catch (_) {}
+      });
+      gridButton.addEventListener("click", () => {
+        try { window.localStorage.setItem("livingPortraitVideoLayout", "grid"); } catch (_) {}
+      });
+
+      setVideoLayout(savedLayout);
       applyVideoFilters();
     })();
   </script>
