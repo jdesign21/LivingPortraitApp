@@ -1784,24 +1784,40 @@ if (updateNowBtn) {
 // GLOBAL FUNCTIONS
 // ============================================================
 
-function deleteVideo(filename) {
-    if (confirm(`Delete ${filename}?`)) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/delete/${encodeURIComponent(filename)}`;
+async function deleteVideo(filename) {
+    if (!confirm(`Delete ${filename}?`)) return;
 
-        // Every state-changing request must include the session CSRF token.
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        if (csrfToken) {
-            const csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = 'csrf_token';
-            csrfInput.value = csrfToken;
-            form.appendChild(csrfInput);
+    const item = Array.from(document.querySelectorAll('.video-library-item'))
+        .find(row => row.querySelector('input[name$="[filename]"]')?.value === filename);
+    const button = item?.querySelector('button[aria-label^="Delete"]');
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>';
+    }
+
+    try {
+        const response = await fetch(`/delete/${encodeURIComponent(filename)}`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Unable to delete video.');
         }
 
-        document.body.appendChild(form);
-        form.submit();
+        item?.remove();
+        const list = document.getElementById('videoLibraryList');
+        if (list && !list.querySelector('.video-library-item')) {
+            list.innerHTML = '<li class="list-group-item text-muted">No videos found.</li>';
+        }
+        if (typeof showToast === 'function') showToast(data.message || 'Video deleted.', 'success');
+    } catch (error) {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-trash" aria-hidden="true"></i>';
+        }
+        window.alert(error.message || 'Unable to delete video.');
     }
 }
 
