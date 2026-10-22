@@ -1765,6 +1765,15 @@ def update_all():
             f"videos[{index}][mute_audio]"
         ) == "true"
 
+        try:
+            thumbnail_rotation = int(request.form.get(
+                f"videos[{index}][thumbnail_rotation]", "0"
+            )) % 360
+        except (TypeError, ValueError):
+            thumbnail_rotation = 0
+        if thumbnail_rotation not in (0, 90, 180, 270):
+            thumbnail_rotation = 0
+
         log(f"{filename} sync_tag = '{sync_tag}'", "SYNC TAGS")
 
         videos.append({
@@ -1772,7 +1781,8 @@ def update_all():
             "active": active,
             "tags": tags,
             "sync_tag": sync_tag,
-            "mute_audio": mute_audio
+            "mute_audio": mute_audio,
+            "thumbnail_rotation": thumbnail_rotation
         })
 
         index += 1
