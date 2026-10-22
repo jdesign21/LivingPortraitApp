@@ -1013,7 +1013,6 @@ body.dark-theme {
 
 /* Portrait thumbnails use a portrait-shaped frame and rotate the full preview. */
 .video-thumbnail.is-portrait {
-  width: 56px;
   aspect-ratio: 9 / 16;
 }
 
