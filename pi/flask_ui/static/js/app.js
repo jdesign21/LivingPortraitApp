@@ -1977,3 +1977,111 @@ async function deleteVideo(filename) {
     }
 }
 
+
+
+// ============================================================
+// ON-DEMAND SECONDARY PI DISCOVERY
+// ============================================================
+(() => {
+    const button = document.getElementById('refreshDiscoveredSecondaryBtn');
+    const list = document.getElementById('discoveredSecondaryList');
+    if (!button || !list) return;
+
+    button.addEventListener('click', async () => {
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Discovering...';
+        list.replaceChildren();
+        const loading = document.createElement('div');
+        loading.className = 'border rounded text-center text-muted p-4';
+        loading.textContent = 'Checking for secondary Pis...';
+        list.appendChild(loading);
+
+        try {
+            const response = await fetch(button.dataset.url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                }
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || 'Discovery failed.');
+
+            list.replaceChildren();
+            const devices = data.devices || [];
+            if (!devices.length) {
+                const empty = document.createElement('div');
+                empty.className = 'border rounded text-center text-muted p-4';
+                empty.textContent = 'No secondary Pis found yet. Make sure the secondary is running LivingPortraitApp on the same local network, then refresh.';
+                list.appendChild(empty);
+                return;
+            }
+
+            devices.forEach(device => {
+                const item = document.createElement('div');
+                item.className = 'list-group-item';
+                const row = document.createElement('div');
+                row.className = 'd-flex flex-wrap justify-content-between align-items-center gap-3';
+                const info = document.createElement('div');
+                info.className = 'flex-grow-1';
+                const name = document.createElement('div');
+                name.className = 'fw-semibold';
+                name.textContent = device.name || 'Secondary Pi';
+                const ip = document.createElement('div');
+                ip.className = 'text-muted small';
+                ip.textContent = device.ip || '';
+                const version = document.createElement('div');
+                version.className = 'text-muted small';
+                version.textContent = 'Version ' + (device.version || 'unknown') + ' · Seen ' + (device.last_seen_label || 'recently');
+                info.append(name, ip, version);
+                row.appendChild(info);
+
+                const actions = document.createElement('div');
+                if (device.is_configured && !device.ip_changed) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-success';
+                    badge.textContent = 'Added';
+                    actions.appendChild(badge);
+                } else {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/network/add_discovered_secondary';
+                    form.className = 'd-inline';
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = 'device_id';
+                    hidden.value = device.device_id || '';
+                    form.appendChild(hidden);
+                    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+                    if (csrf) {
+                        const csrfInput = document.createElement('input');
+                        csrfInput.type = 'hidden';
+                        csrfInput.name = 'csrf_token';
+                        csrfInput.value = csrf;
+                        form.appendChild(csrfInput);
+                    }
+                    const add = document.createElement('button');
+                    add.type = 'submit';
+                    add.className = 'btn btn-outline-primary btn-sm';
+                    add.textContent = device.ip_changed ? 'Update IP' : (device.needs_link ? 'Link Device' : 'Add');
+                    form.appendChild(add);
+                    actions.appendChild(form);
+                }
+                row.appendChild(actions);
+                item.appendChild(row);
+                list.appendChild(item);
+            });
+        } catch (error) {
+            list.replaceChildren();
+            const failure = document.createElement('div');
+            failure.className = 'alert alert-danger mb-0';
+            failure.textContent = error.message || 'Unable to discover secondary Pis.';
+            list.appendChild(failure);
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+    });
+})();
