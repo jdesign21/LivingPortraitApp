@@ -197,40 +197,36 @@
                     <tbody>
                         {% for pi in secondary_pis %}
                         <tr>
-                            <td colspan="3" class="p-0">
-                                <form method="POST" action="{{ url_for('network_edit_secondary', index=loop.index0) }}" class="row g-2 align-items-center m-0 p-2">
-                                    <div class="col-md-5">
-                                        <label class="visually-hidden">Secondary Pi name</label>
-                                        <input type="text" class="form-control form-control-sm" name="name" value="{{ pi.name }}" required>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="visually-hidden">IP address</label>
-                                        <input type="text" class="form-control form-control-sm" name="ip" value="{{ pi.ip }}" required>
-                                    </div>
-                                    <div class="col-md-3">
-                                        {% if pi.status == 'online' %}
-                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Online</span>
-                                        {% elif pi.status == 'offline' %}
-                                        <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Offline</span>
-                                        {% else %}
-                                        <span class="badge bg-secondary">Not Checked</span>
-                                        {% endif %}
-                                        {% if pi.last_checked %}
-                                        <div class="text-muted small mt-1">{{ pi.last_checked }}</div>
-                                        {% endif %}
-                                    </div>
-                                    <div class="col-12 d-flex justify-content-end gap-2">
-                                        <button type="submit" class="btn btn-outline-primary btn-sm">
-                                            <i class="bi bi-check-lg me-1"></i> Save
-                                        </button>
-                                    </form>
-                                    <form method="POST" action="{{ url_for('network_delete_secondary', index=loop.index0) }}" class="d-inline" onsubmit="return confirm('Delete {{ pi.name }}?');">
-                                        <button type="submit" class="btn btn-outline-danger btn-sm">
-                                            <i class="bi bi-trash me-1"></i> Delete
-                                        </button>
-                                    </form>
-                                    </div>
-                                </td>
+                            <td>
+                                <form method="POST" action="{{ url_for('network_edit_secondary', index=loop.index0) }}" class="d-flex flex-wrap align-items-center gap-2">
+                                    <input type="text" class="form-control form-control-sm" name="name" value="{{ pi.name }}" aria-label="Secondary Pi name" required>
+                            </td>
+                            <td>
+                                    <input type="text" class="form-control form-control-sm" name="ip" value="{{ pi.ip }}" aria-label="IP address" required>
+                            </td>
+                            <td>
+                                {% if pi.status == 'online' %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Online</span>
+                                {% elif pi.status == 'offline' %}
+                                <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Offline</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Not Checked</span>
+                                {% endif %}
+                                {% if pi.last_checked %}
+                                <div class="text-muted small mt-1">{{ pi.last_checked }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="text-end text-nowrap">
+                                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-check-lg me-1"></i> Save
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('network_delete_secondary', index=loop.index0) }}" class="d-inline" onsubmit="return confirm('Delete {{ pi.name }}?');">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                                        <i class="bi bi-trash me-1"></i> Delete
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
                         {% else %}
                         <tr>
