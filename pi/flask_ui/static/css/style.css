@@ -837,7 +837,7 @@ body.dark-theme {
 @media (min-width: 992px) {
   .video-library-list-view .video-library-item > .row {
     display: grid;
-    grid-template-columns: minmax(180px, 1.55fr) minmax(150px, 1.2fr) 64px 70px minmax(150px, 1.3fr) minmax(115px, 1fr) 34px;
+    grid-template-columns: minmax(230px, 1.8fr) 64px 70px minmax(150px, 1.3fr) minmax(115px, 1fr) 34px;
     gap: 0.5rem;
     align-items: center;
     margin: 0;
@@ -1009,5 +1009,42 @@ body.dark-theme {
   .video-library-list-view .video-audio-control {
     width: 50%;
   }
+}
+
+/* Portrait thumbnails use a portrait-shaped frame and rotate the full preview. */
+.video-thumbnail.is-portrait {
+  width: 56px;
+  aspect-ratio: 9 / 16;
+}
+
+.video-thumbnail img {
+  left: 0;
+  top: 0;
+  transform-origin: center center;
+}
+
+.video-thumbnail.is-portrait img {
+  width: 178%;
+  height: 100%;
+  max-width: none;
+  left: 50%;
+  top: 50%;
+}
+
+.video-library-list-view .video-thumbnail.is-portrait {
+  width: 56px;
+}
+
+.video-library-list-view .video-filename {
+  margin-bottom: 0;
+}
+
+.video-library-list-view .video-file-details {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.dark-theme .video-library-list-view .video-file-details .text-muted {
+  color: #94a3b8 !important;
 }
 
