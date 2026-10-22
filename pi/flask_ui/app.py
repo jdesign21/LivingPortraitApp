@@ -2319,6 +2319,19 @@ def setup_add_discovered_secondary_ajax():
     })
 
 
+@app.route("/network/refresh_discovered_secondary", methods=["POST"])
+def network_refresh_discovered_secondary():
+    """Discover secondary Pis only when the user requests a refresh."""
+    network_settings = load_network_settings()
+    secondary_pis = network_settings.get("secondary_pis", [])
+    if not isinstance(secondary_pis, list):
+        secondary_pis = []
+    return jsonify({
+        "success": True,
+        "devices": _get_discovered_secondary_pis_for_config(secondary_pis),
+    })
+
+
 # Refresh the discovery list during initial setup without reloading the wizard.
 @app.route("/setup/refresh_discovered_secondary", methods=["POST"])
 def setup_refresh_discovered_secondary():
