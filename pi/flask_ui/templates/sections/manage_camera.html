@@ -120,6 +120,19 @@
                 </div>
               </div>
 
+              <!-- Mute Audio -->
+              <div class="col-6 col-lg-1 video-audio-control">
+                <div class="video-field-label">Mute Audio</div>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox"
+                    id="muteAudio-{{ loop.index0 }}"
+                    name="videos[{{ loop.index0 }}][mute_audio]"
+                    aria-label="Mute Audio"
+                    value="true"
+                    {% if video.get('mute_audio', False) %}checked{% endif %}>
+                </div>
+              </div>
+
               <!-- Schedule Tags -->
               <div class="col-12 col-lg-3">
                 <div class="video-field-label">Schedule Tags</div>
@@ -144,19 +157,6 @@
                   </option>
                   {% endfor %}
                 </select>
-              </div>
-
-              <!-- Mute Audio -->
-              <div class="col-12 col-lg-2">
-                <div class="video-field-label">Mute Audio</div>
-                <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox"
-                    id="muteAudio-{{ loop.index0 }}"
-                    name="videos[{{ loop.index0 }}][mute_audio]"
-                    aria-label="Mute Audio"
-                    value="true"
-                    {% if video.get('mute_audio', False) %}checked{% endif %}>
-                </div>
               </div>
 
               <!-- Delete Video -->
