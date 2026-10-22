@@ -255,15 +255,19 @@ def update_days_schedule(days_schedule):
     save_settings(settings)
 
 
-def get_time_format():
+def get_time_format(settings=None):
     """
     Return the configured display time format.
+
+    An existing settings dictionary may be supplied to avoid reloading the
+    settings file when several values are needed during one page request.
 
     Returns:
         "12" for 12-hour display.
         "24" for 24-hour display.
     """
-    settings = load_settings()
+    if not isinstance(settings, dict):
+        settings = load_settings()
     time_format = settings.get("time_format", "12")
 
     if time_format not in ("12", "24"):
@@ -364,14 +368,18 @@ def get_secondary_video_mode():
     return playlist.get("secondary_video_mode", "sync_tag")
 
 
-def is_schedule_enabled_now():
+def is_schedule_enabled_now(settings=None, now=None):
     """
     Returns True if the schedule is active now.
     Checks both slot1 and slot2 for today's schedule.
+
+    Optional settings and time values allow callers to reuse the values
+    already loaded for the current request.
     """
-    settings = load_settings()
+    if not isinstance(settings, dict):
+        settings = load_settings()
     days = settings.get("days", {})
-    now = datetime.now()
+    now = now if isinstance(now, datetime) else datetime.now()
     current_day = now.strftime("%A")
     now_time = now.time()
     today_schedule = days.get(current_day, {})
@@ -445,13 +453,16 @@ def is_current_schedule_active():
     return False
 
 
-def get_next_start_time(settings):
+def get_next_start_time(settings, time_format=None, now=None):
     """
     Returns the earliest upcoming start time and its category
     from all enabled slots across the next 7 days.
+
+    Optional time_format and now values let page rendering reuse the
+    current request's settings and timestamp.
     """
     days = settings.get("days", {})
-    now = datetime.now()
+    now = now if isinstance(now, datetime) else datetime.now()
     upcoming_slots = []
 
     for i in range(7):
@@ -500,7 +511,7 @@ def get_next_start_time(settings):
         key=lambda x: x[0]
     )
 
-    time_format = get_time_format()
+    time_format = time_format if time_format in ("12", "24") else get_time_format(settings)
 
     if time_format == "24":
         formatted_time = next_start_dt.strftime("%H:%M")
@@ -556,8 +567,10 @@ def get_current_scheduler_category():
     return None
 
 
-def get_playlist_settings():
-    settings = load_settings()
+def get_playlist_settings(settings=None):
+    """Return playlist settings, optionally reusing an already-loaded settings dictionary."""
+    if not isinstance(settings, dict):
+        settings = load_settings()
     playlist = settings.get("playlist", {})
 
     return (
