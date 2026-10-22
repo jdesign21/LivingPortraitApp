@@ -408,13 +408,13 @@ def _ensure_video_thumbnail(filename):
         return False
 
 
-# Cache video metadata by filename, modification time, and size. This prevents
-# ffprobe from running repeatedly whenever the dashboard is rendered.
+# Persistent per-video metadata is stored in each playlist entry. The in-memory
+# cache remains as a fast fallback for callers that don't pass an entry.
 _VIDEO_DETAILS_CACHE = {}
 
 
-def _get_video_file_details(filename):
-    """Return cached file size, resolution, and duration, probing only when stale."""
+def _get_video_file_details(filename, video_entry=None):
+    """Return video details, reusing persistent metadata until the file changes."""
     safe_name = secure_filename(Path(filename).name)
     video_path = VIDEO_FOLDER / safe_name
     details = {"file_size": None, "resolution": None, "duration": None}
@@ -426,54 +426,84 @@ def _get_video_file_details(filename):
     except OSError:
         return details
 
+    signature = {"mtime_ns": stat.st_mtime_ns, "size_bytes": stat.st_size}
+    cached_info = video_entry.get("video_info", {}) if isinstance(video_entry, dict) else {}
+    if (
+        isinstance(cached_info, dict)
+        and cached_info.get("mtime_ns") == signature["mtime_ns"]
+        and cached_info.get("size_bytes") == signature["size_bytes"]
+    ):
+        details.update({
+            "file_size": cached_info.get("file_size"),
+            "resolution": cached_info.get("resolution"),
+            "duration": cached_info.get("duration"),
+        })
+        _VIDEO_DETAILS_CACHE[safe_name] = ((safe_name, stat.st_mtime_ns, stat.st_size), dict(details))
+        return details
+
     cache_key = (safe_name, stat.st_mtime_ns, stat.st_size)
     cached = _VIDEO_DETAILS_CACHE.get(safe_name)
     if cached and cached[0] == cache_key:
-        return dict(cached[1])
+        details.update(cached[1])
+    else:
+        details["file_size"] = (
+            f"{stat.st_size / (1024 * 1024):.1f} MB"
+            if stat.st_size >= 1024 * 1024
+            else f"{max(1, stat.st_size // 1024)} KB"
+        )
 
-    details["file_size"] = (
-        f"{stat.st_size / (1024 * 1024):.1f} MB"
-        if stat.st_size >= 1024 * 1024
-        else f"{max(1, stat.st_size // 1024)} KB"
-    )
+        ffprobe = shutil.which("ffprobe")
+        width = height = None
+        duration_seconds = None
+        if ffprobe:
+            try:
+                result = subprocess.run(
+                    [
+                        ffprobe, "-v", "error", "-select_streams", "v:0",
+                        "-show_entries", "stream=width,height:format=duration",
+                        "-of", "json", str(video_path),
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+                if result.returncode == 0:
+                    probe = json.loads(result.stdout or "{}")
+                    streams = probe.get("streams", [])
+                    if streams:
+                        width = streams[0].get("width")
+                        height = streams[0].get("height")
+                        if width and height:
+                            details["resolution"] = f"{width} × {height}"
 
-    ffprobe = shutil.which("ffprobe")
-    if ffprobe:
-        try:
-            result = subprocess.run(
-                [
-                    ffprobe, "-v", "error", "-select_streams", "v:0",
-                    "-show_entries", "stream=width,height:format=duration",
-                    "-of", "json", str(video_path),
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-                text=True,
-                timeout=5,
-                check=False,
-            )
-            if result.returncode == 0:
-                probe = json.loads(result.stdout or "{}")
-                streams = probe.get("streams", [])
-                if streams:
-                    width = streams[0].get("width")
-                    height = streams[0].get("height")
-                    if width and height:
-                        details["resolution"] = f"{width} × {height}"
+                    duration_seconds = float(probe.get("format", {}).get("duration", 0) or 0)
+                    if duration_seconds >= 0:
+                        total_seconds = int(duration_seconds + 0.5)
+                        hours, remainder = divmod(total_seconds, 3600)
+                        minutes, seconds = divmod(remainder, 60)
+                        details["duration"] = (
+                            f"{hours}:{minutes:02d}:{seconds:02d}"
+                            if hours else f"{minutes}:{seconds:02d}"
+                        )
+            except (OSError, ValueError, TypeError, subprocess.SubprocessError, json.JSONDecodeError):
+                pass
 
-                duration = float(probe.get("format", {}).get("duration", 0) or 0)
-                if duration >= 0:
-                    total_seconds = int(duration + 0.5)
-                    hours, remainder = divmod(total_seconds, 3600)
-                    minutes, seconds = divmod(remainder, 60)
-                    details["duration"] = (
-                        f"{hours}:{minutes:02d}:{seconds:02d}"
-                        if hours else f"{minutes}:{seconds:02d}"
-                    )
-        except (OSError, ValueError, TypeError, subprocess.SubprocessError, json.JSONDecodeError):
-            pass
+        _VIDEO_DETAILS_CACHE[safe_name] = (cache_key, dict(details))
 
-    _VIDEO_DETAILS_CACHE[safe_name] = (cache_key, dict(details))
+    if isinstance(video_entry, dict):
+        thumbnail_path = _thumbnail_path(safe_name)
+        video_entry["video_info"] = {
+            **signature,
+            "width": width if 'width' in locals() else None,
+            "height": height if 'height' in locals() else None,
+            "duration_seconds": duration_seconds if 'duration_seconds' in locals() else None,
+            "file_size": details.get("file_size"),
+            "resolution": details.get("resolution"),
+            "duration": details.get("duration"),
+            "thumbnail_path": f"images/{thumbnail_path.name}" if thumbnail_path else None,
+        }
     return details
 
 
@@ -485,7 +515,6 @@ def _get_video_duration(filename):
 def _get_video_resolution(filename):
     """Compatibility wrapper returning the cached resolution."""
     return _get_video_file_details(filename).get("resolution")
-
 
 
 def format_ampm(time_str, time_format="12"):
@@ -717,10 +746,17 @@ def index():
         and entry.get("filename") in videos
     ]
 
-    # Attach cached file details. Thumbnail generation is left to the
-    # thumbnail endpoint when the browser actually requests a visible image.
+    # Persist file metadata per video. Existing videos are analyzed once;
+    # unchanged files reuse their saved details on later page loads.
+    metadata_changed = False
     for video in manage_videos:
-        video.update(_get_video_file_details(video.get("filename", "")))
+        old_info = video.get("video_info")
+        video.update(_get_video_file_details(video.get("filename", ""), video))
+        if video.get("video_info") != old_info:
+            metadata_changed = True
+    if metadata_changed:
+        settings.setdefault("playlist", {})["order"] = order
+        save_settings(settings)
 
     manage_videosTags = settings.get(
         "playlist",
