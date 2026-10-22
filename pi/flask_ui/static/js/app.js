@@ -115,10 +115,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 credentials: 'same-origin',
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
-            if (!response.ok) throw new Error(`Request failed (${response.status})`);
-
             if (form.id === 'syncTagsForm') {
                 const data = await response.json();
+                if (!response.ok) throw new Error(data.error || data.message || `Request failed (${response.status})`);
                 const spinner = document.getElementById('syncTagsSpinner');
                 const icon = document.getElementById('syncTagsIcon');
                 const buttonText = document.getElementById('syncTagsButtonText');
@@ -153,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = await response.json();
-            if (!data.success) throw new Error(data.error || 'Unable to update tags.');
+            if (!response.ok || !data.success) throw new Error(data.error || 'Unable to update tags.');
 
             const isSchedule = modal.id === 'scheduleTagsModal';
             const list = modal.querySelector('.border.rounded:not(.text-center)');
@@ -253,10 +252,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
 
+            form.querySelectorAll('button[type="submit"], button:not([type])').forEach(button => {
+                button.disabled = false;
+            });
             if (typeof showToast === 'function') showToast(data.message || 'Tags updated.', 'success');
         } catch (error) {
             console.error('Unable to update tags:', error);
-            window.location.reload();
+            form.querySelectorAll('button[type="submit"], button:not([type])').forEach(button => {
+                button.disabled = false;
+            });
+            if (typeof showToast === 'function') showToast(error.message || 'Unable to update tags.', 'danger');
+            else window.alert(error.message || 'Unable to update tags.');
         }
     }
 
