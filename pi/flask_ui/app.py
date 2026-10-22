@@ -1896,13 +1896,13 @@ def add_sync_tag():
 
 @app.route("/delete_sync_tag", methods=["POST"])
 def delete_sync_tag():
-    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     """
     Delete a Sync Tag from the Primary master list.
 
     Any video currently assigned to the deleted tag will have
     its sync_tag cleared so there are no orphaned assignments.
     """
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     settings = load_settings()
     sync_tags = settings.get("sync_tags", [])
 
