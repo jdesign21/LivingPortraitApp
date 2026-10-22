@@ -96,19 +96,14 @@
                   </div>
                   <div class="min-w-0">
                     <div class="fw-semibold video-filename text-break">{{ video.filename }}</div>
+                    <div class="small video-file-details mt-1">
+                      <span>{{ video.get('file_size') or '—' }}</span>
+                      <span class="text-muted mx-1">·</span>
+                      <span>{{ video.get('resolution') or '—' }}</span>
+                      <span class="text-muted mx-1">·</span>
+                      <span>{{ video.get('duration') or '—' }}</span>
+                    </div>
                   </div>
-                </div>
-              </div>
-
-              <!-- Video details -->
-              <div class="col-6 col-lg-2">
-                <div class="video-field-label">File Details</div>
-                <div class="small text-nowrap video-file-details">
-                  <span>{{ video.get('file_size') or '—' }}</span>
-                  <span class="text-muted mx-1">·</span>
-                  <span>{{ video.get('resolution') or '—' }}</span>
-                  <span class="text-muted mx-1">·</span>
-                  <span>{{ video.get('duration') or '—' }}</span>
                 </div>
               </div>
 
@@ -233,9 +228,11 @@
         const input = item.querySelector(".thumbnail-rotation-value");
         if (!image || !input) return;
         const rotation = ((parseInt(input.value, 10) || 0) % 360 + 360) % 360;
+        const thumbnail = item.querySelector(".video-thumbnail");
         image.dataset.rotation = String(rotation);
+        thumbnail?.classList.toggle("is-portrait", rotation === 90 || rotation === 270);
         image.style.transform = rotation === 90 || rotation === 270
-          ? `rotate(${rotation}deg) scale(.56)`
+          ? `translate(-50%, -50%) rotate(${rotation}deg)`
           : `rotate(${rotation}deg)`;
       }
 
