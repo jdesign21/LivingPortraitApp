@@ -755,15 +755,20 @@ def index():
         and entry.get("filename") in videos
     ]
 
-    # Persist file metadata per video. Existing videos are analyzed once;
-    # unchanged files reuse their saved details on later page loads.
-    metadata_changed = False
-    for video in manage_videos:
-        old_info = video.get("video_info")
-        video.update(_get_video_file_details(video.get("filename", ""), video))
-        if video.get("video_info") != old_info:
-            metadata_changed = True
-    if metadata_changed:
+    # One-time migration for installations upgrading from versions that did
+    # not persist complete video metadata. After this flag is saved, normal
+    # dashboard loads never stat or probe every managed video.
+    if not settings.get("video_metadata_migration_complete", False):
+        metadata_changed = False
+        for video in manage_videos:
+            old_info = video.get("video_info")
+            info = old_info if isinstance(old_info, dict) else {}
+            if not all(info.get(key) for key in ("file_size", "resolution", "duration")):
+                video.update(_get_video_file_details(video.get("filename", ""), video))
+            if video.get("video_info") != old_info:
+                metadata_changed = True
+
+        settings["video_metadata_migration_complete"] = True
         settings.setdefault("playlist", {})["order"] = order
         save_settings(settings)
 
@@ -1636,6 +1641,25 @@ def upload():
         try:
             save_path = VIDEO_FOLDER / filename
             file.save(save_path)
+
+            # A successful upload is the authoritative point to calculate and
+            # persist metadata. Invalidate any old cache entry first, including
+            # when a file with the same name is replaced.
+            _VIDEO_DETAILS_CACHE.pop(filename, None)
+            video_entry = next(
+                (item for item in order
+                 if isinstance(item, dict) and item.get("filename") == filename),
+                None,
+            )
+            if video_entry is None:
+                video_entry = {"filename": filename, "active": True}
+                order.append(video_entry)
+                existing_names.add(filename)
+            else:
+                video_entry.pop("video_info", None)
+
+            video_entry.update(_get_video_file_details(filename, video_entry))
+
             # Generate thumbnails in the background so upload completion does not
             # wait for FFmpeg to decode a frame from every video.
             threading.Thread(
@@ -1645,9 +1669,6 @@ def upload():
                 name=f"thumbnail-{filename}",
             ).start()
 
-            if filename not in existing_names:
-                order.append({"filename": filename, "active": True})
-                existing_names.add(filename)
             uploaded.append(filename)
         except Exception as exc:
             log(f"Upload failed for {filename}: {exc}", "UPLOAD")
@@ -2117,6 +2138,7 @@ def delete(filename):
     was_selected = Path(settings.get("selected_video", "")).name == filename
 
     filepath.unlink()
+    _VIDEO_DETAILS_CACHE.pop(secure_filename(Path(filename).name), None)
 
     # Remove the cached thumbnail along with its video.
     thumbnail_path = _thumbnail_path(filename)
