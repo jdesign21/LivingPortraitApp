@@ -826,3 +826,93 @@ body.dark-theme {
   min-width: 5.5rem;
   text-align: right;
 }
+
+/* Compact Manage Videos layouts */
+@media (min-width: 992px) {
+  .video-library-list-view .video-library-item > .row {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.6fr) minmax(220px, 1.7fr) 64px minmax(150px, 1.3fr) minmax(115px, 1fr) 82px 34px;
+    gap: 0.5rem;
+    align-items: center;
+    margin: 0;
+  }
+
+  .video-library-list-view .video-library-item > .row > [class*="col-"] {
+    width: auto;
+    max-width: none;
+    padding: 0;
+    min-width: 0;
+  }
+
+  .video-library-list-view .video-thumbnail {
+    width: 88px;
+  }
+
+  .video-library-list-view .video-library-item {
+    padding: 0.55rem 0.75rem;
+  }
+
+  .video-library-list-view .video-library-item .form-label {
+    margin-bottom: 0.2rem !important;
+  }
+
+  .video-library-list-view .video-library-item .video-file-details {
+    font-size: 0.78rem !important;
+    letter-spacing: -0.02em;
+  }
+
+  .video-library-list-view .video-library-item .form-select {
+    font-size: 0.8rem;
+  }
+
+  .video-library-list-view .video-library-item .tomselect .ts-control {
+    min-height: 31px;
+    padding: 0.25rem 0.4rem;
+  }
+
+  .video-library-list-view .video-library-item .form-check {
+    margin-bottom: 0;
+  }
+}
+
+/* Grid cards: reduce whitespace while keeping controls easy to use */
+.video-library-grid {
+  gap: 0.55rem;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.video-library-grid .video-library-item {
+  padding: 0.65rem;
+}
+
+.video-library-grid .video-library-item > .row {
+  gap: 0.4rem;
+}
+
+.video-library-grid .video-library-item > .row > [class*="col-"] {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
+.video-library-grid .video-thumbnail {
+  width: 88px;
+}
+
+.video-library-grid .video-library-item .form-label {
+  margin-bottom: 0.15rem !important;
+}
+
+.video-library-grid .video-library-item .form-select,
+.video-library-grid .video-library-item .form-check-label {
+  font-size: 0.85rem;
+}
+
+.video-library-grid .video-library-item .form-select {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
+.video-library-grid .video-library-item .form-check {
+  margin-bottom: 0;
+}
+
