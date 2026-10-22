@@ -767,18 +767,9 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
         });
     }
 
-    // ========================================================
-    // SYNC TAGS
-    // ========================================================
-
-    const syncTagsForm = document.getElementById('syncTagsForm');
-    const syncTagsLoading = document.getElementById('syncTagsLoading');
-
-    if (syncTagsForm && syncTagsLoading) {
-        syncTagsForm.addEventListener('submit', () => {
-            syncTagsLoading.style.display = 'flex';
-        });
-    }
+    // Sync Tags progress is managed by handleTagFormSubmit above.
+    // Do not show the global overlay here: the AJAX request does not navigate
+    // away, so a submit-only overlay would remain visible after the sync ends.
 
     // ========================================================
     // DRAG & DROP UPLOAD
