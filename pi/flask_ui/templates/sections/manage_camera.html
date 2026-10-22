@@ -79,7 +79,7 @@
                 <div class="d-flex align-items-center gap-3">
                   <div class="video-thumbnail flex-shrink-0">
                     <i class="bi bi-film video-thumbnail-placeholder" aria-hidden="true"></i>
-                    <img src="{{ url_for('thumbnail_file', filename=video.filename) }}"
+                    <img data-src="{{ url_for('thumbnail_file', filename=video.filename) }}"
                       alt="Thumbnail for {{ video.filename }}"
                       loading="lazy"
                       onerror="this.style.display='none'">
@@ -169,6 +169,29 @@
           </li>
           {% endfor %}
         </ul>
+        <script>
+          // Defer thumbnail requests until they are near the viewport. This
+          // prevents the dashboard from launching FFmpeg for every video at once.
+          (function () {
+            const images = document.querySelectorAll('#videos-pane .video-thumbnail img[data-src]');
+            if (!('IntersectionObserver' in window)) {
+              images.forEach(img => { img.src = img.dataset.src; img.removeAttribute('data-src'); });
+              return;
+            }
+            const observer = new IntersectionObserver(entries => {
+              entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                  const img = entry.target;
+                  img.src = img.dataset.src;
+                  img.removeAttribute('data-src');
+                  observer.unobserve(img);
+                }
+              });
+            }, { rootMargin: '200px' });
+            images.forEach(img => observer.observe(img));
+          })();
+        </script>
+
 
     <div class="text-end mt-3">
       <button type="submit" class="btn btn-primary">
