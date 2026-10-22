@@ -152,13 +152,103 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const html = await response.text();
-            const parsedDocument = new DOMParser().parseFromString(html, 'text/html');
-            const updatedModal = parsedDocument.getElementById(modal.id);
-            if (!updatedModal) throw new Error('Updated tag modal was not found in the response.');
+            const data = await response.json();
+            if (!data.success) throw new Error(data.error || 'Unable to update tags.');
 
-            modal.innerHTML = updatedModal.innerHTML;
-            bindTagForms(modal);
+            const isSchedule = modal.id === 'scheduleTagsModal';
+            const list = modal.querySelector('.border.rounded:not(.text-center)');
+            const emptyState = modal.querySelector('.border.rounded.text-center');
+            const isDelete = form.action.includes('delete_');
+
+            if (isDelete) {
+                const row = form.closest('.d-flex.align-items-center.justify-content-between');
+                row?.remove();
+                const remainingRows = modal.querySelectorAll('.border.rounded:not(.text-center) > .d-flex.align-items-center.justify-content-between');
+                if (!remainingRows.length) {
+                    const currentList = modal.querySelector('.border.rounded:not(.text-center)');
+                    currentList?.remove();
+                    const empty = document.createElement('div');
+                    empty.className = 'border rounded text-center text-muted p-3';
+                    empty.textContent = isSchedule ? 'No Schedule Tags have been created yet.' : 'No Sync Tags have been created yet.';
+                    modal.querySelector('.card-body')?.appendChild(empty);
+                }
+            } else {
+                const tag = data.tag;
+                if (tag) {
+                    const row = document.createElement('div');
+                    row.className = 'd-flex align-items-center justify-content-between px-3 py-2 border-bottom';
+                    const info = document.createElement('div');
+                    info.className = 'd-flex align-items-center';
+                    const icon = document.createElement('i');
+                    icon.className = isSchedule ? 'bi bi-tag text-primary me-2' : 'bi bi-link-45deg text-primary me-2';
+                    info.appendChild(icon);
+                    const label = document.createElement('span');
+                    label.className = 'fw-semibold me-3';
+                    label.textContent = isSchedule ? tag.name : tag;
+                    info.appendChild(label);
+                    const count = document.createElement('span');
+                    count.className = 'text-muted small';
+                    count.textContent = 'Not assigned';
+                    info.appendChild(count);
+                    row.appendChild(info);
+
+                    const deleteForm = document.createElement('form');
+                    deleteForm.method = 'POST';
+                    deleteForm.action = isSchedule ? '/delete_schedule_tag' : '/delete_sync_tag';
+                    deleteForm.addEventListener('submit', event => {
+                        if (!confirm(isSchedule
+                            ? 'Delete Schedule Tag ' + tag.name + '?'
+                            : 'Delete Sync Tag ' + tag + '? Any video using this tag will be cleared.')) {
+                            event.preventDefault();
+                        }
+                    });
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = isSchedule ? 'schedule_tag' : 'sync_tag';
+                    hidden.value = isSchedule ? tag.id : tag;
+                    deleteForm.appendChild(hidden);
+                    const deleteButton = document.createElement('button');
+                    deleteButton.type = 'submit';
+                    deleteButton.className = 'btn btn-outline-danger btn-sm';
+                    deleteButton.textContent = 'Delete';
+                    deleteForm.appendChild(deleteButton);
+                    row.appendChild(deleteForm);
+
+                    let targetList = list;
+                    if (!targetList) {
+                        emptyState?.remove();
+                        targetList = document.createElement('div');
+                        targetList.className = 'border rounded';
+                        modal.querySelector('.card-body')?.appendChild(targetList);
+                    }
+                    targetList.appendChild(row);
+                    bindTagForms(modal);
+                    const addInput = modal.querySelector('input[name="' + (isSchedule ? 'schedule_tag' : 'sync_tag') + '"]');
+                    if (addInput) addInput.value = '';
+                }
+            }
+
+            const currentTags = data.tags || [];
+            document.querySelectorAll('select').forEach(select => {
+                if (!/tag|category|sync/i.test((select.name || '') + ' ' + (select.id || ''))) return;
+                const selected = Array.from(select.selectedOptions).map(option => option.value);
+                const values = isSchedule
+                    ? currentTags.map(tag => ({ value: tag.id, label: tag.name }))
+                    : currentTags.map(tag => ({ value: tag, label: tag }));
+                const placeholder = select.querySelector('option[value=""]');
+                const emptyOption = placeholder ? placeholder.cloneNode(true) : null;
+                select.replaceChildren();
+                if (emptyOption) select.appendChild(emptyOption);
+                values.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.value;
+                    option.textContent = item.label;
+                    option.selected = selected.includes(item.value);
+                    select.appendChild(option);
+                });
+            });
+
+            if (typeof showToast === 'function') showToast(data.message || 'Tags updated.', 'success');
         } catch (error) {
             console.error('Unable to update tags:', error);
             window.location.reload();
@@ -577,8 +667,63 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
     const uploadForm = document.getElementById('uploadForm');
 
     if (uploadForm) {
-        uploadForm.addEventListener('submit', () => {
-            document.getElementById('loadingOverlay').style.display = 'flex';
+        uploadForm.addEventListener('submit', async event => {
+            if (event.defaultPrevented) return;
+            event.preventDefault();
+
+            const overlay = document.getElementById('loadingOverlay');
+            const errorBox = document.getElementById('uploadError');
+            const uploadButton = document.getElementById('uploadBtn');
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput || !fileInput.files.length) return;
+
+            if (overlay) overlay.style.display = 'flex';
+            if (errorBox) {
+                errorBox.classList.add('d-none');
+                errorBox.classList.remove('alert-success');
+                errorBox.classList.add('alert-danger');
+                errorBox.textContent = '';
+            }
+            if (uploadButton) uploadButton.disabled = true;
+
+            try {
+                const response = await fetch(uploadForm.action, {
+                    method: 'POST',
+                    body: new FormData(uploadForm),
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || (data.errors || []).join('\n') || 'Upload failed.');
+                }
+
+                if (overlay) overlay.style.display = 'none';
+                if (errorBox) {
+                    errorBox.classList.remove('d-none', 'alert-danger');
+                    errorBox.classList.add('alert-success');
+                    errorBox.textContent = 'Uploaded: ' + (data.uploaded || []).join(', ') + '. Close this window to refresh the video list.';
+                }
+                const cancelButton = uploadForm.querySelector('[data-bs-dismiss="modal"]');
+                if (cancelButton) cancelButton.textContent = 'Close & Refresh';
+                const modalElement = document.getElementById('uploadModal');
+                if (modalElement) {
+                    modalElement.addEventListener('hidden.bs.modal', () => window.location.reload(), { once: true });
+                }
+                if (uploadButton) {
+                    uploadButton.disabled = true;
+                    uploadButton.innerHTML = '<i class="bi bi-check-circle me-1"></i> Uploaded';
+                }
+            } catch (error) {
+                if (overlay) overlay.style.display = 'none';
+                if (errorBox) {
+                    errorBox.classList.remove('d-none');
+                    errorBox.textContent = error.message || 'Upload failed.';
+                } else {
+                    window.alert(error.message || 'Upload failed.');
+                }
+                if (uploadButton) uploadButton.disabled = false;
+            }
         });
     }
 
