@@ -13,6 +13,7 @@ import subprocess
 import shutil
 import re
 import secrets
+import threading
 
 HOME = Path(os.path.expanduser("~"))
 
@@ -1616,7 +1617,14 @@ def upload():
         try:
             save_path = VIDEO_FOLDER / filename
             file.save(save_path)
-            _ensure_video_thumbnail(filename)
+            # Generate thumbnails in the background so upload completion does not
+            # wait for FFmpeg to decode a frame from every video.
+            threading.Thread(
+                target=_ensure_video_thumbnail,
+                args=(filename,),
+                daemon=True,
+                name=f"thumbnail-{filename}",
+            ).start()
 
             if filename not in existing_names:
                 order.append({"filename": filename, "active": True})
