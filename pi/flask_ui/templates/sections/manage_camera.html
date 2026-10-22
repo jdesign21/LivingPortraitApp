@@ -67,11 +67,11 @@
           </div>
         </div>
 
-        <ul class="list-group video-library-list id="videoLibraryList">
+        <ul class="list-group video-library-list video-library-list-view" id="videoLibraryList">
           {% for video in manage_videos %}
           <li class="list-group-item video-library-item"
               data-video-name="{{ video.filename|lower }}"
-              data-video-tags="{% for tag in schedule_tags %}{% if tag.id in video.get('tags', []) %}{{ tag.name|lower }} {% endif %}{% endfor %}{{ video.get('sync_tag', '')|lower }}">
+              data-video-tags="{% for tag in schedule_tags %}{% if tag.id in video.get('tags', []) %}|{{ tag.name|lower }}{% endif %}{% endfor %}{% if video.get('sync_tag', '') %}|{{ video.get('sync_tag', '')|lower }}{% endif %}|">
             <div class="row g-3 align-items-center">
               <!-- Thumbnail and filename -->
               <div class="col-12 col-lg-3">
