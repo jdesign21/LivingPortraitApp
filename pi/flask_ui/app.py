@@ -564,17 +564,20 @@ def index():
     if not settings.get("setup_complete", False):
         return redirect(url_for("setup"))
 
-    time_format = get_time_format()
+    # Reuse one settings snapshot and timestamp for this page render. This
+    # avoids repeated JSON reads and keeps schedule indicators consistent.
+    request_now = datetime.now()
+    time_format = get_time_format(settings)
 
     if time_format not in ("12", "24"):
         time_format = "12"
 
     if time_format == "24":
-        current_time = datetime.now().strftime(
+        current_time = request_now.strftime(
             "%A %H:%M:%S"
         )
     else:
-        current_time = datetime.now().strftime(
+        current_time = request_now.strftime(
             "%A %I:%M:%S %p"
         )
 
@@ -630,7 +633,7 @@ def index():
     # This prevents Flask from starting a second MQTT worker.
     mqtt_connected = get_mqtt_status()
 
-    mode, interval, last_updated, order, triggered_flag, delay = get_playlist_settings()
+    mode, interval, last_updated, order, triggered_flag, delay = get_playlist_settings(settings)
     delay = delay or 0
 
     playlist_settings = settings.get("playlist", {})
@@ -683,7 +686,7 @@ def index():
                     "%H:%M"
                 ).time()
 
-                now_time = datetime.now().time()
+                now_time = request_now.time()
                 is_active = start_time <= now_time < end_time
 
                 slots.append({
@@ -707,8 +710,8 @@ def index():
     today_schedule = days_schedule.get(today, {})
 
     # Check if schedule is enabled right now
-    schedule_enabled = is_schedule_enabled_now()
-    next_start_time, next_category = get_next_start_time(settings)
+    schedule_enabled = is_schedule_enabled_now(settings, request_now)
+    next_start_time, next_category = get_next_start_time(settings, time_format, request_now)
 
     fixed_order = [
         entry
