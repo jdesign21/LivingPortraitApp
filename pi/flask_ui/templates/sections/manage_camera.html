@@ -250,6 +250,9 @@
       sort.addEventListener("change", applyVideoFilters);
       listButton.addEventListener("click", () => setVideoLayout("list"));
       gridButton.addEventListener("click", () => setVideoLayout("grid"));
+
+      // Always initialize the page in compact List view after a refresh.
+      setVideoLayout("list");
       applyVideoFilters();
     })();
   </script>
