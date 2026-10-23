@@ -1410,3 +1410,25 @@ body.dark-theme {
 .playback-schedule-table tbody tr .schedule-drag-cell {
   cursor: grab;
 }
+
+
+/* Final Video Library table layout overrides */
+.video-library-column-headings:has(+ .video-library-grid) {
+  display: none;
+}
+@media (min-width: 1200px) {
+  .video-library-list-view .video-library-item > .row {
+    display: grid;
+    grid-template-columns: minmax(260px, 3fr) minmax(66px, 0.65fr) minmax(82px, 0.75fr) minmax(190px, 2fr) minmax(150px, 1.4fr) minmax(58px, 0.5fr);
+    gap: 0.75rem;
+    align-items: center;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .video-library-list-view .video-library-item > .row > [class*="col-"] {
+    width: auto;
+    max-width: none;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
