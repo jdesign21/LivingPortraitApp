@@ -243,12 +243,9 @@
         const input = item.querySelector(".thumbnail-rotation-value");
         if (!image || !input) return;
         const rotation = ((parseInt(input.value, 10) || 0) % 360 + 360) % 360;
+        const thumbnail = item.querySelector(".video-thumbnail");
         image.dataset.rotation = String(rotation);
-        const isQuarterTurn = rotation === 90 || rotation === 270;
-        // Rotate the image inside the fixed thumbnail frame. Swap the image's
-        // pre-rotation dimensions so the frame itself never changes size.
-        image.style.width = isQuarterTurn ? "102px" : "100%";
-        image.style.height = isQuarterTurn ? "235px" : "100%";
+        thumbnail?.classList.toggle("is-portrait", rotation === 90 || rotation === 270);
         image.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
       }
 
