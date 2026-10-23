@@ -676,7 +676,6 @@ def index():
     # The first enabled schedule matching the current time wins when schedules overlap.
     today = request_now.strftime("%A")
     now_time = request_now.time()
-    previous_day = (request_now - timedelta(days=1)).strftime("%A")
     dashboard_schedules = []
     winning_schedule_found = False
 
@@ -686,28 +685,19 @@ def index():
         start_value = schedule.get("start", "00:00")
         end_value = schedule.get("end", "23:59")
 
+        # Only show rows selected for today. A row from yesterday never carries
+        # over into today, even if an older saved range crosses midnight.
+        if today not in schedule_days:
+            continue
+
         try:
             start_time = datetime.strptime(start_value, "%H:%M").time()
             end_time = datetime.strptime(end_value, "%H:%M").time()
         except (TypeError, ValueError):
             continue
 
-        is_today = today in schedule_days
-        overnight_from_yesterday = (
-            previous_day in schedule_days
-            and end_time <= start_time
-            and now_time < end_time
-        )
-        if not is_today and not overnight_from_yesterday:
-            continue
-
-        if end_time > start_time:
-            matches_now = is_today and start_time <= now_time < end_time
-        else:
-            matches_now = (
-                (is_today and now_time >= start_time)
-                or overnight_from_yesterday
-            )
+        # Overnight/equal-time ranges are invalid and cannot become active.
+        matches_now = end_time > start_time and start_time <= now_time < end_time
 
         is_active = enabled and matches_now and not winning_schedule_found
         if is_active:
@@ -1860,13 +1850,18 @@ def save_schedule():
             flash(f"Schedule {index + 1}: enter a schedule name.", "danger")
             return redirect(url_for("index"))
         try:
-            datetime.strptime(start_time, "%H:%M")
-            datetime.strptime(end_time, "%H:%M")
+            start_time_value = datetime.strptime(start_time, "%H:%M").time()
+            end_time_value = datetime.strptime(end_time, "%H:%M").time()
         except ValueError:
             flash(f"{name}: enter valid start and end times.", "danger")
             return redirect(url_for("index"))
-        if start_time == end_time:
-            flash(f"{name}: start and end times cannot be identical.", "danger")
+        if end_time_value <= start_time_value:
+            flash(
+                f"{name}: the end time must be later than the start time. "
+                "Overnight schedules are not supported. Create a separate "
+                "schedule for the next day starting at 12:00 AM.",
+                "danger"
+            )
             return redirect(url_for("index"))
         if not days:
             flash(f"{name}: select at least one day.", "danger")
