@@ -40,17 +40,17 @@
               {% for schedule in playback_schedules %}
               <tr class="playback-schedule-row">
                 <td class="text-center">
-                  <input type="hidden" name="schedules[{{ loop.index0 }}][id]" value="{{ schedule.id }}">
-                  <input class="form-check-input" type="checkbox" name="schedules[{{ loop.index0 }}][enabled]" aria-label="Enable {{ schedule.name }}" {% if schedule.enabled %}checked{% endif %}>
+                  <input type="hidden" data-field="id" name="schedules[{{ loop.index0 }}][id]" value="{{ schedule.id }}">
+                  <input class="form-check-input" type="checkbox" data-field="enabled" name="schedules[{{ loop.index0 }}][enabled]" aria-label="Enable {{ schedule.name }}" {% if schedule.enabled %}checked{% endif %}>
                 </td>
                 <td>
-                  <input class="form-control form-control-sm" type="text" name="schedules[{{ loop.index0 }}][name]" value="{{ schedule.name }}" maxlength="80" required aria-label="Schedule name">
+                  <input class="form-control form-control-sm" type="text" data-field="name" name="schedules[{{ loop.index0 }}][name]" value="{{ schedule.name }}" maxlength="80" required aria-label="Schedule name">
                 </td>
                 <td>
                   <div class="playback-schedule-days">
                     {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
                     <label class="form-check form-check-inline">
-                      <input class="form-check-input" type="checkbox" name="schedules[{{ loop.index0 }}][days]" value="{{ day }}" {% if day in schedule.days %}checked{% endif %}>
+                      <input class="form-check-input" type="checkbox" data-field="days" name="schedules[{{ loop.index0 }}][days]" value="{{ day }}" {% if day in schedule.days %}checked{% endif %}>
                       <span class="form-check-label">{{ day[:3] }}</span>
                     </label>
                     {% endfor %}
@@ -58,13 +58,13 @@
                 </td>
                 <td>
                   <div class="d-flex align-items-center gap-2 playback-schedule-time">
-                    <input class="form-control form-control-sm" type="time" name="schedules[{{ loop.index0 }}][start]" value="{{ schedule.start }}" required aria-label="Start time">
+                    <input class="form-control form-control-sm" type="time" data-field="start" name="schedules[{{ loop.index0 }}][start]" value="{{ schedule.start }}" required aria-label="Start time">
                     <span class="text-muted">to</span>
-                    <input class="form-control form-control-sm" type="time" name="schedules[{{ loop.index0 }}][end]" value="{{ schedule.end }}" required aria-label="End time">
+                    <input class="form-control form-control-sm" type="time" data-field="end" name="schedules[{{ loop.index0 }}][end]" value="{{ schedule.end }}" required aria-label="End time">
                   </div>
                 </td>
                 <td>
-                  <select class="form-select form-select-sm" name="schedules[{{ loop.index0 }}][category]" aria-label="Schedule tag">
+                  <select class="form-select form-select-sm" data-field="category" name="schedules[{{ loop.index0 }}][category]" aria-label="Schedule tag">
                     <option value="">All active videos</option>
                     {% for tag in schedule_tags %}
                     <option value="{{ tag.id }}" {% if schedule.category == tag.id %}selected{% endif %}>{{ tag.name }}</option>
