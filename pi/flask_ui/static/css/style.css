@@ -1477,8 +1477,8 @@ body.dark-theme {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 100% !important;
-  height: 100% !important;
+  width: 100%;
+  height: 100%;
   max-width: none;
   object-fit: cover;
   transform-origin: center center;
