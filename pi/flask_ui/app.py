@@ -44,6 +44,7 @@ from shared.vlc_helper import (
     get_days_schedule,
     update_days_schedule,
     get_playback_schedules,
+    get_current_scheduler_category,
     is_schedule_enabled_now,
     get_next_start_time,
     get_secondary_video_mode,
@@ -730,12 +731,7 @@ def index():
     # Fixed Playlist Schedule Tag display
     fixed_order_display = []
 
-    active_schedule_tag = None
-
-    for slot in today_schedule.get("slots", []):
-        if slot.get("is_active"):
-            active_schedule_tag = slot.get("category", "")
-            break
+    active_schedule_tag = get_current_scheduler_category() or ""
 
     for entry in fixed_order:
         video_tags = entry.get("tags", [])
