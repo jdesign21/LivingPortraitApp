@@ -788,6 +788,13 @@ def index():
     fixed_order_display = []
 
     active_schedule_tag = get_current_scheduler_category() or ""
+    active_schedule_tag_counts = {}
+    for video in order:
+        if video.get("active", True):
+            for tag_id in video.get("tags", []):
+                key = str(tag_id).strip().lower()
+                if key:
+                    active_schedule_tag_counts[key] = active_schedule_tag_counts.get(key, 0) + 1
 
     for entry in fixed_order:
         video_tags = entry.get("tags", [])
@@ -1789,6 +1796,28 @@ def upload():
 
     return redirect(url_for("index"))
 
+def _normalize_unavailable_schedule_tags(settings):
+    """Switch schedules to all active videos when their tag has no active videos."""
+    order = settings.get("playlist", {}).get("order", [])
+    active_tags = {
+        str(tag).strip().lower()
+        for video in order
+        if video.get("active", True)
+        for tag in video.get("tags", [])
+        if str(tag).strip()
+    }
+    schedules = settings.get("playback_schedules", [])
+    changed = []
+    for schedule in schedules:
+        category = str(schedule.get("category") or "").strip().lower()
+        if category and category not in active_tags:
+            schedule["category"] = ""
+            changed.append(schedule.get("name") or "Schedule")
+    if changed:
+        settings["playback_schedules"] = schedules
+    return changed
+
+
 @app.route("/save_schedule", methods=["POST"])
 def save_schedule():
     """Save independent schedule rows from the Playback Schedule table."""
@@ -1849,6 +1878,7 @@ def save_schedule():
         })
 
     settings["playback_schedules"] = schedules
+    _normalize_unavailable_schedule_tags(settings)
     # Keep legacy slots disabled so older code paths cannot unexpectedly
     # apply stale schedule periods after migration.
     settings["days"] = {
@@ -1983,6 +2013,9 @@ def update_all():
 
     settings["playlist"]["order"] = order
 
+    # If a tag no longer has active videos, affected schedules become unrestricted.
+    normalized_schedules = _normalize_unavailable_schedule_tags(settings)
+
     # Validate schedule categories against the master Schedule Tags.
     valid_schedule_tags = {
         tag.get("id", "").lower()
@@ -1999,6 +2032,9 @@ def update_all():
                 slot["category"] = ""
 
     save_settings(settings)
+    if normalized_schedules:
+        names = ", ".join(normalized_schedules)
+        flash(f"No active videos remain for a schedule tag. Updated to All active videos: {names}.", "warning")
 
     if len(active_videos) == 1:
         only_video = active_videos[0]["filename"]
@@ -2298,7 +2334,11 @@ def delete(filename):
             )
             settings["selected_video"] = replacement
 
+    normalized_schedules = _normalize_unavailable_schedule_tags(settings)
     save_settings(settings)
+    if normalized_schedules:
+        names = ", ".join(normalized_schedules)
+        flash(f"No active videos remain for a schedule tag. Updated to All active videos: {names}.", "warning")
 
     # Check remaining active videos.
     remaining_active = [
