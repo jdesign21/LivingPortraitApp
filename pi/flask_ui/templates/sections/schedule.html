@@ -209,21 +209,14 @@
   }
 
   let draggedRow = null;
+  // Native HTML drag starts from the draggable table row; browsers may report
+  // the row rather than the grip button as event.target.
   rows.querySelectorAll('.playback-schedule-row').forEach(row => {
-    row.draggable = false;
-  });
-  rows.addEventListener('mousedown', event => {
-    if (event.target.closest('.schedule-drag-handle')) {
-      const row = event.target.closest('.playback-schedule-row');
-      if (row) row.draggable = true;
-    }
-  });
-  rows.addEventListener('mouseup', () => {
-    rows.querySelectorAll('.playback-schedule-row').forEach(row => { if (row !== draggedRow) row.draggable = false; });
+    row.draggable = true;
   });
   rows.addEventListener('dragstart', event => {
     const row = event.target.closest('.playback-schedule-row');
-    if (!row || !row.draggable || !event.target.closest('.schedule-drag-cell')) {
+    if (!row) {
       event.preventDefault();
       return;
     }
@@ -249,10 +242,7 @@
     reindexRows();
   });
   rows.addEventListener('dragend', () => {
-    if (draggedRow) {
-      draggedRow.classList.remove('schedule-row-dragging');
-      draggedRow.draggable = false;
-    }
+    if (draggedRow) draggedRow.classList.remove('schedule-row-dragging');
     draggedRow = null;
     reindexRows();
   });
