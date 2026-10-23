@@ -1559,14 +1559,16 @@ body.dark-theme {
   color: #fda4af;
 }
 
-/* Grid view: prevent Bootstrap's negative switch offset from misaligning Enable. */
+/* Grid view: anchor the enlarged Enable switch to the left edge of its cell. */
 .video-library-grid .video-library-item .form-switch {
-  padding-left: 0;
+  padding-left: 0 !important;
   min-height: 1.5rem;
+  margin: 0;
 }
 .video-library-grid .video-library-item .form-switch .form-check-input {
-  margin-left: 0;
+  margin-left: 0 !important;
   float: none;
   display: block;
+  transform-origin: left center;
 }
 
