@@ -1056,6 +1056,7 @@ def index():
         time_remaining=time_remaining,
         available_tags=available_tags,
         schedule_tags=schedule_tags,
+        active_schedule_tag_counts=active_schedule_tag_counts,
         playback_schedules=playback_schedules,
         dashboard_schedules=dashboard_schedules,
         sync_tags=sync_tags,
