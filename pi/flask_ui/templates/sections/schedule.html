@@ -16,7 +16,7 @@
         </p>
 
         <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
-          <div class="small text-muted"><i class="bi bi-info-circle me-1"></i>Overlapping schedules are allowed. If active schedules have different tags, the first matching schedule in the table takes priority.</div>
+          <div class="small text-muted"><i class="bi bi-info-circle me-1"></i>Drag rows using the grip handle to set priority. When schedules overlap, the highest row in the table has priority.</div>
           <button type="button" id="addScheduleRow" class="btn btn-primary btn-sm">
             <i class="bi bi-plus-lg me-1"></i>Add Schedule
           </button>
@@ -28,6 +28,7 @@
           <table class="table table-hover align-middle mb-0 playback-schedule-table">
             <thead class="table-light">
               <tr>
+                <th scope="col" class="text-center" style="width: 44px;">Order</th>
                 <th scope="col" class="text-center">On</th>
                 <th scope="col" style="min-width: 150px;">Schedule Name</th>
                 <th scope="col" style="min-width: 250px;">Days</th>
@@ -38,7 +39,11 @@
             </thead>
             <tbody id="scheduleRows">
               {% for schedule in playback_schedules %}
-              <tr class="playback-schedule-row">
+              <tr class="playback-schedule-row" draggable="true">
+                <td class="text-center schedule-drag-cell">
+                  <button type="button" class="btn btn-outline-secondary btn-sm schedule-drag-handle" title="Drag to change priority" aria-label="Drag to change schedule priority"><i class="bi bi-grip-vertical"></i></button>
+                  <span class="schedule-order-number small text-muted">{{ loop.index }}</span>
+                </td>
                 <td class="text-center">
                   <input type="hidden" data-field="id" name="schedules[{{ loop.index0 }}][id]" value="{{ schedule.id }}">
                   <input class="form-check-input" type="checkbox" data-field="enabled" name="schedules[{{ loop.index0 }}][enabled]" aria-label="Enable {{ schedule.name }}" {% if schedule.enabled %}checked{% endif %}>
@@ -73,7 +78,7 @@
                 </td>
                 <td>
                   <div class="d-flex justify-content-end gap-1">
-                    <button type="button" class="btn btn-outline-secondary btn-sm copy-schedule-row" title="Duplicate schedule" aria-label="Duplicate schedule"><i class="bi bi-copy"></i></button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm copy-schedule-row" title="Clone schedule" aria-label="Clone schedule"><i class="bi bi-files"></i><span class="ms-1">Clone</span></button>
                     <button type="button" class="btn btn-outline-danger btn-sm delete-schedule-row" title="Delete schedule" aria-label="Delete schedule"><i class="bi bi-trash"></i></button>
                   </div>
                 </td>
@@ -100,7 +105,11 @@
 </section>
 
 <template id="scheduleRowTemplate">
-  <tr class="playback-schedule-row">
+  <tr class="playback-schedule-row" draggable="true">
+    <td class="text-center schedule-drag-cell">
+      <button type="button" class="btn btn-outline-secondary btn-sm schedule-drag-handle" title="Drag to change priority" aria-label="Drag to change schedule priority"><i class="bi bi-grip-vertical"></i></button>
+      <span class="schedule-order-number small text-muted"></span>
+    </td>
     <td class="text-center">
       <input type="hidden" data-field="id">
       <input class="form-check-input" type="checkbox" data-field="enabled" checked aria-label="Enable schedule">
@@ -133,7 +142,7 @@
     </td>
     <td>
       <div class="d-flex justify-content-end gap-1">
-        <button type="button" class="btn btn-outline-secondary btn-sm copy-schedule-row" title="Duplicate schedule" aria-label="Duplicate schedule"><i class="bi bi-copy"></i></button>
+        <button type="button" class="btn btn-outline-secondary btn-sm copy-schedule-row" title="Clone schedule" aria-label="Clone schedule"><i class="bi bi-files"></i><span class="ms-1">Clone</span></button>
         <button type="button" class="btn btn-outline-danger btn-sm delete-schedule-row" title="Delete schedule" aria-label="Delete schedule"><i class="bi bi-trash"></i></button>
       </div>
     </td>
@@ -153,6 +162,8 @@
 
   function reindexRows() {
     [...rows.querySelectorAll('.playback-schedule-row')].forEach((row, index) => {
+      const order = row.querySelector('.schedule-order-number');
+      if (order) order.textContent = String(index + 1);
       row.querySelectorAll('[data-field]').forEach(field => {
         const key = field.dataset.field;
         field.name = key === 'days'
@@ -195,6 +206,41 @@
     reindexRows();
     if (!sourceRow) row.querySelector('[data-field="name"]').focus();
   }
+
+  let draggedRow = null;
+  rows.addEventListener('dragstart', event => {
+    const handle = event.target.closest('.schedule-drag-handle');
+    const row = event.target.closest('.playback-schedule-row');
+    if (!row || (!handle && !event.target.closest('.schedule-drag-cell'))) {
+      event.preventDefault();
+      return;
+    }
+    draggedRow = row;
+    row.classList.add('schedule-row-dragging');
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', '');
+    }
+  });
+  rows.addEventListener('dragover', event => {
+    if (!draggedRow) return;
+    event.preventDefault();
+    const targetRow = event.target.closest('.playback-schedule-row');
+    if (!targetRow || targetRow === draggedRow) return;
+    const rect = targetRow.getBoundingClientRect();
+    const insertAfter = event.clientY > rect.top + rect.height / 2;
+    rows.insertBefore(draggedRow, insertAfter ? targetRow.nextSibling : targetRow);
+  });
+  rows.addEventListener('drop', event => {
+    if (!draggedRow) return;
+    event.preventDefault();
+    reindexRows();
+  });
+  rows.addEventListener('dragend', () => {
+    if (draggedRow) draggedRow.classList.remove('schedule-row-dragging');
+    draggedRow = null;
+    reindexRows();
+  });
 
   document.getElementById('addScheduleRow').addEventListener('click', () => addRow());
   rows.addEventListener('click', event => {
