@@ -174,8 +174,10 @@
         const key = source.name.match(/\[([^\]]+)\]$/)?.[1];
         if (!key) return;
         row.querySelectorAll('[data-field="' + key + '"]').forEach(target => {
-          if (source.type === 'checkbox') {
-            target.checked = key === 'enabled' ? source.checked : source.checked;
+          if (key === 'days') {
+            target.checked = source.checked && target.value === source.value;
+          } else if (source.type === 'checkbox') {
+            target.checked = source.checked;
           } else {
             target.value = source.value;
           }
