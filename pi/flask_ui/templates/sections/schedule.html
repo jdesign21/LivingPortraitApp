@@ -7,6 +7,9 @@
     <div class="card shadow-sm mb-3">
       <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between gap-2 flex-wrap">
         <strong><i class="bi bi-calendar-week me-1"></i> Playback Schedule</strong>
+        <button type="button" id="addScheduleRow" class="btn btn-light btn-sm">
+          <i class="bi bi-plus-lg me-1"></i>Add Schedule
+        </button>
       </div>
       <div class="card-body">
         <p class="text-muted mb-3">
@@ -14,12 +17,7 @@
           If a day has no enabled schedules, playback runs all day using the normal playback settings.
         </p>
 
-        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
-          <div class="small text-muted"><i class="bi bi-info-circle me-1"></i>Drag rows using the grip handle to set priority. When schedules overlap, the highest row in the table has priority.</div>
-          <button type="button" id="addScheduleRow" class="btn btn-primary btn-sm">
-            <i class="bi bi-plus-lg me-1"></i>Add Schedule
-          </button>
-        </div>
+        <div class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>Drag rows using the grip handle to set priority. When schedules overlap, the highest row in the table has priority.</div>
 
         <input type="hidden" id="scheduleCount" name="schedule_count" value="{{ playback_schedules|length }}">
 
