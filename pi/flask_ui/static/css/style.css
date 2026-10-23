@@ -1452,3 +1452,46 @@ body.dark-theme {
 .video-library-grid .video-field-label {
   display: block !important;
 }
+
+
+/* Fixed-size Video Library thumbnails and rotate controls. Images fill the square at every rotation. */
+.video-library-item .video-thumbnail,
+.video-library-grid .video-thumbnail,
+.video-library-list-view .video-thumbnail,
+.video-library-list-view .video-thumbnail.is-portrait,
+.video-library-grid .video-thumbnail.is-portrait {
+  position: relative;
+  flex: 0 0 64px;
+  width: 64px !important;
+  min-width: 64px;
+  height: 64px;
+  aspect-ratio: auto;
+  overflow: hidden;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.video-library-item .video-thumbnail img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none;
+  object-fit: fill;
+  transform-origin: center center;
+}
+
+.video-library-item .rotate-thumbnail-btn,
+.video-library-list-view .rotate-thumbnail-btn,
+.video-library-grid .rotate-thumbnail-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 36px;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0;
+}
