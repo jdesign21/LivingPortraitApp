@@ -1,206 +1,97 @@
-
 <section id="schedule" class="section">
   <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
-    <i class="bi bi-calendar-check"></i> Schedule
+    <i class="bi bi-calendar-check"></i> Playback Schedule
   </h3>
 
   <form id="scheduleForm" method="POST" action="{{ url_for('save_schedule') }}">
-    <div class="card mt-4 shadow-sm">
-      <div class="card-header bg-primary text-white">
-        <strong>Playback Schedule</strong>
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <strong><i class="bi bi-calendar-week me-1"></i> Playback Schedule</strong>
+        <span class="small">Independent schedules for one or more days</span>
       </div>
-
       <div class="card-body">
-        <p class="text-muted small mb-0">
-          Set specific playback times for each day. Enable a time slot and choose its start and end time.
-          You can also select a video tag to limit playback to videos with that tag.
-          If no video tag is selected, all active videos will play during that time period.
-          <br><br>
-          If a day has no enabled time slots, playback will run all day using the normal playback settings.
+        <p class="text-muted mb-3">
+          Each row is a schedule. Choose the days and time range when it should run, and optionally select a Schedule Tag to limit playback to matching videos.
+          If a day has no enabled schedules, playback runs all day using the normal playback settings.
         </p>
 
-        <br>
+        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
+          <div class="small text-muted"><i class="bi bi-info-circle me-1"></i>Overlapping schedules are allowed. If active schedules have different tags, the first matching schedule in the table takes priority.</div>
+          <button type="button" id="addScheduleRow" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>Add Schedule
+          </button>
+        </div>
 
-        <ul class="list-group mb-3">
-          {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
-          <li class="list-group-item">
+        <input type="hidden" id="scheduleCount" name="schedule_count" value="{{ playback_schedules|length }}">
 
-            <div class="d-flex gap-3 schedule-day-row">
-
-              <!-- DAY -->
-              <div class="d-flex align-items-center schedule-day-label" style="min-width: 150px;">
-                <div class="form-check form-switch">
-                  <input type="hidden" name="{{ day.lower() }}Enabled" value="true">
-
-                  <label class="form-check-label fw-semibold" for="{{ day.lower() }}Enabled">
-                    {{ day }}
-                  </label>
-                </div>
-              </div>
-
-              <!-- SLOTS + COPY TO ALL -->
-              <div class="d-flex gap-3 flex-grow-1 schedule-slots-container">
-
-                <!-- SLOTS -->
-                <div class="d-flex flex-column gap-2 flex-grow-1 schedule-slots">
-
-                  <!-- TIME SLOT 1 -->
-                  <div class="card p-2 shadow-sm bg-light schedule-slot">
-
-                    <div class="d-flex flex-wrap align-items-center gap-2 schedule-slot-controls">
-
-                      <div class="form-check form-switch">
-                        <input class="form-check-input slot-toggle"
-                          type="checkbox"
-                          id="{{ day.lower() }}Slot1Enabled"
-                          name="{{ day.lower() }}Slot1Enabled"
-                          {% if days and days[day].slot1.enabled %}checked{% endif %}
-                          {% if not days or not days[day].enabled %}disabled{% endif %}>
-
-                        <label class="form-check-label fw-semibold" for="{{ day.lower() }}Slot1Enabled">
-                          Time Slot 1
-                        </label>
-                      </div>
-
-                      <div class="d-flex align-items-center">
-                        <label for="{{ day.lower() }}Slot1Start" class="me-1 mb-0">
-                          Start
-                        </label>
-
-                        <input type="time"
-                          class="form-control form-control-sm"
-                          id="{{ day.lower() }}Slot1Start"
-                          name="{{ day.lower() }}Slot1Start"
-                          value="{{ days[day].slot1.start if days and days[day].slot1.start else '' }}"
-                          {% if not days or not days[day].slot1.enabled %}disabled{% endif %}>
-                      </div>
-
-                      <div class="d-flex align-items-center">
-                        <label for="{{ day.lower() }}Slot1End" class="me-1 mb-0">
-                          End
-                        </label>
-
-                        <input type="time"
-                          class="form-control form-control-sm"
-                          id="{{ day.lower() }}Slot1End"
-                          name="{{ day.lower() }}Slot1End"
-                          value="{{ days[day].slot1.end if days and days[day].slot1.end else '' }}"
-                          {% if not days or not days[day].slot1.enabled %}disabled{% endif %}>
-                      </div>
-
-                      <div class="flex-grow-1" style="max-width: 180px;">
-                        <select
-                          name="{{ day.lower() }}Slot1Category"
-                          id="{{ day.lower() }}Slot1Category"
-                          class="form-select form-select-sm"
-                          {% if not days or not days[day].slot1.enabled %}disabled{% endif %}>
-
-                          <option value="">Select Video Tag</option>
-
-                          {% for tag in schedule_tags %}
-                          <option
-                            value="{{ tag.id }}"
-                            {% if tag.id not in available_tags %}disabled{% endif %}
-                            {% if days and days[day].slot1.category == tag.id %}selected{% endif %}>
-                            {{ tag.name }}
-                          </option>
-                          {% endfor %}
-
-                        </select>
-                      </div>
-
-                    </div>
-
-                    <hr>
-
-                    <!-- TIME SLOT 2 -->
-                    <div class="d-flex flex-wrap align-items-center gap-2 schedule-slot-controls">
-
-                      <div class="form-check form-switch">
-                        <input class="form-check-input slot-toggle"
-                          type="checkbox"
-                          id="{{ day.lower() }}Slot2Enabled"
-                          name="{{ day.lower() }}Slot2Enabled"
-                          {% if days and days[day].slot2.enabled %}checked{% endif %}
-                          {% if not days or not days[day].enabled %}disabled{% endif %}>
-
-                        <label class="form-check-label fw-semibold" for="{{ day.lower() }}Slot2Enabled">
-                          Time Slot 2
-                        </label>
-                      </div>
-
-                      <div class="d-flex align-items-center">
-                        <label for="{{ day.lower() }}Slot2Start" class="me-1 mb-0">
-                          Start
-                        </label>
-
-                        <input type="time"
-                          class="form-control form-control-sm"
-                          id="{{ day.lower() }}Slot2Start"
-                          name="{{ day.lower() }}Slot2Start"
-                          value="{{ days[day].slot2.start if days and days[day].slot2.start else '' }}"
-                          {% if not days or not days[day].slot2.enabled %}disabled{% endif %}>
-                      </div>
-
-                      <div class="d-flex align-items-center">
-                        <label for="{{ day.lower() }}Slot2End" class="me-1 mb-0">
-                          End
-                        </label>
-
-                        <input type="time"
-                          class="form-control form-control-sm"
-                          id="{{ day.lower() }}Slot2End"
-                          name="{{ day.lower() }}Slot2End"
-                          value="{{ days[day].slot2.end if days and days[day].slot2.end else '' }}"
-                          {% if not days or not days[day].slot2.enabled %}disabled{% endif %}>
-                      </div>
-
-                      <div class="flex-grow-1" style="max-width: 180px;">
-                        <select
-                          name="{{ day.lower() }}Slot2Category"
-                          id="{{ day.lower() }}Slot2Category"
-                          class="form-select form-select-sm"
-                          {% if not days or not days[day].slot2.enabled %}disabled{% endif %}>
-
-                          <option value="">Select Video Tag</option>
-
-                          {% for tag in schedule_tags %}
-                          <option
-                            value="{{ tag.id }}"
-                            {% if tag.id not in available_tags %}disabled{% endif %}
-                            {% if days and days[day].slot2.category == tag.id %}selected{% endif %}>
-                            {{ tag.name }}
-                          </option>
-                          {% endfor %}
-
-                        </select>
-                      </div>
-
-                    </div>
+        <div class="table-responsive playback-schedule-table-wrap">
+          <table class="table table-hover align-middle mb-0 playback-schedule-table">
+            <thead class="table-light">
+              <tr>
+                <th scope="col" class="text-center">On</th>
+                <th scope="col" style="min-width: 150px;">Schedule Name</th>
+                <th scope="col" style="min-width: 250px;">Days</th>
+                <th scope="col" style="min-width: 230px;">Time Range</th>
+                <th scope="col" style="min-width: 170px;">Schedule Tag</th>
+                <th scope="col" class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="scheduleRows">
+              {% for schedule in playback_schedules %}
+              <tr class="playback-schedule-row">
+                <td class="text-center">
+                  <input type="hidden" name="schedules[{{ loop.index0 }}][id]" value="{{ schedule.id }}">
+                  <input class="form-check-input" type="checkbox" name="schedules[{{ loop.index0 }}][enabled]" aria-label="Enable {{ schedule.name }}" {% if schedule.enabled %}checked{% endif %}>
+                </td>
+                <td>
+                  <input class="form-control form-control-sm" type="text" name="schedules[{{ loop.index0 }}][name]" value="{{ schedule.name }}" maxlength="80" required aria-label="Schedule name">
+                </td>
+                <td>
+                  <div class="playback-schedule-days">
+                    {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+                    <label class="form-check form-check-inline">
+                      <input class="form-check-input" type="checkbox" name="schedules[{{ loop.index0 }}][days]" value="{{ day }}" {% if day in schedule.days %}checked{% endif %}>
+                      <span class="form-check-label">{{ day[:3] }}</span>
+                    </label>
+                    {% endfor %}
                   </div>
-                </div>
+                </td>
+                <td>
+                  <div class="d-flex align-items-center gap-2 playback-schedule-time">
+                    <input class="form-control form-control-sm" type="time" name="schedules[{{ loop.index0 }}][start]" value="{{ schedule.start }}" required aria-label="Start time">
+                    <span class="text-muted">to</span>
+                    <input class="form-control form-control-sm" type="time" name="schedules[{{ loop.index0 }}][end]" value="{{ schedule.end }}" required aria-label="End time">
+                  </div>
+                </td>
+                <td>
+                  <select class="form-select form-select-sm" name="schedules[{{ loop.index0 }}][category]" aria-label="Schedule tag">
+                    <option value="">All active videos</option>
+                    {% for tag in schedule_tags %}
+                    <option value="{{ tag.id }}" {% if schedule.category == tag.id %}selected{% endif %}>{{ tag.name }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td>
+                  <div class="d-flex justify-content-end gap-1">
+                    <button type="button" class="btn btn-outline-secondary btn-sm copy-schedule-row" title="Duplicate schedule" aria-label="Duplicate schedule"><i class="bi bi-copy"></i></button>
+                    <button type="button" class="btn btn-outline-danger btn-sm delete-schedule-row" title="Delete schedule" aria-label="Delete schedule"><i class="bi bi-trash"></i></button>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
 
-                <!-- COPY TO ALL -->
-                <div class="d-flex align-items-center copy-to-all-container">
-                  <button
-                    type="button"
-                    class="btn btn-outline-secondary btn-sm copy-to-all-btn"
-                    data-day="{{ day.lower() }}">
-                    Copy to All
-                  </button>
-                </div>
-
-              </div>
-            </div>
-          </li>
-          {% endfor %}
-        </ul>
+        <div id="scheduleEmptyState" class="text-center text-muted py-5 {% if playback_schedules %}d-none{% endif %}">
+          <i class="bi bi-calendar-plus fs-2 d-block mb-2"></i>
+          <div class="fw-semibold">No schedules yet</div>
+          <div class="small">Select Add Schedule to create your first playback period.</div>
+        </div>
       </div>
     </div>
 
-    <br>
-
-    <div class="text-end mb-4">
+    <div class="d-flex justify-content-end mb-4">
       <button type="submit" class="btn btn-primary">
         <i class="bi bi-save me-1"></i>Save Schedule
       </button>
@@ -208,3 +99,117 @@
   </form>
 </section>
 
+<template id="scheduleRowTemplate">
+  <tr class="playback-schedule-row">
+    <td class="text-center">
+      <input type="hidden" data-field="id">
+      <input class="form-check-input" type="checkbox" data-field="enabled" checked aria-label="Enable schedule">
+    </td>
+    <td><input class="form-control form-control-sm" type="text" data-field="name" value="New Schedule" maxlength="80" required aria-label="Schedule name"></td>
+    <td>
+      <div class="playback-schedule-days">
+        {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+        <label class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" data-field="days" value="{{ day }}">
+          <span class="form-check-label">{{ day[:3] }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </td>
+    <td>
+      <div class="d-flex align-items-center gap-2 playback-schedule-time">
+        <input class="form-control form-control-sm" type="time" data-field="start" value="09:00" required aria-label="Start time">
+        <span class="text-muted">to</span>
+        <input class="form-control form-control-sm" type="time" data-field="end" value="17:00" required aria-label="End time">
+      </div>
+    </td>
+    <td>
+      <select class="form-select form-select-sm" data-field="category" aria-label="Schedule tag">
+        <option value="">All active videos</option>
+        {% for tag in schedule_tags %}
+        <option value="{{ tag.id }}">{{ tag.name }}</option>
+        {% endfor %}
+      </select>
+    </td>
+    <td>
+      <div class="d-flex justify-content-end gap-1">
+        <button type="button" class="btn btn-outline-secondary btn-sm copy-schedule-row" title="Duplicate schedule" aria-label="Duplicate schedule"><i class="bi bi-copy"></i></button>
+        <button type="button" class="btn btn-outline-danger btn-sm delete-schedule-row" title="Delete schedule" aria-label="Delete schedule"><i class="bi bi-trash"></i></button>
+      </div>
+    </td>
+  </tr>
+</template>
+
+<script>
+(() => {
+  const form = document.getElementById('scheduleForm');
+  if (!form || form.dataset.initialized === 'true') return;
+  form.dataset.initialized = 'true';
+
+  const rows = document.getElementById('scheduleRows');
+  const countInput = document.getElementById('scheduleCount');
+  const emptyState = document.getElementById('scheduleEmptyState');
+  const rowTemplate = document.getElementById('scheduleRowTemplate');
+
+  function reindexRows() {
+    [...rows.querySelectorAll('.playback-schedule-row')].forEach((row, index) => {
+      row.querySelectorAll('[data-field]').forEach(field => {
+        const key = field.dataset.field;
+        field.name = key === 'days'
+          ? `schedules[${index}][days]`
+          : `schedules[${index}][${key}]`;
+      });
+      const idField = row.querySelector('[data-field="id"]');
+      if (idField && !idField.value) idField.value = `schedule-${Date.now()}-${index}`;
+    });
+    countInput.value = rows.querySelectorAll('.playback-schedule-row').length;
+    emptyState.classList.toggle('d-none', Number(countInput.value) > 0);
+  }
+
+  function addRow(sourceRow = null) {
+    const row = rowTemplate.content.firstElementChild.cloneNode(true);
+    if (sourceRow) {
+      const sourceFields = sourceRow.querySelectorAll('[name]');
+      sourceFields.forEach(source => {
+        const key = source.name.match(/\[([^\]]+)\]$/)?.[1];
+        if (!key) return;
+        row.querySelectorAll('[data-field="' + key + '"]').forEach(target => {
+          if (source.type === 'checkbox') {
+            target.checked = key === 'enabled' ? source.checked : source.checked;
+          } else {
+            target.value = source.value;
+          }
+        });
+      });
+      const name = row.querySelector('[data-field="name"]');
+      name.value = (name.value || 'Schedule') + ' (Copy)';
+      row.querySelector('[data-field="id"]').value = '';
+    } else {
+      row.querySelectorAll('[data-field="days"]').forEach((input, index) => {
+        input.checked = index === 0;
+      });
+    }
+    rows.appendChild(row);
+    reindexRows();
+    if (!sourceRow) row.querySelector('[data-field="name"]').focus();
+  }
+
+  document.getElementById('addScheduleRow').addEventListener('click', () => addRow());
+  rows.addEventListener('click', event => {
+    const copyButton = event.target.closest('.copy-schedule-row');
+    const deleteButton = event.target.closest('.delete-schedule-row');
+    if (copyButton) {
+      addRow(copyButton.closest('.playback-schedule-row'));
+    } else if (deleteButton) {
+      const row = deleteButton.closest('.playback-schedule-row');
+      const name = row.querySelector('[data-field="name"]')?.value || 'this schedule';
+      if (window.confirm(`Delete "${name}"?`)) {
+        row.remove();
+        reindexRows();
+      }
+    }
+  });
+
+  reindexRows();
+})();
+</script>
