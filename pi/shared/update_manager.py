@@ -38,11 +38,6 @@ PROTECTED_ITEMS = [
 ]
 
 STATUS_FILE = HOME / "update_status.json"
-UPDATE_REQUEST_FILE = HOME / ".livingportrait_update_request.json"
-UPDATE_LOCK_FILE = HOME / ".livingportrait_update.lock"
-UPDATE_SERVICE_FILE = Path("/etc/systemd/system/livingportrait-update.service")
-UPDATE_SERVICE_NAME = "livingportrait-update.service"
-UPDATE_LOCK_STALE_SECONDS = 300
 
 
 def write_status(status, message, error=False):
@@ -599,89 +594,6 @@ def perform_update(tag_name):
                 )
 
 
-def _update_service_is_active():
-    """Return whether the dedicated updater service is active."""
-    try:
-        result = subprocess.run(
-            [
-                "/usr/bin/systemctl",
-                "is-active",
-                "--quiet",
-                UPDATE_SERVICE_NAME
-            ],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=5
-        )
-        return result.returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        return False
-
-
-def _remove_update_request_files():
-    """Remove a queued request and lock file, logging cleanup failures."""
-    paths = (
-        UPDATE_REQUEST_FILE,
-        UPDATE_LOCK_FILE,
-        UPDATE_REQUEST_FILE.with_name(UPDATE_REQUEST_FILE.name + ".tmp")
-    )
-    for path in paths:
-        try:
-            path.unlink()
-        except FileNotFoundError:
-            pass
-        except OSError as cleanup_error:
-            log(
-                f"Failed to remove update request file {path}: {cleanup_error}",
-                "ERROR"
-            )
-
-
-def run_pending_update():
-    """
-    Entry point for livingportrait-update.service.
-
-    This worker runs in its own systemd cgroup so restarting flask_ui cannot
-    terminate the update before success is recorded or rollback is completed.
-    """
-    try:
-        try:
-            request_data = json.loads(
-                UPDATE_REQUEST_FILE.read_text(encoding="utf-8")
-            )
-        except (OSError, json.JSONDecodeError) as request_error:
-            raise RuntimeError(
-                f"Unable to read the queued update request: {request_error}"
-            ) from request_error
-
-        tag_name = request_data.get("tag_name", "")
-        if (
-            not isinstance(tag_name, str)
-            or not tag_name
-            or "/" in tag_name
-            or "\\" in tag_name
-        ):
-            raise RuntimeError("The queued update request contains an invalid release tag.")
-
-        # Keep the lock until perform_update finishes, including service restart
-        # checks and rollback handling.
-        try:
-            UPDATE_REQUEST_FILE.unlink()
-        except FileNotFoundError:
-            pass
-
-        perform_update(tag_name)
-
-    except Exception as worker_error:
-        message = f"Update worker failed before completing the update: {worker_error}"
-        log(message, "ERROR")
-        write_status("failed", message, error=True)
-
-    finally:
-        _remove_update_request_files()
-
-
 def start_update(tag_name):
     if not tag_name:
         raise ValueError(
@@ -693,81 +605,38 @@ def start_update(tag_name):
             "Invalid release tag."
         )
 
-    # Existing installations must run the updated installer once to add the
-    # dedicated systemd unit and its narrowly scoped sudoers permission.
-    if not UPDATE_SERVICE_FILE.is_file():
-        raise RuntimeError(
-            "The separate update worker service is not installed. "
-            "Run the updated LivingPortraitApp installer once before using "
-            "the built-in updater."
-        )
-
-    if _update_service_is_active():
-        raise RuntimeError("An update is already running.")
-
-    if UPDATE_LOCK_FILE.exists():
-        try:
-            lock_age = time.time() - UPDATE_LOCK_FILE.stat().st_mtime
-        except FileNotFoundError:
-            lock_age = 0
-
-        if _update_service_is_active() or lock_age < UPDATE_LOCK_STALE_SECONDS:
-            raise RuntimeError("An update is already queued or running.")
-
-        # Recover a stale request left by a worker that was terminated
-        # unexpectedly. Never clear a lock while the worker service is active.
-        log("Removing a stale update request lock.", "WARNING")
-        _remove_update_request_files()
-
     try:
-        with UPDATE_LOCK_FILE.open("x", encoding="utf-8") as lock_file:
-            json.dump({"requested_at": time.time()}, lock_file)
-    except FileExistsError as lock_error:
-        raise RuntimeError("An update is already queued or running.") from lock_error
+        if STATUS_FILE.exists():
+            STATUS_FILE.unlink()
 
-    try:
-        # Publish a complete request before asking systemd to start the worker.
-        request_temp = UPDATE_REQUEST_FILE.with_name(
-            UPDATE_REQUEST_FILE.name + ".tmp"
-        )
-        with request_temp.open("w", encoding="utf-8") as request_file:
-            json.dump({"tag_name": tag_name}, request_file)
-        request_temp.replace(UPDATE_REQUEST_FILE)
-
-        try:
-            if STATUS_FILE.exists():
-                STATUS_FILE.unlink()
-        except OSError as status_error:
-            log(
-                f"Failed to clear previous update status: {status_error}",
-                "ERROR"
-            )
-
-        write_status("starting", f"Starting update to {tag_name}...")
+    except Exception as e:
         log(
-            f"Queueing update to {tag_name} in the dedicated updater service.",
-            "UPDATE"
+            f"Failed to clear previous update status: {e}",
+            "ERROR"
         )
 
-        subprocess.run(
-            [
-                "sudo",
-                "-n",
-                "/usr/bin/systemctl",
-                "start",
-                "--no-block",
-                UPDATE_SERVICE_NAME
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=15
-        )
+    write_status(
+        "starting",
+        f"Starting update to {tag_name}..."
+    )
 
-    except Exception as start_error:
-        _remove_update_request_files()
-        message = f"Could not start the dedicated update worker: {start_error}"
-        log(message, "ERROR")
-        write_status("failed", message, error=True)
-        raise RuntimeError(message) from start_error
+    log(
+        f"Starting update to {tag_name}.",
+        "UPDATE"
+    )
+
+    subprocess.Popen(
+        [
+            "python3",
+            "-c",
+            (
+                "from shared.update_manager import "
+                "perform_update; "
+                f"perform_update({tag_name!r})"
+            )
+        ],
+        start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
 
