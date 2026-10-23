@@ -302,31 +302,27 @@ def get_playback_schedules(settings=None):
 
 
 def _schedule_time_matches(schedule, day_name, now):
+    """Match only same-day schedules; overnight ranges are intentionally unsupported."""
     if not schedule.get("enabled", True):
         return False
+
     selected_days = schedule.get("days", [])
     if day_name not in selected_days:
-        # For an overnight period, the after-midnight portion belongs to
-        # the previous day's selected schedule.
-        previous_day = (now - timedelta(days=1)).strftime("%A")
-        if previous_day not in selected_days:
-            return False
-        try:
-            overnight_end = datetime.strptime(schedule.get("end", "23:59"), "%H:%M").time()
-            overnight_start = datetime.strptime(schedule.get("start", "00:00"), "%H:%M").time()
-        except (TypeError, ValueError):
-            return False
-        return overnight_end <= overnight_start and now.time() < overnight_end
+        return False
+
     try:
         start = datetime.strptime(schedule.get("start", "00:00"), "%H:%M").time()
         end = datetime.strptime(schedule.get("end", "23:59"), "%H:%M").time()
     except (TypeError, ValueError):
         return False
+
+    # An end time equal to or earlier than the start time would cross midnight.
+    # Reject it rather than carrying the schedule into the following day.
+    if end <= start:
+        return False
+
     current = now.time()
-    if end > start:
-        return start <= current < end
-    # On the selected start day, the overnight period begins at start.
-    return current >= start
+    return start <= current < end
 
 
 def get_days_schedule():
@@ -454,17 +450,25 @@ def get_secondary_video_mode():
 
 
 def is_schedule_enabled_now(settings=None, now=None):
-    """Return whether playback is permitted by the schedule at the supplied time."""
+    """Return whether playback is allowed by today's same-day schedules.
+
+    If no enabled schedule applies to today, playback is unrestricted for the day.
+    Overnight ranges are not supported and never carry over from the previous day.
+    """
     if not isinstance(settings, dict):
         settings = load_settings()
     now = now if isinstance(now, datetime) else datetime.now()
     schedules = get_playback_schedules(settings)
     today = now.strftime("%A")
-    today_schedules = [s for s in schedules if today in s.get("days", []) and s.get("enabled", True)]
-    overnight_active = any(_schedule_time_matches(s, today, now) for s in schedules)
-    if not today_schedules and not overnight_active:
+    today_schedules = [
+        schedule for schedule in schedules
+        if today in schedule.get("days", []) and schedule.get("enabled", True)
+    ]
+
+    if not today_schedules:
         return True
-    return overnight_active
+
+    return any(_schedule_time_matches(schedule, today, now) for schedule in today_schedules)
 
 
 def is_current_schedule_active():
@@ -490,7 +494,11 @@ def get_next_start_time(settings, time_format=None, now=None):
                     continue
                 try:
                     start_time = datetime.strptime(schedule.get("start", "00:00"), "%H:%M").time()
+                    end_time = datetime.strptime(schedule.get("end", "23:59"), "%H:%M").time()
                 except (TypeError, ValueError):
+                    continue
+                # Ignore malformed legacy entries that cross midnight.
+                if end_time <= start_time:
                     continue
                 start_dt = datetime.combine(check_date, start_time)
                 if start_dt > now:
