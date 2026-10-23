@@ -1495,3 +1495,10 @@ body.dark-theme {
   height: 36px;
   padding: 0;
 }
+
+
+/* Enlarge the Video Library and Playback Schedule enable/mute switches. */
+#videoLibraryList .form-check-input[type="checkbox"],
+.playback-schedule-table .form-check-input[type="checkbox"] {
+  transform: scale(1.8);
+}
