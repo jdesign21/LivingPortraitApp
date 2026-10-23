@@ -790,11 +790,15 @@ def index():
     active_schedule_tag = get_current_scheduler_category() or ""
     active_schedule_tag_counts = {}
     for video in order:
-        if video.get("active", True):
-            for tag_id in video.get("tags", []):
-                key = str(tag_id).strip().lower()
-                if key:
-                    active_schedule_tag_counts[key] = active_schedule_tag_counts.get(key, 0) + 1
+        if not isinstance(video, dict) or not video.get("active", True):
+            continue
+        video_tags = video.get("tags", [])
+        if not isinstance(video_tags, (list, tuple, set)):
+            continue
+        for tag_id in video_tags:
+            key = str(tag_id).strip().lower()
+            if key:
+                active_schedule_tag_counts[key] = active_schedule_tag_counts.get(key, 0) + 1
 
     for entry in fixed_order:
         video_tags = entry.get("tags", [])
@@ -1799,13 +1803,18 @@ def upload():
 def _normalize_unavailable_schedule_tags(settings):
     """Switch schedules to all active videos when their tag has no active videos."""
     order = settings.get("playlist", {}).get("order", [])
-    active_tags = {
-        str(tag).strip().lower()
-        for video in order
-        if video.get("active", True)
-        for tag in video.get("tags", [])
-        if str(tag).strip()
-    }
+    active_tags = set()
+    for video in order:
+        if not isinstance(video, dict) or not video.get("active", True):
+            continue
+        video_tags = video.get("tags", [])
+        if not isinstance(video_tags, (list, tuple, set)):
+            continue
+        active_tags.update(
+            str(tag).strip().lower()
+            for tag in video_tags
+            if str(tag).strip()
+        )
     schedules = settings.get("playback_schedules", [])
     changed = []
     for schedule in schedules:
