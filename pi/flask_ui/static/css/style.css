@@ -1443,3 +1443,12 @@ body.dark-theme {
     padding-right: 0.35rem;
   }
 }
+
+
+/* Show control labels in Grid view, but keep List view clean. */
+.video-library-list-view .video-field-label {
+  display: none !important;
+}
+.video-library-grid .video-field-label {
+  display: block !important;
+}
