@@ -1454,22 +1454,21 @@ body.dark-theme {
 }
 
 
-/* Fixed-size Video Library thumbnails. The frame stays 235 × 102 px at every rotation. */
+/* Fixed-size Video Library thumbnails and rotate controls. Images fill the square at every rotation. */
 .video-library-item .video-thumbnail,
 .video-library-grid .video-thumbnail,
 .video-library-list-view .video-thumbnail,
 .video-library-list-view .video-thumbnail.is-portrait,
 .video-library-grid .video-thumbnail.is-portrait {
   position: relative;
-  flex: 0 0 235px;
-  width: 235px !important;
-  min-width: 235px;
-  height: 102px;
+  flex: 0 0 64px;
+  width: 64px !important;
+  min-width: 64px;
+  height: 64px;
   aspect-ratio: auto;
   overflow: hidden;
-  background: #080e15;
-  border: 1px solid #34495c;
-  border-radius: 8px;
+  background: transparent;
+  border: 0;
   box-shadow: none;
 }
 
@@ -1477,10 +1476,10 @@ body.dark-theme {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 100%;
-  height: 100%;
+  width: 100% !important;
+  height: 100% !important;
   max-width: none;
-  object-fit: cover;
+  object-fit: fill;
   transform-origin: center center;
 }
 
