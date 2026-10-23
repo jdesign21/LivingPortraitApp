@@ -301,8 +301,24 @@ def get_playback_schedules(settings=None):
     return migrated
 
 
+def _get_valid_same_day_schedule_times(schedule):
+    """Return a valid same-day time range, or None for malformed/overnight entries."""
+    try:
+        start = datetime.strptime(schedule.get("start", "00:00"), "%H:%M").time()
+        end = datetime.strptime(schedule.get("end", "23:59"), "%H:%M").time()
+    except (TypeError, ValueError):
+        return None
+
+    # An end time equal to or earlier than the start time would cross midnight.
+    # Reject it rather than carrying the schedule into the following day.
+    if end <= start:
+        return None
+
+    return start, end
+
+
 def _schedule_time_matches(schedule, day_name, now):
-    """Match only same-day schedules; overnight ranges are intentionally unsupported."""
+    """Match only valid same-day schedules; overnight ranges are unsupported."""
     if not schedule.get("enabled", True):
         return False
 
@@ -310,17 +326,11 @@ def _schedule_time_matches(schedule, day_name, now):
     if day_name not in selected_days:
         return False
 
-    try:
-        start = datetime.strptime(schedule.get("start", "00:00"), "%H:%M").time()
-        end = datetime.strptime(schedule.get("end", "23:59"), "%H:%M").time()
-    except (TypeError, ValueError):
+    time_range = _get_valid_same_day_schedule_times(schedule)
+    if time_range is None:
         return False
 
-    # An end time equal to or earlier than the start time would cross midnight.
-    # Reject it rather than carrying the schedule into the following day.
-    if end <= start:
-        return False
-
+    start, end = time_range
     current = now.time()
     return start <= current < end
 
@@ -462,7 +472,11 @@ def is_schedule_enabled_now(settings=None, now=None):
     today = now.strftime("%A")
     today_schedules = [
         schedule for schedule in schedules
-        if today in schedule.get("days", []) and schedule.get("enabled", True)
+        if (
+            today in schedule.get("days", [])
+            and schedule.get("enabled", True)
+            and _get_valid_same_day_schedule_times(schedule) is not None
+        )
     ]
 
     if not today_schedules:
