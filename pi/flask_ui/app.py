@@ -1733,79 +1733,78 @@ def upload():
 
 @app.route("/save_schedule", methods=["POST"])
 def save_schedule():
+    """Save independent schedule rows from the Playback Schedule table."""
     settings = load_settings()
-    current_days = settings.get("days", {})
-    days = {}
-
-    schedule_tags = settings.get("schedule_tags", [])
-
     valid_tag_ids = {
-        tag.get("id", "").lower()
-        for tag in schedule_tags
+        str(tag.get("id", "")).lower()
+        for tag in settings.get("schedule_tags", [])
         if tag.get("id")
     }
+    valid_days = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
+    schedules = []
+    try:
+        count = int(request.form.get("schedule_count", "0"))
+    except (TypeError, ValueError):
+        count = 0
+    if count < 0 or count > 200:
+        flash("Invalid number of schedules.", "danger")
+        return redirect(url_for("index"))
 
-    for day in [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday"
-    ]:
-        key = day.lower()
-        day_enabled = True
+    for index in range(count):
+        prefix = f"schedules[{index}]"
+        name = request.form.get(f"{prefix}[name]", "").strip()[:80]
+        enabled = request.form.get(f"{prefix}[enabled]") == "on"
+        days = [day for day in request.form.getlist(f"{prefix}[days]") if day in valid_days]
+        start_time = request.form.get(f"{prefix}[start]", "").strip()
+        end_time = request.form.get(f"{prefix}[end]", "").strip()
+        category = request.form.get(f"{prefix}[category]", "").strip().lower()
 
-        # SLOT 1
-        slot1_enabled = request.form.get(f"{key}Slot1Enabled") == "on" if day_enabled else False
+        if not name:
+            flash(f"Schedule {index + 1}: enter a schedule name.", "danger")
+            return redirect(url_for("index"))
+        try:
+            datetime.strptime(start_time, "%H:%M")
+            datetime.strptime(end_time, "%H:%M")
+        except ValueError:
+            flash(f"{name}: enter valid start and end times.", "danger")
+            return redirect(url_for("index"))
+        if start_time == end_time:
+            flash(f"{name}: start and end times cannot be identical.", "danger")
+            return redirect(url_for("index"))
+        if not days:
+            flash(f"{name}: select at least one day.", "danger")
+            return redirect(url_for("index"))
+        if category and category not in valid_tag_ids:
+            category = ""
 
-        slot1_start = request.form.get(f"{key}Slot1Start") or current_days.get(day, {}).get("slot1", {}).get("start", "00:00")
-        slot1_end = request.form.get(f"{key}Slot1End") or current_days.get(day, {}).get("slot1", {}).get("end", "23:59")
+        schedule_id = request.form.get(f"{prefix}[id]", "").strip()
+        if not schedule_id or len(schedule_id) > 100:
+            schedule_id = f"schedule-{index + 1}"
+        schedules.append({
+            "id": schedule_id,
+            "name": name,
+            "enabled": enabled,
+            "days": list(dict.fromkeys(days)),
+            "start": start_time,
+            "end": end_time,
+            "category": category
+        })
 
-        if f"{key}Slot1Category" in request.form:
-            slot1_category = request.form.get(f"{key}Slot1Category")
-        else:
-            slot1_category = current_days.get(day, {}).get("slot1", {}).get("category", "")
-
-        if slot1_category and slot1_category.lower() not in valid_tag_ids:
-            slot1_category = ""
-
-        # SLOT 2
-        slot2_enabled = request.form.get(f"{key}Slot2Enabled") == "on" if day_enabled else False
-
-        slot2_start = request.form.get(f"{key}Slot2Start") or current_days.get(day, {}).get("slot2", {}).get("start", "")
-        slot2_end = request.form.get(f"{key}Slot2End") or current_days.get(day, {}).get("slot2", {}).get("end", "")
-
-        if f"{key}Slot2Category" in request.form:
-            slot2_category = request.form.get(f"{key}Slot2Category")
-        else:
-            slot2_category = current_days.get(day, {}).get("slot2", {}).get("category", "")
-
-        if slot2_category and slot2_category.lower() not in valid_tag_ids:
-            slot2_category = ""
-
-        days[day] = {
-            "enabled": day_enabled,
-            "slot1": {
-                "enabled": slot1_enabled,
-                "start": slot1_start,
-                "end": slot1_end,
-                "category": slot1_category
-            },
-            "slot2": {
-                "enabled": slot2_enabled,
-                "start": slot2_start,
-                "end": slot2_end,
-                "category": slot2_category
-            }
+    settings["playback_schedules"] = schedules
+    # Keep legacy slots disabled so older code paths cannot unexpectedly
+    # apply stale schedule periods after migration.
+    settings["days"] = {
+        day: {
+            "enabled": True,
+            "slot1": {"enabled": False, "start": "00:00", "end": "23:59", "category": ""},
+            "slot2": {"enabled": False, "start": "", "end": "", "category": ""}
         }
-
-    settings["days"] = days
+        for day in ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    }
     save_settings(settings)
-
-    flash("Schedule saved successfully!", "success")
+    flash("Playback schedule saved successfully.", "success")
     return redirect(url_for("index"))
+
 
 @app.route("/update_thumbnail_rotation", methods=["POST"])
 def update_thumbnail_rotation():
