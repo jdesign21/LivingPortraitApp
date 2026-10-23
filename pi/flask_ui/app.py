@@ -43,6 +43,8 @@ from shared.vlc_helper import (
     write_pause_flag,
     get_days_schedule,
     update_days_schedule,
+    get_playback_schedules,
+    get_current_scheduler_category,
     is_schedule_enabled_now,
     get_next_start_time,
     get_secondary_video_mode,
@@ -667,7 +669,68 @@ def index():
     if secondary_video_mode not in ("sync_tag", "playlist"):
         secondary_video_mode = "sync_tag"
 
-    # Get days schedule
+    # Independent schedule rows; migrate legacy day slots on first access.
+    playback_schedules = get_playback_schedules(settings)
+
+    # Build dashboard rows from the independent playback schedules.
+    # The first enabled schedule matching the current time wins when schedules overlap.
+    today = request_now.strftime("%A")
+    now_time = request_now.time()
+    previous_day = (request_now - timedelta(days=1)).strftime("%A")
+    dashboard_schedules = []
+    winning_schedule_found = False
+
+    for schedule in playback_schedules:
+        schedule_days = schedule.get("days", [])
+        enabled = bool(schedule.get("enabled", True))
+        start_value = schedule.get("start", "00:00")
+        end_value = schedule.get("end", "23:59")
+
+        try:
+            start_time = datetime.strptime(start_value, "%H:%M").time()
+            end_time = datetime.strptime(end_value, "%H:%M").time()
+        except (TypeError, ValueError):
+            continue
+
+        is_today = today in schedule_days
+        overnight_from_yesterday = (
+            previous_day in schedule_days
+            and end_time <= start_time
+            and now_time < end_time
+        )
+        if not is_today and not overnight_from_yesterday:
+            continue
+
+        if end_time > start_time:
+            matches_now = is_today and start_time <= now_time < end_time
+        else:
+            matches_now = (
+                (is_today and now_time >= start_time)
+                or overnight_from_yesterday
+            )
+
+        is_active = enabled and matches_now and not winning_schedule_found
+        if is_active:
+            winning_schedule_found = True
+
+        category = schedule.get("category", "")
+        category_name = "None"
+        for tag in schedule_tags:
+            if tag.get("id") == category:
+                category_name = tag.get("name", "None")
+                break
+
+        dashboard_schedules.append({
+            "name": schedule.get("name") or "Schedule",
+            "start_ampm": format_ampm(start_value, time_format),
+            "end_ampm": format_ampm(end_value, time_format),
+            "category_name": category_name if category else "None",
+            "is_active": is_active,
+            "enabled": enabled,
+            "priority_blocked": bool(enabled and matches_now and not is_active),
+        })
+
+    # Legacy day data remains available for older dashboard indicators.
     days_schedule = settings.get("days", {})
 
     # Format times for all slots and store in a list
@@ -707,8 +770,6 @@ def index():
 
         sched["slots"] = slots
 
-    # Get today's name
-    today = request_now.strftime("%A")
     today_schedule = days_schedule.get(today, {})
 
     # Check if schedule is enabled right now
@@ -726,12 +787,18 @@ def index():
     # Fixed Playlist Schedule Tag display
     fixed_order_display = []
 
-    active_schedule_tag = None
-
-    for slot in today_schedule.get("slots", []):
-        if slot.get("is_active"):
-            active_schedule_tag = slot.get("category", "")
-            break
+    active_schedule_tag = get_current_scheduler_category() or ""
+    active_schedule_tag_counts = {}
+    for video in order:
+        if not isinstance(video, dict) or not video.get("active", True):
+            continue
+        video_tags = video.get("tags", [])
+        if not isinstance(video_tags, (list, tuple, set)):
+            continue
+        for tag_id in video_tags:
+            key = str(tag_id).strip().lower()
+            if key:
+                active_schedule_tag_counts[key] = active_schedule_tag_counts.get(key, 0) + 1
 
     for entry in fixed_order:
         video_tags = entry.get("tags", [])
@@ -989,6 +1056,9 @@ def index():
         time_remaining=time_remaining,
         available_tags=available_tags,
         schedule_tags=schedule_tags,
+        active_schedule_tag_counts=active_schedule_tag_counts,
+        playback_schedules=playback_schedules,
+        dashboard_schedules=dashboard_schedules,
         sync_tags=sync_tags,
         pause=pause_flag,
         video_count=len(fixed_order),
@@ -1731,81 +1801,108 @@ def upload():
 
     return redirect(url_for("index"))
 
+def _normalize_unavailable_schedule_tags(settings):
+    """Switch schedules to all active videos when their tag has no active videos."""
+    order = settings.get("playlist", {}).get("order", [])
+    active_tags = set()
+    for video in order:
+        if not isinstance(video, dict) or not video.get("active", True):
+            continue
+        video_tags = video.get("tags", [])
+        if not isinstance(video_tags, (list, tuple, set)):
+            continue
+        active_tags.update(
+            str(tag).strip().lower()
+            for tag in video_tags
+            if str(tag).strip()
+        )
+    schedules = settings.get("playback_schedules", [])
+    changed = []
+    for schedule in schedules:
+        category = str(schedule.get("category") or "").strip().lower()
+        if category and category not in active_tags:
+            schedule["category"] = ""
+            changed.append(schedule.get("name") or "Schedule")
+    if changed:
+        settings["playback_schedules"] = schedules
+    return changed
+
+
 @app.route("/save_schedule", methods=["POST"])
 def save_schedule():
+    """Save independent schedule rows from the Playback Schedule table."""
     settings = load_settings()
-    current_days = settings.get("days", {})
-    days = {}
-
-    schedule_tags = settings.get("schedule_tags", [])
-
     valid_tag_ids = {
-        tag.get("id", "").lower()
-        for tag in schedule_tags
+        str(tag.get("id", "")).lower()
+        for tag in settings.get("schedule_tags", [])
         if tag.get("id")
     }
+    valid_days = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
+    schedules = []
+    try:
+        count = int(request.form.get("schedule_count", "0"))
+    except (TypeError, ValueError):
+        count = 0
+    if count < 0 or count > 200:
+        flash("Invalid number of schedules.", "danger")
+        return redirect(url_for("index"))
 
-    for day in [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday"
-    ]:
-        key = day.lower()
-        day_enabled = True
+    for index in range(count):
+        prefix = f"schedules[{index}]"
+        name = request.form.get(f"{prefix}[name]", "").strip()[:80]
+        enabled = request.form.get(f"{prefix}[enabled]") == "on"
+        days = [day for day in request.form.getlist(f"{prefix}[days]") if day in valid_days]
+        start_time = request.form.get(f"{prefix}[start]", "").strip()
+        end_time = request.form.get(f"{prefix}[end]", "").strip()
+        category = request.form.get(f"{prefix}[category]", "").strip().lower()
 
-        # SLOT 1
-        slot1_enabled = request.form.get(f"{key}Slot1Enabled") == "on" if day_enabled else False
+        if not name:
+            flash(f"Schedule {index + 1}: enter a schedule name.", "danger")
+            return redirect(url_for("index"))
+        try:
+            datetime.strptime(start_time, "%H:%M")
+            datetime.strptime(end_time, "%H:%M")
+        except ValueError:
+            flash(f"{name}: enter valid start and end times.", "danger")
+            return redirect(url_for("index"))
+        if start_time == end_time:
+            flash(f"{name}: start and end times cannot be identical.", "danger")
+            return redirect(url_for("index"))
+        if not days:
+            flash(f"{name}: select at least one day.", "danger")
+            return redirect(url_for("index"))
+        if category and category not in valid_tag_ids:
+            category = ""
 
-        slot1_start = request.form.get(f"{key}Slot1Start") or current_days.get(day, {}).get("slot1", {}).get("start", "00:00")
-        slot1_end = request.form.get(f"{key}Slot1End") or current_days.get(day, {}).get("slot1", {}).get("end", "23:59")
+        schedule_id = request.form.get(f"{prefix}[id]", "").strip()
+        if not schedule_id or len(schedule_id) > 100:
+            schedule_id = f"schedule-{index + 1}"
+        schedules.append({
+            "id": schedule_id,
+            "name": name,
+            "enabled": enabled,
+            "days": list(dict.fromkeys(days)),
+            "start": start_time,
+            "end": end_time,
+            "category": category
+        })
 
-        if f"{key}Slot1Category" in request.form:
-            slot1_category = request.form.get(f"{key}Slot1Category")
-        else:
-            slot1_category = current_days.get(day, {}).get("slot1", {}).get("category", "")
-
-        if slot1_category and slot1_category.lower() not in valid_tag_ids:
-            slot1_category = ""
-
-        # SLOT 2
-        slot2_enabled = request.form.get(f"{key}Slot2Enabled") == "on" if day_enabled else False
-
-        slot2_start = request.form.get(f"{key}Slot2Start") or current_days.get(day, {}).get("slot2", {}).get("start", "")
-        slot2_end = request.form.get(f"{key}Slot2End") or current_days.get(day, {}).get("slot2", {}).get("end", "")
-
-        if f"{key}Slot2Category" in request.form:
-            slot2_category = request.form.get(f"{key}Slot2Category")
-        else:
-            slot2_category = current_days.get(day, {}).get("slot2", {}).get("category", "")
-
-        if slot2_category and slot2_category.lower() not in valid_tag_ids:
-            slot2_category = ""
-
-        days[day] = {
-            "enabled": day_enabled,
-            "slot1": {
-                "enabled": slot1_enabled,
-                "start": slot1_start,
-                "end": slot1_end,
-                "category": slot1_category
-            },
-            "slot2": {
-                "enabled": slot2_enabled,
-                "start": slot2_start,
-                "end": slot2_end,
-                "category": slot2_category
-            }
+    settings["playback_schedules"] = schedules
+    _normalize_unavailable_schedule_tags(settings)
+    # Keep legacy slots disabled so older code paths cannot unexpectedly
+    # apply stale schedule periods after migration.
+    settings["days"] = {
+        day: {
+            "enabled": True,
+            "slot1": {"enabled": False, "start": "00:00", "end": "23:59", "category": ""},
+            "slot2": {"enabled": False, "start": "", "end": "", "category": ""}
         }
-
-    settings["days"] = days
+        for day in ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    }
     save_settings(settings)
-
-    flash("Schedule saved successfully!", "success")
+    flash("Playback schedule saved successfully.", "success")
     return redirect(url_for("index"))
+
 
 @app.route("/update_thumbnail_rotation", methods=["POST"])
 def update_thumbnail_rotation():
@@ -1926,6 +2023,9 @@ def update_all():
 
     settings["playlist"]["order"] = order
 
+    # If a tag no longer has active videos, affected schedules become unrestricted.
+    normalized_schedules = _normalize_unavailable_schedule_tags(settings)
+
     # Validate schedule categories against the master Schedule Tags.
     valid_schedule_tags = {
         tag.get("id", "").lower()
@@ -1942,6 +2042,9 @@ def update_all():
                 slot["category"] = ""
 
     save_settings(settings)
+    if normalized_schedules:
+        names = ", ".join(normalized_schedules)
+        flash(f"No active videos remain for a schedule tag. Updated to All active videos: {names}.", "warning")
 
     if len(active_videos) == 1:
         only_video = active_videos[0]["filename"]
@@ -2241,7 +2344,11 @@ def delete(filename):
             )
             settings["selected_video"] = replacement
 
+    normalized_schedules = _normalize_unavailable_schedule_tags(settings)
     save_settings(settings)
+    if normalized_schedules:
+        names = ", ".join(normalized_schedules)
+        flash(f"No active videos remain for a schedule tag. Updated to All active videos: {names}.", "warning")
 
     # Check remaining active videos.
     remaining_active = [

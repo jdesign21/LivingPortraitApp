@@ -1,17 +1,7 @@
 <section id="manage" class="section">
-  <div class="d-flex align-items-center justify-content-between border-bottom pb-2 mb-4 gap-3">
-    <h3 class="fw-bold text-primary mb-0">
-      <i class="bi bi-folder2-open"></i> Manage Videos
-    </h3>
-    <button type="button" class="btn btn-primary flex-shrink-0" data-bs-toggle="modal" data-bs-target="#uploadModal">
-      <i class="bi bi-plus-lg me-1"></i> Upload Video
-    </button>
-  </div>
-
-  <div class="d-flex flex-wrap gap-2 mb-3" aria-label="Manage video tools">
-    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#scheduleTagsModal"><i class="bi bi-tags me-1"></i> Schedule Tags</button>
-    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#syncTagsModal"><i class="bi bi-arrow-repeat me-1"></i> Sync Tags</button>
-  </div>
+  <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
+    <i class="bi bi-folder2-open"></i> Videos
+  </h3>
 
   <div id="manageTabsContent">
 
@@ -19,8 +9,19 @@
 <div id="videos-pane">
   <form method="POST" action="{{ url_for('update_all') }}">
     <div class="card shadow-sm">
-      <div class="card-header bg-primary text-white">
-        <strong>Videos</strong>
+      <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <strong><i class="bi bi-collection-play me-1"></i> Video Library</strong>
+        <div class="d-flex flex-wrap gap-2" aria-label="Video library actions">
+          <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#scheduleTagsModal">
+            <i class="bi bi-tags me-1"></i> Schedule Tags
+          </button>
+          <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#syncTagsModal">
+            <i class="bi bi-arrow-repeat me-1"></i> Sync Tags
+          </button>
+          <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            <i class="bi bi-cloud-arrow-up me-1"></i> Upload Video
+          </button>
+        </div>
       </div>
       <div class="card-body">
         <p class="text-muted small mb-4">
@@ -29,7 +30,7 @@
           and schedules to determine which videos are available for playback.
         </p>
 
-        <div class="video-library-toolbar d-flex flex-nowrap align-items-center gap-2 mb-3">
+        <div class="video-library-toolbar d-flex flex-wrap align-items-center gap-2 mb-3">
           <div class="video-search-control flex-grow-1">
             <label class="visually-hidden" for="videoSearch">Search videos</label>
             <input type="search" class="form-control" id="videoSearch" placeholder="Search videos by name...">
@@ -67,6 +68,14 @@
           </div>
         </div>
 
+        <div class="video-library-column-headings" aria-hidden="true">
+          <div>Video</div>
+          <div>Enable</div>
+          <div>Mute Audio</div>
+          <div>Schedule Tags</div>
+          <div>Sync Tag</div>
+          <div>Actions</div>
+        </div>
         <ul class="list-group video-library-list video-library-list-view" id="videoLibraryList">
           {% for video in manage_videos %}
           <li class="list-group-item video-library-item"
@@ -79,7 +88,12 @@
                 <input type="hidden" name="videos[{{ loop.index0 }}][thumbnail_rotation]"
                   value="{{ video.get('thumbnail_rotation', 0) }}" class="thumbnail-rotation-value">
                 <div class="d-flex align-items-center gap-3">
-                  <div class="d-flex flex-column align-items-center gap-1 flex-shrink-0">
+                  <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rotate-thumbnail-btn"
+                      data-filename="{{ video.filename }}"
+                      aria-label="Rotate thumbnail for {{ video.filename }}" title="Rotate thumbnail 90° clockwise">
+                      <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                    </button>
                     <div class="video-thumbnail">
                       <i class="bi bi-film video-thumbnail-placeholder" aria-hidden="true"></i>
                       <img data-src="{{ url_for('thumbnail_file', filename=video.filename) }}"
@@ -88,11 +102,6 @@
                         loading="lazy"
                         onerror="this.style.display='none'">
                     </div>
-                    <button type="button" class="btn btn-outline-secondary btn-sm rotate-thumbnail-btn"
-                      data-filename="{{ video.filename }}"
-                      aria-label="Rotate thumbnail for {{ video.filename }}" title="Rotate thumbnail 90° clockwise">
-                      <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Rotate
-                    </button>
                   </div>
                   <div class="min-w-0">
                     <div class="fw-semibold video-filename text-break">{{ video.filename }}</div>
@@ -119,13 +128,19 @@
               <!-- Mute Audio -->
               <div class="col-6 col-lg-1 video-audio-control">
                 <div class="video-field-label">Mute Audio</div>
-                <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox"
+                <div class="mute-audio-toggle-wrap">
+                  <input class="mute-audio-checkbox" type="checkbox"
                     id="muteAudio-{{ loop.index0 }}"
                     name="videos[{{ loop.index0 }}][mute_audio]"
-                    aria-label="Mute Audio"
+                    aria-label="Mute audio for {{ video.filename }}"
+                    title="Mute audio"
                     value="true"
                     {% if video.get('mute_audio', False) %}checked{% endif %}>
+                  <label class="mute-audio-toggle" for="muteAudio-{{ loop.index0 }}"
+                    title="{% if video.get('mute_audio', False) %}Audio muted — click to unmute{% else %}Audio on — click to mute{% endif %}">
+                    <i class="bi bi-volume-up-fill audio-on-icon" aria-hidden="true"></i>
+                    <i class="bi bi-volume-mute-fill audio-muted-icon" aria-hidden="true"></i>
+                  </label>
                 </div>
               </div>
 
@@ -231,9 +246,7 @@
         const thumbnail = item.querySelector(".video-thumbnail");
         image.dataset.rotation = String(rotation);
         thumbnail?.classList.toggle("is-portrait", rotation === 90 || rotation === 270);
-        image.style.transform = rotation === 90 || rotation === 270
-          ? `translate(-50%, -50%) rotate(${rotation}deg)`
-          : `rotate(${rotation}deg)`;
+        image.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
       }
 
       const items = () => Array.from(list.querySelectorAll(".video-library-item"));
