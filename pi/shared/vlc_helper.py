@@ -302,8 +302,21 @@ def get_playback_schedules(settings=None):
 
 
 def _schedule_time_matches(schedule, day_name, now):
-    if not schedule.get("enabled", True) or day_name not in schedule.get("days", []):
+    if not schedule.get("enabled", True):
         return False
+    selected_days = schedule.get("days", [])
+    if day_name not in selected_days:
+        # For an overnight period, the after-midnight portion belongs to
+        # the previous day's selected schedule.
+        previous_day = (now - timedelta(days=1)).strftime("%A")
+        if previous_day not in selected_days:
+            return False
+        try:
+            overnight_end = datetime.strptime(schedule.get("end", "23:59"), "%H:%M").time()
+            overnight_start = datetime.strptime(schedule.get("start", "00:00"), "%H:%M").time()
+        except (TypeError, ValueError):
+            return False
+        return overnight_end <= overnight_start and now.time() < overnight_end
     try:
         start = datetime.strptime(schedule.get("start", "00:00"), "%H:%M").time()
         end = datetime.strptime(schedule.get("end", "23:59"), "%H:%M").time()
@@ -312,8 +325,8 @@ def _schedule_time_matches(schedule, day_name, now):
     current = now.time()
     if end > start:
         return start <= current < end
-    # A period crossing midnight belongs to its selected start day.
-    return current >= start or current < end
+    # On the selected start day, the overnight period begins at start.
+    return current >= start
 
 
 def get_days_schedule():
@@ -447,10 +460,11 @@ def is_schedule_enabled_now(settings=None, now=None):
     now = now if isinstance(now, datetime) else datetime.now()
     schedules = get_playback_schedules(settings)
     today = now.strftime("%A")
-    today's_schedules = [s for s in schedules if today in s.get("days", []) and s.get("enabled", True)]
-    if not today's_schedules:
+    today_schedules = [s for s in schedules if today in s.get("days", []) and s.get("enabled", True)]
+    overnight_active = any(_schedule_time_matches(s, today, now) for s in schedules)
+    if not today_schedules and not overnight_active:
         return True
-    return any(_schedule_time_matches(s, today, now) for s in today's_schedules)
+    return overnight_active
 
 
 def is_current_schedule_active():
