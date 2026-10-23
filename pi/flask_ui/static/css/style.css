@@ -1558,3 +1558,15 @@ body.dark-theme {
   border-color: #9f4350;
   color: #fda4af;
 }
+
+/* Grid view: prevent Bootstrap's negative switch offset from misaligning Enable. */
+.video-library-grid .video-library-item .form-switch {
+  padding-left: 0;
+  min-height: 1.5rem;
+}
+.video-library-grid .video-library-item .form-switch .form-check-input {
+  margin-left: 0;
+  float: none;
+  display: block;
+}
+
