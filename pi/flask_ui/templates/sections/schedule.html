@@ -53,9 +53,9 @@
                 <td>
                   <div class="playback-schedule-days">
                     {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
-                    <label class="form-check form-check-inline">
-                      <input class="form-check-input" type="checkbox" data-field="days" name="schedules[{{ loop.index0 }}][days]" value="{{ day }}" {% if day in schedule.days %}checked{% endif %}>
-                      <span class="form-check-label">{{ day[:3] }}</span>
+                    <label class="schedule-day-button">
+                      <input type="checkbox" data-field="days" name="schedules[{{ loop.index0 }}][days]" value="{{ day }}" {% if day in schedule.days %}checked{% endif %}>
+                      <span>{{ {'Monday':'M','Tuesday':'T','Wednesday':'W','Thursday':'Th','Friday':'F','Saturday':'Sa','Sunday':'Su'}[day] }}</span>
                     </label>
                     {% endfor %}
                   </div>
@@ -116,9 +116,9 @@
     <td>
       <div class="playback-schedule-days">
         {% for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
-        <label class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" data-field="days" value="{{ day }}">
-          <span class="form-check-label">{{ day[:3] }}</span>
+        <label class="schedule-day-button">
+          <input type="checkbox" data-field="days" value="{{ day }}">
+          <span>{{ {'Monday':'M','Tuesday':'T','Wednesday':'W','Thursday':'Th','Friday':'F','Saturday':'Sa','Sunday':'Su'}[day] }}</span>
         </label>
         {% endfor %}
       </div>
