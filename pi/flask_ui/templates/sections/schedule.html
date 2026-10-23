@@ -70,7 +70,8 @@
                   <select class="form-select form-select-sm" data-field="category" name="schedules[{{ loop.index0 }}][category]" aria-label="Schedule tag">
                     <option value="">All active videos</option>
                     {% for tag in schedule_tags %}
-                    <option value="{{ tag.id }}" {% if schedule.category == tag.id %}selected{% endif %}>{{ tag.name }}</option>
+                    {% set tag_video_count = active_schedule_tag_counts.get(tag.id|lower, 0) %}
+                    <option value="{{ tag.id }}" {% if schedule.category == tag.id %}selected{% endif %} {% if tag_video_count == 0 and schedule.category != tag.id %}disabled{% endif %}>{{ tag.name }}{% if tag_video_count == 0 %} (no active videos){% endif %}</option>
                     {% endfor %}
                   </select>
                 </td>
@@ -133,7 +134,8 @@
       <select class="form-select form-select-sm" data-field="category" aria-label="Schedule tag">
         <option value="">All active videos</option>
         {% for tag in schedule_tags %}
-        <option value="{{ tag.id }}">{{ tag.name }}</option>
+        {% set tag_video_count = active_schedule_tag_counts.get(tag.id|lower, 0) %}
+        <option value="{{ tag.id }}" {% if tag_video_count == 0 %}disabled{% endif %}>{{ tag.name }}{% if tag_video_count == 0 %} (no active videos){% endif %}</option>
         {% endfor %}
       </select>
     </td>
