@@ -14,7 +14,7 @@
       <div class="card-body">
         <p class="text-muted mb-3">
           Each row is a schedule. Choose the days and time range when it should run, and optionally select a Schedule Tag to limit playback to matching videos.
-          If a day has no enabled schedules, playback runs all day using the normal playback settings.
+          If a day has no enabled schedules, playback runs all day using the normal playback settings. End times must be later than start times on the same day; overnight schedules are not supported. To play after midnight, create a separate schedule for the next day starting at 12:00 AM.
         </p>
 
         <div class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>Drag rows using the grip handle to set priority. When schedules overlap, the highest row in the table has priority.</div>
@@ -257,6 +257,42 @@
         row.remove();
         reindexRows();
       }
+    }
+  });
+
+  const sameDayTimeMessage = 'End time must be later than start time. Overnight schedules are not supported; create a separate schedule for the next day starting at 12:00 AM.';
+
+  function validateSameDayTimeRanges() {
+    for (const row of rows.querySelectorAll('.playback-schedule-row')) {
+      const start = row.querySelector('[data-field="start"]');
+      const end = row.querySelector('[data-field="end"]');
+      if (!start || !end || !start.value || !end.value) {
+        if (end) end.setCustomValidity('');
+        continue;
+      }
+
+      if (end.value <= start.value) {
+        end.setCustomValidity(sameDayTimeMessage);
+        return end;
+      }
+      end.setCustomValidity('');
+    }
+    return null;
+  }
+
+  form.addEventListener('submit', event => {
+    const invalidEnd = validateSameDayTimeRanges();
+    if (invalidEnd) {
+      event.preventDefault();
+      invalidEnd.reportValidity();
+    }
+  });
+
+  rows.addEventListener('input', event => {
+    if (event.target.matches('[data-field="start"], [data-field="end"]')) {
+      const row = event.target.closest('.playback-schedule-row');
+      const end = row && row.querySelector('[data-field="end"]');
+      if (end) end.setCustomValidity('');
     }
   });
 
