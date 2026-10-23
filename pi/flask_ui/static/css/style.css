@@ -1271,3 +1271,40 @@ body.dark-theme {
     min-width: 1020px;
   }
 }
+
+
+/* Playback Schedule row priority and drag affordance */
+.playback-schedule-table .schedule-drag-cell {
+  width: 54px;
+  min-width: 54px;
+  text-align: center;
+  white-space: nowrap;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+}
+.playback-schedule-table .schedule-drag-handle {
+  cursor: grab;
+  padding: 0.2rem 0.35rem;
+  min-width: 28px;
+}
+.playback-schedule-table .schedule-drag-handle:active {
+  cursor: grabbing;
+}
+.playback-schedule-table .schedule-order-number {
+  display: block;
+  line-height: 1;
+  margin-top: 0.2rem;
+}
+.playback-schedule-table .schedule-row-dragging {
+  opacity: 0.45;
+}
+.playback-schedule-table .copy-schedule-row {
+  min-width: 72px;
+  white-space: nowrap;
+}
+.playback-schedule-table tbody tr {
+  cursor: default;
+}
+.playback-schedule-table tbody tr .schedule-drag-cell {
+  cursor: grab;
+}
