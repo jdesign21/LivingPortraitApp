@@ -512,9 +512,9 @@ def get_current_scheduler_category():
         schedule for schedule in get_playback_schedules(settings)
         if _schedule_time_matches(schedule, today, now)
     ]
-    categories = [s.get("category", "") for s in active if s.get("category")]
-    # Existing playback code expects one tag; choose the first configured active schedule.
-    return categories[0] if categories else None
+    # Existing playback code accepts one tag. The first active row wins;
+    # an empty tag means all active videos are eligible for that period.
+    return (active[0].get("category") or None) if active else None
 
 
 def get_playlist_settings(settings=None):
