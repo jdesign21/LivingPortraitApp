@@ -1203,3 +1203,71 @@ body.dark-theme {
   }
 }
 
+
+
+/* Playback Schedule compact table */
+.playback-schedule-table-wrap {
+  border: 1px solid var(--bs-border-color, #dee2e6);
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+.playback-schedule-table {
+  min-width: 1050px;
+  vertical-align: middle;
+}
+.playback-schedule-table thead th {
+  font-weight: 600;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  color: var(--bs-secondary-color, #5c6570);
+  border-bottom-width: 1px;
+}
+.playback-schedule-table tbody td {
+  padding: 0.85rem 0.7rem;
+}
+.playback-schedule-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.playback-schedule-table .form-control,
+.playback-schedule-table .form-select {
+  min-width: 0;
+  font-size: 1rem;
+}
+.playback-schedule-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.35rem;
+  min-width: 235px;
+}
+.playback-schedule-days .form-check-inline {
+  margin-right: 0.2rem;
+  white-space: nowrap;
+}
+.playback-schedule-days .form-check-input {
+  margin-top: 0.3rem;
+}
+.playback-schedule-time {
+  min-width: 215px;
+}
+.playback-schedule-time input[type="time"] {
+  min-width: 95px;
+}
+.playback-schedule-table .btn {
+  min-width: 34px;
+}
+.dark-theme .playback-schedule-table thead th {
+  background-color: #252525;
+  color: #e1e1e1;
+}
+.dark-theme .playback-schedule-table tbody tr:hover > * {
+  --bs-table-bg-state: #242b33;
+}
+@media (max-width: 767.98px) {
+  .playback-schedule-table-wrap {
+    margin-left: -0.25rem;
+    margin-right: -0.25rem;
+  }
+  .playback-schedule-table {
+    min-width: 1020px;
+  }
+}
