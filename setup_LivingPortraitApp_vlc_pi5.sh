@@ -143,7 +143,7 @@ log_success "MQTT listener configuration"
 echo -e "\nSetting up MQTT service permissions..."
 
 sudo tee /etc/sudoers.d/livingportrait > /dev/null << EOF
-$USERNAME ALL=(root) NOPASSWD: /usr/bin/systemctl enable mosquitto, /usr/bin/systemctl disable mosquitto, /usr/bin/systemctl start mosquitto, /usr/bin/systemctl stop mosquitto, /usr/bin/systemctl restart mosquitto, /usr/bin/systemctl restart motion_vlc, /usr/bin/systemctl restart flask_ui
+$USERNAME ALL=(root) NOPASSWD: /usr/bin/systemctl enable mosquitto, /usr/bin/systemctl disable mosquitto, /usr/bin/systemctl start mosquitto, /usr/bin/systemctl stop mosquitto, /usr/bin/systemctl restart mosquitto, /usr/bin/systemctl restart motion_vlc, /usr/bin/systemctl restart flask_ui, /usr/bin/systemctl start --no-block livingportrait-update.service
 EOF
 
 sudo chmod 440 /etc/sudoers.d/livingportrait
@@ -329,6 +329,27 @@ EOF
 else
     echo "Flask systemd service file already exists; leaving it unchanged."
 fi
+
+echo -e "\nSetting up LivingPortraitApp update worker service..."
+sudo tee /etc/systemd/system/livingportrait-update.service > /dev/null << EOF
+[Unit]
+Description=LivingPortraitApp Update Worker
+After=network.target
+
+[Service]
+Type=oneshot
+User=$USERNAME
+WorkingDirectory=$USER_HOME
+Environment=HOME=$USER_HOME
+Environment=PYTHONPATH=$USER_HOME
+ExecStart=$VENV_PATH/bin/python -c "from shared.update_manager import run_pending_update; run_pending_update()"
+TimeoutStartSec=infinity
+StandardOutput=journal
+StandardError=journal
+EOF
+
+sudo chmod 644 /etc/systemd/system/livingportrait-update.service
+log_success "LivingPortraitApp update worker service configured"
 
 sudo systemctl daemon-reload \
     || log_fail "Reloading systemd configuration"
