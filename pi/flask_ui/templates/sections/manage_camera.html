@@ -118,6 +118,7 @@
 
               <!-- Enable (separate column) -->
               <div class="col-6 col-lg-1">
+                <div class="video-field-label">Enable</div>
                 <div class="form-check form-switch">
                   <input class="form-check-input" type="checkbox" id="activeSwitch-{{ loop.index0 }}"
                     name="videos[{{ loop.index0 }}][active]" value="true" {% if video.active %}checked{% endif %}>
@@ -126,6 +127,7 @@
 
               <!-- Mute Audio -->
               <div class="col-6 col-lg-1 video-audio-control">
+                <div class="video-field-label">Mute Audio</div>
                 <div class="form-check form-switch">
                   <input class="form-check-input" type="checkbox"
                     id="muteAudio-{{ loop.index0 }}"
@@ -138,6 +140,7 @@
 
               <!-- Schedule Tags -->
               <div class="col-12 col-lg-3">
+                <div class="video-field-label">Schedule Tags</div>
                 <select name="videos[{{ loop.index0 }}][tags][]" class="form-select form-select-sm tomselect" multiple>
                   {% for tag in schedule_tags %}
                   <option value="{{ tag.id }}" {% if tag.id in video.get('tags', []) %}selected{% endif %}>
@@ -149,6 +152,7 @@
 
               <!-- Sync Tag -->
               <div class="col-12 col-lg-2">
+                <div class="video-field-label">Sync Tag</div>
                 <select class="form-select form-select-sm" id="syncTag-{{ loop.index0 }}"
                   name="videos[{{ loop.index0 }}][sync_tag]">
                   <option value="">None</option>
