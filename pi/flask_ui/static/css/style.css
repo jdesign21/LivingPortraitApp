@@ -1114,3 +1114,35 @@ body.dark-theme {
   color: #94a3b8 !important;
 }
 
+/* Keep typography consistent between List and Grid views. */
+.video-library-list-view .video-library-item,
+.video-library-grid .video-library-item {
+  font-size: 0.9rem;
+}
+
+.video-library-list-view .video-filename,
+.video-library-grid .video-filename {
+  font-size: 0.92rem !important;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.video-library-list-view .video-file-details,
+.video-library-grid .video-file-details {
+  font-size: 0.8rem !important;
+  line-height: 1.45;
+}
+
+.video-library-list-view .video-field-label,
+.video-library-grid .video-field-label {
+  font-size: 0.72rem !important;
+  line-height: 1.2;
+}
+
+.video-library-list-view .video-library-item .form-select,
+.video-library-grid .video-library-item .form-select,
+.video-library-list-view .video-library-item .form-check-label,
+.video-library-grid .video-library-item .form-check-label {
+  font-size: 0.85rem !important;
+}
+
