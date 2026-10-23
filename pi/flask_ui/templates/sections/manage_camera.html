@@ -240,9 +240,7 @@
         const thumbnail = item.querySelector(".video-thumbnail");
         image.dataset.rotation = String(rotation);
         thumbnail?.classList.toggle("is-portrait", rotation === 90 || rotation === 270);
-        image.style.transform = rotation === 90 || rotation === 270
-          ? `translate(-50%, -50%) rotate(${rotation}deg)`
-          : `rotate(${rotation}deg)`;
+        image.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
       }
 
       const items = () => Array.from(list.querySelectorAll(".video-library-item"));
