@@ -2647,6 +2647,79 @@ def network_delete_secondary(index):
     return redirect(url_for("index"))
 
 # Check Secondary Pi status
+SECONDARY_STATUS_CHECK_INTERVAL_SECONDS = 15 * 60
+SECONDARY_STATUS_MONITOR_POLL_SECONDS = 30
+_secondary_status_monitor_started = False
+_secondary_status_monitor_lock = threading.Lock()
+
+
+def _secondary_status_monitor():
+    """Refresh configured Secondary Pi reachability every 15 minutes while MQTT is enabled."""
+    last_check = None
+
+    while True:
+        try:
+            network_settings = load_network_settings()
+            monitoring_enabled = (
+                network_settings.get("role") == "primary"
+                and network_settings.get("enable", "0") == "1"
+            )
+
+            if not monitoring_enabled:
+                # Re-enabling MQTT should trigger a fresh check instead of waiting
+                # for the remainder of the previous interval.
+                last_check = None
+            elif (
+                last_check is None
+                or time.monotonic() - last_check >= SECONDARY_STATUS_CHECK_INTERVAL_SECONDS
+            ):
+                # Record the attempt time before checking so a failure does not
+                # cause repeated network scans every 30 seconds.
+                last_check = time.monotonic()
+                check_secondary_status()
+                log("Automatic Secondary Pi status check completed.", "NETWORK")
+        except Exception as e:
+            log(f"Automatic Secondary Pi status check failed: {e}", "ERROR")
+
+        time.sleep(SECONDARY_STATUS_MONITOR_POLL_SECONDS)
+
+
+def start_secondary_status_monitor():
+    """Start the background status monitor once per Flask process."""
+    global _secondary_status_monitor_started
+
+    with _secondary_status_monitor_lock:
+        if _secondary_status_monitor_started:
+            return
+        monitor = threading.Thread(
+            target=_secondary_status_monitor,
+            name="secondary-status-monitor",
+            daemon=True,
+        )
+        monitor.start()
+        _secondary_status_monitor_started = True
+
+
+@app.route("/network/secondary_status", methods=["GET"])
+def network_secondary_status():
+    """Return the latest saved status without initiating a network check."""
+    network_settings = load_network_settings()
+    return jsonify({
+        "success": True,
+        "role": network_settings.get("role", ""),
+        "enable": network_settings.get("enable", "0"),
+        "secondary_pis": [
+            {
+                "name": pi.get("name", "Unknown"),
+                "ip": pi.get("ip", ""),
+                "status": pi.get("status", "unknown"),
+                "last_checked": pi.get("last_checked", ""),
+            }
+            for pi in network_settings.get("secondary_pis", [])
+        ],
+    })
+
+
 @app.route("/network/check_secondary", methods=["POST"])
 def network_check_secondary():
     try:
@@ -3152,6 +3225,11 @@ def save_power_schedule():
     )
 
     return redirect(url_for("index"))
+
+
+# Run the periodic checker in the Flask service process. It only pings devices
+# when this Pi is Primary and Enable MQTT is turned on.
+start_secondary_status_monitor()
 
 
 if __name__ == "__main__":
