@@ -28,6 +28,7 @@
           <table class="table table-hover align-middle mb-0 playback-schedule-table">
             <thead class="table-light">
               <tr>
+                <th scope="col" class="text-center" style="width: 54px;">Order</th>
                 <th scope="col" class="text-center">Enable</th>
                 <th scope="col" style="min-width: 150px;">Schedule Name</th>
                 <th scope="col" style="min-width: 250px;">Days</th>
@@ -41,7 +42,6 @@
               <tr class="playback-schedule-row" draggable="true">
                 <td class="text-center schedule-drag-cell">
                   <button type="button" class="btn btn-outline-secondary btn-sm schedule-drag-handle" title="Drag to change priority" aria-label="Drag to change schedule priority"><i class="bi bi-grip-vertical"></i></button>
-                  <span class="schedule-order-number small text-muted">{{ loop.index }}</span>
                 </td>
                 <td class="text-center">
                   <input type="hidden" data-field="id" name="schedules[{{ loop.index0 }}][id]" value="{{ schedule.id }}">
@@ -107,7 +107,6 @@
   <tr class="playback-schedule-row" draggable="true">
     <td class="text-center schedule-drag-cell">
       <button type="button" class="btn btn-outline-secondary btn-sm schedule-drag-handle" title="Drag to change priority" aria-label="Drag to change schedule priority"><i class="bi bi-grip-vertical"></i></button>
-      <span class="schedule-order-number small text-muted"></span>
     </td>
     <td class="text-center">
       <input type="hidden" data-field="id">
