@@ -1432,3 +1432,14 @@ body.dark-theme {
     padding-right: 0;
   }
 }
+
+
+/* Video list: keep the thumbnail rotation control to its left */
+@media (min-width: 1200px) {
+  .video-library-list-view .video-library-item .rotate-thumbnail-btn {
+    min-width: 36px;
+    width: 36px;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+  }
+}
