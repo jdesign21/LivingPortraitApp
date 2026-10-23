@@ -28,7 +28,7 @@
           <table class="table table-hover align-middle mb-0 playback-schedule-table">
             <thead class="table-light">
               <tr>
-                <th scope="col" class="text-center">On</th>
+                <th scope="col" class="text-center">Enable</th>
                 <th scope="col" style="min-width: 150px;">Schedule Name</th>
                 <th scope="col" style="min-width: 250px;">Days</th>
                 <th scope="col" style="min-width: 230px;">Time Range</th>
@@ -45,7 +45,7 @@
                 </td>
                 <td class="text-center">
                   <input type="hidden" data-field="id" name="schedules[{{ loop.index0 }}][id]" value="{{ schedule.id }}">
-                  <input class="form-check-input" type="checkbox" data-field="enabled" name="schedules[{{ loop.index0 }}][enabled]" aria-label="Enable {{ schedule.name }}" {% if schedule.enabled %}checked{% endif %}>
+                  <div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" role="switch" data-field="enabled" name="schedules[{{ loop.index0 }}][enabled]" aria-label="Enable {{ schedule.name }}" {% if schedule.enabled %}checked{% endif %}></div>
                 </td>
                 <td>
                   <input class="form-control form-control-sm" type="text" data-field="name" name="schedules[{{ loop.index0 }}][name]" value="{{ schedule.name }}" maxlength="80" required aria-label="Schedule name">
@@ -111,7 +111,7 @@
     </td>
     <td class="text-center">
       <input type="hidden" data-field="id">
-      <input class="form-check-input" type="checkbox" data-field="enabled" checked aria-label="Enable schedule">
+      <div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" role="switch" data-field="enabled" checked aria-label="Enable schedule"></div>
     </td>
     <td><input class="form-control form-control-sm" type="text" data-field="name" value="New Schedule" maxlength="80" required aria-label="Schedule name"></td>
     <td>
