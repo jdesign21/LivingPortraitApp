@@ -68,14 +68,6 @@
           </div>
         </div>
 
-        <div class="video-library-column-headings" aria-hidden="true">
-          <span>Video</span>
-          <span>Enable</span>
-          <span>Mute Audio</span>
-          <span>Schedule Tags</span>
-          <span>Sync Tag</span>
-          <span>Actions</span>
-        </div>
         <ul class="list-group video-library-list video-library-list-view" id="videoLibraryList">
           {% for video in manage_videos %}
           <li class="list-group-item video-library-item"
@@ -88,7 +80,12 @@
                 <input type="hidden" name="videos[{{ loop.index0 }}][thumbnail_rotation]"
                   value="{{ video.get('thumbnail_rotation', 0) }}" class="thumbnail-rotation-value">
                 <div class="d-flex align-items-center gap-3">
-                  <div class="d-flex flex-column align-items-center gap-1 flex-shrink-0">
+                  <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rotate-thumbnail-btn"
+                      data-filename="{{ video.filename }}"
+                      aria-label="Rotate thumbnail for {{ video.filename }}" title="Rotate thumbnail 90° clockwise">
+                      <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                    </button>
                     <div class="video-thumbnail">
                       <i class="bi bi-film video-thumbnail-placeholder" aria-hidden="true"></i>
                       <img data-src="{{ url_for('thumbnail_file', filename=video.filename) }}"
@@ -97,11 +94,6 @@
                         loading="lazy"
                         onerror="this.style.display='none'">
                     </div>
-                    <button type="button" class="btn btn-outline-secondary btn-sm rotate-thumbnail-btn"
-                      data-filename="{{ video.filename }}"
-                      aria-label="Rotate thumbnail for {{ video.filename }}" title="Rotate thumbnail 90° clockwise">
-                      <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Rotate
-                    </button>
                   </div>
                   <div class="min-w-0">
                     <div class="fw-semibold video-filename text-break">{{ video.filename }}</div>
