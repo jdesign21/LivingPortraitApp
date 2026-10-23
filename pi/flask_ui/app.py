@@ -43,6 +43,7 @@ from shared.vlc_helper import (
     write_pause_flag,
     get_days_schedule,
     update_days_schedule,
+    get_playback_schedules,
     is_schedule_enabled_now,
     get_next_start_time,
     get_secondary_video_mode,
@@ -667,7 +668,10 @@ def index():
     if secondary_video_mode not in ("sync_tag", "playlist"):
         secondary_video_mode = "sync_tag"
 
-    # Get days schedule
+    # Independent schedule rows; migrate legacy day slots on first access.
+    playback_schedules = get_playback_schedules(settings)
+
+    # Legacy day data remains available for older dashboard indicators.
     days_schedule = settings.get("days", {})
 
     # Format times for all slots and store in a list
@@ -989,6 +993,7 @@ def index():
         time_remaining=time_remaining,
         available_tags=available_tags,
         schedule_tags=schedule_tags,
+        playback_schedules=playback_schedules,
         sync_tags=sync_tags,
         pause=pause_flag,
         video_count=len(fixed_order),
