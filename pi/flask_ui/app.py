@@ -672,6 +672,64 @@ def index():
     # Independent schedule rows; migrate legacy day slots on first access.
     playback_schedules = get_playback_schedules(settings)
 
+    # Build dashboard rows from the independent playback schedules.
+    # The first enabled schedule matching the current time wins when schedules overlap.
+    today = request_now.strftime("%A")
+    now_time = request_now.time()
+    previous_day = (request_now - timedelta(days=1)).strftime("%A")
+    dashboard_schedules = []
+    winning_schedule_found = False
+
+    for schedule in playback_schedules:
+        schedule_days = schedule.get("days", [])
+        enabled = bool(schedule.get("enabled", True))
+        start_value = schedule.get("start", "00:00")
+        end_value = schedule.get("end", "23:59")
+
+        try:
+            start_time = datetime.strptime(start_value, "%H:%M").time()
+            end_time = datetime.strptime(end_value, "%H:%M").time()
+        except (TypeError, ValueError):
+            continue
+
+        is_today = today in schedule_days
+        overnight_from_yesterday = (
+            previous_day in schedule_days
+            and end_time <= start_time
+            and now_time < end_time
+        )
+        if not is_today and not overnight_from_yesterday:
+            continue
+
+        if end_time > start_time:
+            matches_now = is_today and start_time <= now_time < end_time
+        else:
+            matches_now = (
+                (is_today and now_time >= start_time)
+                or overnight_from_yesterday
+            )
+
+        is_active = enabled and matches_now and not winning_schedule_found
+        if is_active:
+            winning_schedule_found = True
+
+        category = schedule.get("category", "")
+        category_name = "None"
+        for tag in schedule_tags:
+            if tag.get("id") == category:
+                category_name = tag.get("name", "None")
+                break
+
+        dashboard_schedules.append({
+            "name": schedule.get("name") or "Schedule",
+            "start_ampm": format_ampm(start_value, time_format),
+            "end_ampm": format_ampm(end_value, time_format),
+            "category_name": category_name if category else "None",
+            "is_active": is_active,
+            "enabled": enabled,
+            "priority_blocked": bool(enabled and matches_now and not is_active),
+        })
+
     # Legacy day data remains available for older dashboard indicators.
     days_schedule = settings.get("days", {})
 
@@ -712,8 +770,6 @@ def index():
 
         sched["slots"] = slots
 
-    # Get today's name
-    today = request_now.strftime("%A")
     today_schedule = days_schedule.get(today, {})
 
     # Check if schedule is enabled right now
@@ -990,6 +1046,7 @@ def index():
         available_tags=available_tags,
         schedule_tags=schedule_tags,
         playback_schedules=playback_schedules,
+        dashboard_schedules=dashboard_schedules,
         sync_tags=sync_tags,
         pause=pause_flag,
         video_count=len(fixed_order),
