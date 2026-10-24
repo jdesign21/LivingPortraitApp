@@ -243,7 +243,7 @@ def install_application(pi_folder):
     )
 
 
-def restart_services(backup_path):
+def restart_services(backup_path, dependency_warning=None):
     write_status(
         "restarting",
         "Restarting LivingPortraitApp..."
@@ -305,13 +305,17 @@ def restart_services(backup_path):
             "UPDATE"
         )
 
+    complete_message = "LivingPortraitApp update completed successfully."
+    if dependency_warning:
+        complete_message += " " + dependency_warning
+
     write_status(
         "complete",
-        "LivingPortraitApp update completed successfully."
+        complete_message
     )
 
     log(
-        "LivingPortraitApp update completed successfully.",
+        complete_message,
         "UPDATE"
     )
 
@@ -435,8 +439,76 @@ def perform_update(tag_name):
                 "UPDATE"
             )
 
+            dependency_warning = None
+            if not shutil.which("ffmpeg"):
+                write_status(
+                    "installing_dependency",
+                    "FFmpeg is missing. Attempting to install FFmpeg..."
+                )
+                log(
+                    "FFmpeg is missing. Attempting to install only the "
+                    "FFmpeg package.",
+                    "UPDATE"
+                )
+
+                try:
+                    # Use non-interactive sudo so the updater never hangs
+                    # waiting for a password. This installs FFmpeg only;
+                    # it does not run apt update or a system upgrade.
+                    result = subprocess.run(
+                        [
+                            "sudo",
+                            "-n",
+                            "apt-get",
+                            "install",
+                            "-y",
+                            "ffmpeg"
+                        ],
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                        timeout=300
+                    )
+
+                    if result.returncode == 0 and shutil.which("ffmpeg"):
+                        log(
+                            "FFmpeg installed successfully.",
+                            "UPDATE"
+                        )
+                        write_status(
+                            "dependency_installed",
+                            "FFmpeg was installed successfully."
+                        )
+                    else:
+                        detail = (
+                            result.stderr.strip()
+                            or result.stdout.strip()
+                            or "The package installer did not install FFmpeg."
+                        )
+                        dependency_warning = (
+                            "WARNING: FFmpeg could not be installed "
+                            "automatically. Video thumbnails may not work. "
+                            "Install it manually with: sudo apt install ffmpeg"
+                        )
+                        log(
+                            f"{dependency_warning} Details: {detail}",
+                            "WARNING"
+                        )
+
+                except (subprocess.TimeoutExpired, OSError) as dependency_error:
+                    dependency_warning = (
+                        "WARNING: FFmpeg could not be installed automatically. "
+                        "Video thumbnails may not work. Install it manually "
+                        "with: sudo apt install ffmpeg"
+                    )
+                    log(
+                        f"{dependency_warning} Details: {dependency_error}",
+                        "WARNING"
+                    )
+
             restart_services(
-                backup_path
+                backup_path,
+                dependency_warning=dependency_warning
             )
 
     except Exception as e:

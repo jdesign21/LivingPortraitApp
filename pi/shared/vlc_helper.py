@@ -244,6 +244,97 @@ def get_video_mute_audio(video_name):
     return False
 
 
+def get_playback_schedules(settings=None):
+    """Return normalized independent playback schedule entries.
+
+    Existing two-slots-per-day schedules are migrated once into this format.
+    """
+    if not isinstance(settings, dict):
+        settings = load_settings()
+    schedules = settings.get("playback_schedules")
+    if isinstance(schedules, list):
+        normalized = []
+        for index, item in enumerate(schedules):
+            if not isinstance(item, dict):
+                continue
+            days = item.get("days", [])
+            if isinstance(days, str):
+                days = [days]
+            days = [day for day in days if day in (
+                "Monday", "Tuesday", "Wednesday", "Thursday",
+                "Friday", "Saturday", "Sunday"
+            )]
+            normalized.append({
+                "id": str(item.get("id") or f"schedule-{index + 1}"),
+                "name": str(item.get("name") or f"Schedule {index + 1}"),
+                "enabled": bool(item.get("enabled", True)),
+                "days": days,
+                "start": str(item.get("start") or "00:00"),
+                "end": str(item.get("end") or "23:59"),
+                "category": str(item.get("category") or "")
+            })
+        return normalized
+
+    legacy_days = settings.get("days", {})
+    migrated = []
+    day_names = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    for day in day_names:
+        day_data = legacy_days.get(day, {})
+        for slot_name, slot in (("slot1", day_data.get("slot1", {})), ("slot2", day_data.get("slot2", {}))):
+            if not slot.get("enabled", False):
+                continue
+            migrated.append({
+                "id": f"{day.lower()}-{slot_name}",
+                "name": f"{day} — {slot_name.replace('slot', 'Slot ')}",
+                "enabled": True,
+                "days": [day],
+                "start": slot.get("start") or "00:00",
+                "end": slot.get("end") or "23:59",
+                "category": slot.get("category") or ""
+            })
+    if migrated:
+        settings["playback_schedules"] = migrated
+        save_settings(settings)
+    else:
+        settings["playback_schedules"] = []
+        save_settings(settings)
+    return migrated
+
+
+def _get_valid_same_day_schedule_times(schedule):
+    """Return a valid same-day time range, or None for malformed/overnight entries."""
+    try:
+        start = datetime.strptime(schedule.get("start", "00:00"), "%H:%M").time()
+        end = datetime.strptime(schedule.get("end", "23:59"), "%H:%M").time()
+    except (TypeError, ValueError):
+        return None
+
+    # An end time equal to or earlier than the start time would cross midnight.
+    # Reject it rather than carrying the schedule into the following day.
+    if end <= start:
+        return None
+
+    return start, end
+
+
+def _schedule_time_matches(schedule, day_name, now):
+    """Match only valid same-day schedules; overnight ranges are unsupported."""
+    if not schedule.get("enabled", True):
+        return False
+
+    selected_days = schedule.get("days", [])
+    if day_name not in selected_days:
+        return False
+
+    time_range = _get_valid_same_day_schedule_times(schedule)
+    if time_range is None:
+        return False
+
+    start, end = time_range
+    current = now.time()
+    return start <= current < end
+
+
 def get_days_schedule():
     settings = load_settings()
     return settings.get("days", {})
@@ -255,15 +346,19 @@ def update_days_schedule(days_schedule):
     save_settings(settings)
 
 
-def get_time_format():
+def get_time_format(settings=None):
     """
     Return the configured display time format.
+
+    An existing settings dictionary may be supplied to avoid reloading the
+    settings file when several values are needed during one page request.
 
     Returns:
         "12" for 12-hour display.
         "24" for 24-hour display.
     """
-    settings = load_settings()
+    if not isinstance(settings, dict):
+        settings = load_settings()
     time_format = settings.get("time_format", "12")
 
     if time_format not in ("12", "24"):
@@ -364,200 +459,90 @@ def get_secondary_video_mode():
     return playlist.get("secondary_video_mode", "sync_tag")
 
 
-def is_schedule_enabled_now():
-    """
-    Returns True if the schedule is active now.
-    Checks both slot1 and slot2 for today's schedule.
-    """
-    settings = load_settings()
-    days = settings.get("days", {})
-    now = datetime.now()
-    current_day = now.strftime("%A")
-    now_time = now.time()
-    today_schedule = days.get(current_day, {})
+def is_schedule_enabled_now(settings=None, now=None):
+    """Return whether playback is allowed by today's same-day schedules.
 
-    if (
-        not today_schedule.get("slot1", {}).get("enabled", False)
-        and not today_schedule.get("slot2", {}).get("enabled", False)
-    ):
+    If no enabled schedule applies to today, playback is unrestricted for the day.
+    Overnight ranges are not supported and never carry over from the previous day.
+    """
+    if not isinstance(settings, dict):
+        settings = load_settings()
+    now = now if isinstance(now, datetime) else datetime.now()
+    schedules = get_playback_schedules(settings)
+    today = now.strftime("%A")
+    today_schedules = [
+        schedule for schedule in schedules
+        if (
+            today in schedule.get("days", [])
+            and schedule.get("enabled", True)
+            and _get_valid_same_day_schedule_times(schedule) is not None
+        )
+    ]
+
+    if not today_schedules:
         return True
 
-    for slot_key in ["slot1", "slot2"]:
-        slot = today_schedule.get(slot_key, {})
-
-        if not slot.get("enabled", False):
-            continue
-
-        start_str = slot.get("start", "00:00")
-        end_str = slot.get("end", "23:59")
-
-        try:
-            start_time = datetime.strptime(start_str, "%H:%M").time()
-            end_time = datetime.strptime(end_str, "%H:%M").time()
-        except Exception as e:
-            log(
-                f"Failed to parse times for "
-                f"{current_day} {slot_key}: {e}",
-                "SCHEDULE"
-            )
-            continue
-
-        if start_time <= now_time < end_time:
-            return True
-
-    return False
+    return any(_schedule_time_matches(schedule, today, now) for schedule in today_schedules)
 
 
 def is_current_schedule_active():
-    """
-    Returns True if any slot of today's schedule is currently active.
-    """
+    """True only when an enabled scheduled period is active (not the all-day fallback)."""
     settings = load_settings()
-    days = settings.get("days", {})
     now = datetime.now()
-    current_day = now.strftime("%A")
-    now_time = now.time()
-    today_schedule = days.get(current_day, {})
+    today = now.strftime("%A")
+    schedules = get_playback_schedules(settings)
+    return any(_schedule_time_matches(s, today, now) for s in schedules)
 
-    for slot_key in ["slot1", "slot2"]:
-        slot = today_schedule.get(slot_key, {})
 
-        if not slot.get("enabled", False):
+def get_next_start_time(settings, time_format=None, now=None):
+    """Return the next enabled schedule start time and its tag."""
+    now = now if isinstance(now, datetime) else datetime.now()
+    upcoming = []
+    for schedule in get_playback_schedules(settings):
+        if not schedule.get("enabled", True):
             continue
-
-        start_str = slot.get("start", "00:00")
-        end_str = slot.get("end", "23:59")
-
-        try:
-            start_time = datetime.strptime(start_str, "%H:%M").time()
-            end_time = datetime.strptime(end_str, "%H:%M").time()
-        except Exception as e:
-            log(
-                f"Failed to parse start/end times for "
-                f"{current_day} {slot_key}: {e}",
-                "SCHEDULE"
-            )
-            continue
-
-        if start_time <= now_time < end_time:
-            return True
-
-    return False
-
-
-def get_next_start_time(settings):
-    """
-    Returns the earliest upcoming start time and its category
-    from all enabled slots across the next 7 days.
-    """
-    days = settings.get("days", {})
-    now = datetime.now()
-    upcoming_slots = []
-
-    for i in range(7):
-        check_date = now.date() + timedelta(days=i)
-        day_name = check_date.strftime("%A")
-        schedule = days.get(day_name, {})
-
-        for slot_key in ["slot1", "slot2"]:
-            slot = schedule.get(slot_key, {})
-
-            if not slot.get("enabled", False):
-                continue
-
-            start_str = slot.get("start", "00:00")
-            category = slot.get("category")
-
-            try:
-                start_time = datetime.strptime(
-                    start_str,
-                    "%H:%M"
-                ).time()
-
-                start_dt = datetime.combine(
-                    check_date,
-                    start_time
-                )
-
-            except Exception as e:
-                log(
-                    f"Failed to parse start time for "
-                    f"{day_name} {slot_key}: {e}",
-                    "SCHEDULE"
-                )
-                continue
-
-            if start_dt > now:
-                upcoming_slots.append(
-                    (start_dt, day_name, category)
-                )
-
-    if not upcoming_slots:
+        for day in schedule.get("days", []):
+            for offset in range(8):
+                check_date = now.date() + timedelta(days=offset)
+                if check_date.strftime("%A") != day:
+                    continue
+                try:
+                    start_time = datetime.strptime(schedule.get("start", "00:00"), "%H:%M").time()
+                    end_time = datetime.strptime(schedule.get("end", "23:59"), "%H:%M").time()
+                except (TypeError, ValueError):
+                    continue
+                # Ignore malformed legacy entries that cross midnight.
+                if end_time <= start_time:
+                    continue
+                start_dt = datetime.combine(check_date, start_time)
+                if start_dt > now:
+                    upcoming.append((start_dt, schedule.get("category", "")))
+    if not upcoming:
         return None, None
-
-    next_start_dt, next_day, next_category = min(
-        upcoming_slots,
-        key=lambda x: x[0]
-    )
-
-    time_format = get_time_format()
-
-    if time_format == "24":
-        formatted_time = next_start_dt.strftime("%H:%M")
-    else:
-        formatted_time = next_start_dt.strftime("%I:%M %p")
-
-    return f"{next_day} {formatted_time}", next_category
+    next_start, category = min(upcoming, key=lambda item: item[0])
+    time_format = time_format if time_format in ("12", "24") else get_time_format(settings)
+    formatted = next_start.strftime("%H:%M" if time_format == "24" else "%I:%M %p")
+    return f"{next_start.strftime('%A')} {formatted}", category
 
 
 def get_current_scheduler_category():
-    """
-    Returns the category/tag of the currently active schedule period.
-    """
+    """Return the tag for the active schedule; overlapping schedules combine tags."""
     settings = load_settings()
-    days = settings.get("days", {})
     now = datetime.now()
-    current_day = now.strftime("%A")
-    now_time = now.time()
-    today_schedule = days.get(current_day, {})
-
-    for slot_key in ["slot1", "slot2"]:
-        slot = today_schedule.get(slot_key, {})
-
-        if not slot.get("enabled", False):
-            continue
-
-        start_str = slot.get("start", "00:00")
-        end_str = slot.get("end", "23:59")
-        category = slot.get("category", None)
-
-        try:
-            start_time = datetime.strptime(
-                start_str,
-                "%H:%M"
-            ).time()
-
-            end_time = datetime.strptime(
-                end_str,
-                "%H:%M"
-            ).time()
-
-        except Exception as e:
-            log(
-                f"Failed to parse start/end times for "
-                f"{current_day} {slot_key}: {e}",
-                "SCHEDULE"
-            )
-            continue
-
-        if start_time <= now_time < end_time:
-            return category
-
-    return None
+    today = now.strftime("%A")
+    active = [
+        schedule for schedule in get_playback_schedules(settings)
+        if _schedule_time_matches(schedule, today, now)
+    ]
+    # Existing playback code accepts one tag. The first active row wins;
+    # an empty tag means all active videos are eligible for that period.
+    return (active[0].get("category") or None) if active else None
 
 
-def get_playlist_settings():
-    settings = load_settings()
+def get_playlist_settings(settings=None):
+    """Return playlist settings, optionally reusing an already-loaded settings dictionary."""
+    if not isinstance(settings, dict):
+        settings = load_settings()
     playlist = settings.get("playlist", {})
 
     return (

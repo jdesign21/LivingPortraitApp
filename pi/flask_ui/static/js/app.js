@@ -82,9 +82,239 @@ document.querySelectorAll(".tomselect").forEach(el => {
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    
+    // Submit tag-management forms without navigating away, so the modal stays open.
+    async function handleTagFormSubmit(event) {
+        if (event.defaultPrevented) return; // Respect delete confirmation prompts.
 
-    // ========================================================
+        event.preventDefault();
+        const form = event.currentTarget;
+        const modal = form.closest('.modal');
+        if (!modal) return;
+
+        form.querySelectorAll('button[type="submit"], button:not([type])').forEach(button => {
+            button.disabled = true;
+        });
+
+        // Give visible feedback while tags are being pushed to secondary Pis.
+        if (form.id === 'syncTagsForm') {
+            const spinner = document.getElementById('syncTagsSpinner');
+            const icon = document.getElementById('syncTagsIcon');
+            const buttonText = document.getElementById('syncTagsButtonText');
+            const progress = document.getElementById('syncTagsProgress');
+
+            spinner?.classList.remove('d-none');
+            icon?.classList.add('d-none');
+            if (buttonText) buttonText.textContent = 'Syncing Tags...';
+            progress?.classList.remove('d-none');
+        }
+
+        try {
+            const response = await fetch(form.action, {
+                method: (form.method || 'POST').toUpperCase(),
+                body: new FormData(form),
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (form.id === 'syncTagsForm') {
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || data.message || `Request failed (${response.status})`);
+                const spinner = document.getElementById('syncTagsSpinner');
+                const icon = document.getElementById('syncTagsIcon');
+                const buttonText = document.getElementById('syncTagsButtonText');
+                const progress = document.getElementById('syncTagsProgress');
+                const resultContainer = document.getElementById('syncTagsResult');
+                const syncButton = document.getElementById('syncTagsSubmitBtn');
+
+                spinner?.classList.add('d-none');
+                icon?.classList.remove('d-none');
+                progress?.classList.add('d-none');
+                if (syncButton) syncButton.disabled = false;
+                if (buttonText) buttonText.textContent = 'Sync Tags to Secondaries';
+
+                if (resultContainer) {
+                    resultContainer.className = `mt-3 alert ${data.success ? 'alert-success' : 'alert-warning'}`;
+                    resultContainer.replaceChildren();
+
+                    const heading = document.createElement('div');
+                    heading.className = 'fw-semibold mb-2';
+                    heading.textContent = data.message || 'Sync completed.';
+                    resultContainer.appendChild(heading);
+
+                    (data.results || []).forEach(item => {
+                        const row = document.createElement('div');
+                        row.className = item.success ? 'text-success' : 'text-danger';
+                        row.textContent = `${item.name}${item.ip ? ' — ' + item.ip : ''}: ${item.message}`;
+                        resultContainer.appendChild(row);
+                    });
+                    resultContainer.classList.remove('d-none');
+                }
+                return;
+            }
+
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || 'Unable to update tags.');
+
+            const isSchedule = modal.id === 'scheduleTagsModal';
+            const list = modal.querySelector('.border.rounded:not(.text-center)');
+            const emptyState = modal.querySelector('.border.rounded.text-center');
+            const isDelete = form.action.includes('delete_');
+
+            if (isDelete) {
+                const row = form.closest('.d-flex.align-items-center.justify-content-between');
+                row?.remove();
+                refreshTagRowDividers(modal);
+                const remainingRows = modal.querySelectorAll('.border.rounded:not(.text-center) > .d-flex.align-items-center.justify-content-between');
+                if (!remainingRows.length) {
+                    const currentList = modal.querySelector('.border.rounded:not(.text-center)');
+                    currentList?.remove();
+                    const empty = document.createElement('div');
+                    empty.className = 'border rounded text-center text-muted p-3';
+                    empty.textContent = isSchedule ? 'No Schedule Tags have been created yet.' : 'No Sync Tags have been created yet.';
+                    modal.querySelector('.card-body')?.appendChild(empty);
+                }
+            } else {
+                const tag = data.tag;
+                if (tag) {
+                    const row = document.createElement('div');
+                    row.className = 'd-flex align-items-center justify-content-between px-3 py-2 border-bottom';
+                    const info = document.createElement('div');
+                    info.className = 'd-flex align-items-center';
+                    const icon = document.createElement('i');
+                    icon.className = isSchedule ? 'bi bi-tag text-primary me-2' : 'bi bi-link-45deg text-primary me-2';
+                    info.appendChild(icon);
+                    const label = document.createElement('span');
+                    label.className = 'fw-semibold me-3';
+                    label.textContent = isSchedule ? tag.name : tag;
+                    info.appendChild(label);
+                    const count = document.createElement('span');
+                    count.className = 'text-muted small';
+                    count.textContent = 'Not assigned';
+                    info.appendChild(count);
+                    row.appendChild(info);
+
+                    const deleteForm = document.createElement('form');
+                    deleteForm.method = 'POST';
+                    deleteForm.action = isSchedule ? '/delete_schedule_tag' : '/delete_sync_tag';
+                    deleteForm.addEventListener('submit', event => {
+                        if (!confirm(isSchedule
+                            ? 'Delete Schedule Tag ' + tag.name + '?'
+                            : 'Delete Sync Tag ' + tag + '? Any video using this tag will be cleared.')) {
+                            event.preventDefault();
+                        }
+                    });
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = isSchedule ? 'schedule_tag' : 'sync_tag';
+                    hidden.value = isSchedule ? tag.id : tag;
+                    deleteForm.appendChild(hidden);
+                    const deleteButton = document.createElement('button');
+                    deleteButton.type = 'submit';
+                    deleteButton.className = 'btn btn-outline-danger btn-sm';
+                    const deleteIcon = document.createElement('i');
+                    deleteIcon.className = 'bi bi-trash me-1';
+                    deleteIcon.setAttribute('aria-hidden', 'true');
+                    deleteButton.appendChild(deleteIcon);
+                    deleteButton.appendChild(document.createTextNode('Delete'));
+                    deleteForm.appendChild(deleteButton);
+                    row.appendChild(deleteForm);
+
+                    let targetList = list;
+                    if (!targetList) {
+                        emptyState?.remove();
+                        targetList = document.createElement('div');
+                        targetList.className = 'border rounded';
+                        modal.querySelector('.card-body')?.appendChild(targetList);
+                    }
+                    targetList.appendChild(row);
+                    refreshTagRowDividers(modal);
+                    bindTagForms(modal);
+                    const addInput = modal.querySelector('input[type="text"][name="' + (isSchedule ? 'schedule_tag' : 'sync_tag') + '"]');
+                    if (addInput) addInput.value = '';
+                }
+            }
+
+            const currentTags = data.tags || [];
+            document.querySelectorAll('select').forEach(select => {
+                const selectorName = (select.name || '') + ' ' + (select.id || '');
+                if (isSchedule) {
+                    if (!/tag|category/i.test(selectorName) || /sync/i.test(selectorName)) return;
+                } else if (!/sync/i.test(selectorName)) {
+                    return;
+                }
+                const selected = Array.from(select.selectedOptions).map(option => option.value);
+                const values = isSchedule
+                    ? currentTags.map(tag => ({ value: tag.id, label: tag.name }))
+                    : currentTags.map(tag => ({ value: tag, label: tag }));
+                const placeholder = select.querySelector('option[value=""]');
+                const emptyOption = placeholder ? placeholder.cloneNode(true) : null;
+
+                // Update the underlying select and its TomSelect UI together.
+                // Replacing native options alone leaves TomSelect displaying stale tags.
+                const tomSelect = select.tomselect;
+                if (tomSelect) {
+                    tomSelect.clear(true);
+                    tomSelect.clearOptions();
+                }
+
+                select.replaceChildren();
+                if (emptyOption) select.appendChild(emptyOption);
+                values.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.value;
+                    option.textContent = item.label;
+                    option.selected = selected.includes(item.value);
+                    select.appendChild(option);
+
+                    if (tomSelect) {
+                        tomSelect.addOption({ value: String(item.value), text: item.label });
+                    }
+                });
+
+                if (tomSelect) {
+                    const validSelected = selected.filter(value =>
+                        values.some(item => String(item.value) === String(value))
+                    );
+                    tomSelect.setValue(validSelected, true);
+                    tomSelect.refreshOptions(false);
+                }
+            });
+
+            form.querySelectorAll('button[type="submit"], button:not([type])').forEach(button => {
+                button.disabled = false;
+            });
+            if (typeof showToast === 'function') showToast(data.message || 'Tags updated.', 'success');
+        } catch (error) {
+            console.error('Unable to update tags:', error);
+            form.querySelectorAll('button[type="submit"], button:not([type])').forEach(button => {
+                button.disabled = false;
+            });
+            if (typeof showToast === 'function') showToast(error.message || 'Unable to update tags.', 'danger');
+            else window.alert(error.message || 'Unable to update tags.');
+        }
+    }
+
+    function refreshTagRowDividers(modal) {
+        if (!modal) return;
+        const list = modal.querySelector('.border.rounded:not(.text-center)');
+        if (!list) return;
+        const rows = Array.from(list.querySelectorAll(':scope > .d-flex.align-items-center.justify-content-between'));
+        rows.forEach((row, index) => {
+            row.classList.toggle('border-bottom', index < rows.length - 1);
+        });
+    }
+
+    function bindTagForms(container) {
+        if (!container) return;
+        container.querySelectorAll('form').forEach(form => {
+            if (form.dataset.ajaxTagFormBound === 'true') return;
+            form.dataset.ajaxTagFormBound = 'true';
+            form.addEventListener('submit', handleTagFormSubmit);
+        });
+    }
+
+    bindTagForms(document.getElementById('scheduleTagsModal'));
+    bindTagForms(document.getElementById('syncTagsModal'));
+
     // FILE UPLOAD
     // ========================================================
 
@@ -485,8 +715,75 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
     const uploadForm = document.getElementById('uploadForm');
 
     if (uploadForm) {
-        uploadForm.addEventListener('submit', () => {
-            document.getElementById('loadingOverlay').style.display = 'flex';
+        uploadForm.addEventListener('submit', async event => {
+            if (event.defaultPrevented) return;
+            event.preventDefault();
+
+            const overlay = document.getElementById('loadingOverlay');
+            const errorBox = document.getElementById('uploadError');
+            const uploadButton = document.getElementById('uploadBtn');
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput || !fileInput.files.length) return;
+
+            if (overlay) overlay.style.display = 'flex';
+            if (errorBox) {
+                errorBox.classList.add('d-none');
+                errorBox.classList.remove('alert-success');
+                errorBox.classList.add('alert-danger');
+                errorBox.textContent = '';
+            }
+            if (uploadButton) uploadButton.disabled = true;
+
+            try {
+                const response = await fetch(uploadForm.action, {
+                    method: 'POST',
+                    body: new FormData(uploadForm),
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || (data.errors || []).join('\n') || 'Upload failed.');
+                }
+
+                if (overlay) overlay.style.display = 'none';
+                if (errorBox) {
+                    errorBox.classList.remove('d-none', 'alert-danger');
+                    errorBox.classList.add('alert-success');
+                    errorBox.textContent = 'Uploaded: ' + (data.uploaded || []).join(', ') + '. Close this window to refresh the video list.';
+                }
+                const cancelButton = uploadForm.querySelector('[data-bs-dismiss="modal"]');
+                if (cancelButton) cancelButton.textContent = 'Close & Refresh';
+                const modalElement = document.getElementById('uploadModal');
+                if (modalElement) {
+                    modalElement.addEventListener('hidden.bs.modal', () => {
+                        // The upload is complete, but rebuilding the video list can
+                        // take several seconds while metadata is collected and saved.
+                        // Keep the user informed while the page reloads.
+                        const loadingMessage = overlay
+                            ? overlay.querySelector('p')
+                            : null;
+                        if (loadingMessage) {
+                            loadingMessage.textContent = 'Refreshing video list, please wait...';
+                        }
+                        if (overlay) overlay.style.display = 'flex';
+                        window.location.reload();
+                    }, { once: true });
+                }
+                if (uploadButton) {
+                    uploadButton.disabled = true;
+                    uploadButton.innerHTML = '<i class="bi bi-check-circle me-1"></i> Uploaded';
+                }
+            } catch (error) {
+                if (overlay) overlay.style.display = 'none';
+                if (errorBox) {
+                    errorBox.classList.remove('d-none');
+                    errorBox.textContent = error.message || 'Upload failed.';
+                } else {
+                    window.alert(error.message || 'Upload failed.');
+                }
+                if (uploadButton) uploadButton.disabled = false;
+            }
         });
     }
 
@@ -503,62 +800,213 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
         });
     }
 
-    // ========================================================
-    // SYNC TAGS
-    // ========================================================
-
-    const syncTagsForm = document.getElementById('syncTagsForm');
-    const syncTagsLoading = document.getElementById('syncTagsLoading');
-
-    if (syncTagsForm && syncTagsLoading) {
-        syncTagsForm.addEventListener('submit', () => {
-            syncTagsLoading.style.display = 'flex';
-        });
-    }
+    // Sync Tags progress is managed by handleTagFormSubmit above.
+    // Do not show the global overlay here: the AJAX request does not navigate
+    // away, so a submit-only overlay would remain visible after the sync ends.
 
     // ========================================================
     // DRAG & DROP UPLOAD
     // ========================================================
 
     if (dropArea && fileInput) {
+        const chooseFilesBtn = document.getElementById('chooseFilesBtn');
+        const uploadError = document.getElementById('uploadError');
+
+        if (chooseFilesBtn) {
+            chooseFilesBtn.addEventListener('click', () => fileInput.click());
+        }
+
         ['dragenter', 'dragover'].forEach(eventName => {
-            dropArea.addEventListener(eventName, e => {
-                e.preventDefault();
-                e.stopPropagation();
-                dropArea.classList.add('border-success', 'bg-light');
+            dropArea.addEventListener(eventName, event => {
+                event.preventDefault();
+                event.stopPropagation();
+                dropArea.classList.add('border-primary', 'bg-light');
             });
         });
 
         ['dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, e => {
-                e.preventDefault();
-                e.stopPropagation();
-                dropArea.classList.remove('border-success', 'bg-light');
+            dropArea.addEventListener(eventName, event => {
+                event.preventDefault();
+                event.stopPropagation();
+                dropArea.classList.remove('border-primary', 'bg-light');
             });
         });
 
-        dropArea.addEventListener('drop', e => {
-            const files = e.dataTransfer.files;
-            if (files.length > 0) handleFile(files[0]);
+        dropArea.addEventListener('drop', event => {
+            setSelectedFiles(Array.from(event.dataTransfer.files));
         });
 
-        fileInput.addEventListener('change', e => {
-            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        fileInput.addEventListener('change', () => {
+            setSelectedFiles(Array.from(fileInput.files));
         });
 
-        function handleFile(file) {
-            if (file.type === "video/mp4") {
-                const dt = new DataTransfer();
-                dt.items.add(file);
-                fileInput.files = dt.files;
-                fileName.textContent = `Selected: ${file.name}`;
-                uploadBtn.disabled = false;
-            } else {
-                fileName.textContent = "Please upload a valid MP4 file.";
-                uploadBtn.disabled = true;
+        function setSelectedFiles(files) {
+            const validFiles = files.filter(file =>
+                file.name.toLowerCase().endsWith('.mp4') &&
+                (!file.type || file.type === 'video/mp4' || file.type === 'application/octet-stream')
+            );
+
+            if (uploadError) {
+                uploadError.textContent = '';
+                uploadError.classList.add('d-none');
             }
+
+            if (validFiles.length !== files.length || files.length === 0) {
+                if (uploadError) {
+                    uploadError.textContent = 'Please select one or more valid MP4 files.';
+                    uploadError.classList.remove('d-none');
+                }
+                uploadBtn.disabled = true;
+                fileName.textContent = '';
+                fileInput.value = '';
+                return;
+            }
+
+            const transfer = new DataTransfer();
+            validFiles.forEach(file => transfer.items.add(file));
+            fileInput.files = transfer.files;
+
+            fileName.replaceChildren();
+            const list = document.createElement('ul');
+            list.className = 'list-group list-group-flush';
+            validFiles.forEach(file => {
+                const item = document.createElement('li');
+                item.className = 'list-group-item px-0';
+                item.dataset.uploadRow = 'true';
+                item.dataset.filename = file.name;
+
+                const top = document.createElement('div');
+                top.className = 'd-flex justify-content-between align-items-center gap-3 mb-2';
+                const name = document.createElement('span');
+                name.className = 'text-break fw-medium';
+                name.textContent = file.name;
+                const size = document.createElement('span');
+                size.className = 'text-muted small text-nowrap';
+                size.textContent = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+                top.append(name, size);
+
+                const bottom = document.createElement('div');
+                bottom.className = 'd-flex align-items-center gap-2';
+                const progress = document.createElement('div');
+                progress.className = 'progress upload-file-progress flex-grow-1';
+                progress.setAttribute('role', 'progressbar');
+                progress.setAttribute('aria-label', 'Upload progress for ' + file.name);
+                progress.setAttribute('aria-valuemin', '0');
+                progress.setAttribute('aria-valuemax', '100');
+                progress.setAttribute('aria-valuenow', '0');
+                const bar = document.createElement('div');
+                bar.className = 'progress-bar';
+                bar.style.width = '0%';
+                progress.appendChild(bar);
+                const status = document.createElement('span');
+                status.className = 'upload-file-status small text-muted text-nowrap';
+                status.textContent = 'Waiting';
+                bottom.append(progress, status);
+                item.append(top, bottom);
+                list.appendChild(item);
+            });
+            fileName.appendChild(list);
+            uploadBtn.disabled = false;
         }
-    }
+
+        const uploadForm = document.getElementById('uploadForm');
+        if (uploadForm) {
+            uploadForm.addEventListener('submit', async event => {
+                event.preventDefault();
+                const files = Array.from(fileInput.files);
+                if (!files.length) return;
+
+                uploadBtn.disabled = true;
+                const originalButton = uploadBtn.innerHTML;
+                uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...';
+                if (uploadError) {
+                    uploadError.classList.add('d-none');
+                    uploadError.textContent = '';
+                }
+
+                const rows = Array.from(fileName.querySelectorAll('[data-upload-row]'));
+                let completed = 0;
+                let failed = 0;
+
+                const uploadOne = file => new Promise(resolve => {
+                    const row = rows.find(element => element.dataset.filename === file.name);
+                    const progress = row?.querySelector('.upload-file-progress');
+                    const status = row?.querySelector('.upload-file-status');
+                    const bar = row?.querySelector('.progress-bar');
+                    const formData = new FormData();
+                    formData.append('file', file, file.name);
+
+                    const csrf = uploadForm.querySelector('input[name="csrf_token"]');
+                    if (csrf) formData.append('csrf_token', csrf.value);
+
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', uploadForm.action);
+                    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+                    xhr.upload.addEventListener('progress', event => {
+                        if (!event.lengthComputable || !bar || !status) return;
+                        const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+                        bar.style.width = percent + '%';
+                        bar.setAttribute('aria-valuenow', String(percent));
+                        status.textContent = percent + '%';
+                    });
+
+                    xhr.addEventListener('load', () => {
+                        let result = {};
+                        try { result = JSON.parse(xhr.responseText); } catch (_) {}
+                        if (xhr.status >= 200 && xhr.status < 300 && result.success) {
+                            completed++;
+                            if (bar) {
+                                bar.style.width = '100%';
+                                bar.classList.add('bg-success');
+                            }
+                            if (status) status.textContent = 'Complete';
+                            if (progress) progress.classList.add('upload-complete');
+                            resolve({ success: true, file });
+                        } else {
+                            failed++;
+                            if (bar) bar.classList.add('bg-danger');
+                            if (status) status.textContent = 'Failed';
+                            resolve({ success: false, file, error: result.error || 'Server rejected the upload.' });
+                        }
+                    });
+
+                    xhr.addEventListener('error', () => {
+                        failed++;
+                        if (bar) bar.classList.add('bg-danger');
+                        if (status) status.textContent = 'Network error';
+                        resolve({ success: false, file, error: 'Network error while uploading ' + file.name });
+                    });
+
+                    xhr.send(formData);
+                });
+
+                // Upload files one at a time so each file has its own accurate progress bar.
+                const results = [];
+                for (const file of files) {
+                    const row = rows.find(element => element.dataset.filename === file.name);
+                    const status = row?.querySelector('.upload-file-status');
+                    if (status) status.textContent = 'Uploading…';
+                    results.push(await uploadOne(file));
+                }
+
+                if (failed === 0) {
+                    if (uploadError) {
+                        uploadError.className = 'alert alert-success mt-3 mb-0';
+                        uploadError.textContent = 'Successfully uploaded ' + completed + ' video(s). Refreshing the video library…';
+                    }
+                    window.location.reload();
+                } else {
+                    if (uploadError) {
+                        uploadError.className = 'alert alert-danger mt-3 mb-0';
+                        uploadError.textContent = completed + ' uploaded; ' + failed + ' failed. Failed files are marked below. Close this dialog and select those files again to retry.';
+                    }
+                    uploadBtn.disabled = false;
+                    uploadBtn.innerHTML = originalButton;
+                    fileInput.value = '';
+                }
+            });
+        }
 
 
 // ========================================================
@@ -1525,19 +1973,155 @@ if (updateNowBtn) {
     }
 
 
+    }
 });
 
 // ============================================================
 // GLOBAL FUNCTIONS
 // ============================================================
 
-function deleteVideo(filename) {
-    if (confirm(`Delete ${filename}?`)) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/delete/${filename}`;
-        document.body.appendChild(form);
-        form.submit();
+async function deleteVideo(filename) {
+    if (!confirm(`Delete ${filename}?`)) return;
+
+    const item = Array.from(document.querySelectorAll('.video-library-item'))
+        .find(row => row.querySelector('input[name$="[filename]"]')?.value === filename);
+    const button = item?.querySelector('button[aria-label^="Delete"]');
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>';
+    }
+
+    try {
+        const response = await fetch(`/delete/${encodeURIComponent(filename)}`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Unable to delete video.');
+        }
+
+        item?.remove();
+        const list = document.getElementById('videoLibraryList');
+        if (list && !list.querySelector('.video-library-item')) {
+            list.innerHTML = '<li class="list-group-item text-muted">No videos found.</li>';
+        }
+        if (typeof showToast === 'function') showToast(data.message || 'Video deleted.', 'success');
+    } catch (error) {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-trash" aria-hidden="true"></i>';
+        }
+        window.alert(error.message || 'Unable to delete video.');
     }
 }
 
+
+
+// ============================================================
+// ON-DEMAND SECONDARY PI DISCOVERY
+// ============================================================
+(() => {
+    const button = document.getElementById('refreshDiscoveredSecondaryBtn');
+    const list = document.getElementById('discoveredSecondaryList');
+    if (!button || !list) return;
+
+    button.addEventListener('click', async () => {
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Discovering...';
+        list.replaceChildren();
+        const loading = document.createElement('div');
+        loading.className = 'border rounded text-center text-muted p-4';
+        loading.textContent = 'Checking for secondary Pis...';
+        list.appendChild(loading);
+
+        try {
+            const response = await fetch(button.dataset.url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                }
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || 'Discovery failed.');
+
+            list.replaceChildren();
+            const devices = data.devices || [];
+            if (!devices.length) {
+                const empty = document.createElement('div');
+                empty.className = 'border rounded text-center text-muted p-4';
+                empty.textContent = 'No secondary Pis found yet. Make sure the secondary is running LivingPortraitApp on the same local network, then refresh.';
+                list.appendChild(empty);
+                return;
+            }
+
+            devices.forEach(device => {
+                const item = document.createElement('div');
+                item.className = 'list-group-item';
+                const row = document.createElement('div');
+                row.className = 'd-flex flex-wrap justify-content-between align-items-center gap-3';
+                const info = document.createElement('div');
+                info.className = 'flex-grow-1';
+                const name = document.createElement('div');
+                name.className = 'fw-semibold';
+                name.textContent = device.name || 'Secondary Pi';
+                const ip = document.createElement('div');
+                ip.className = 'text-muted small';
+                ip.textContent = device.ip || '';
+                const version = document.createElement('div');
+                version.className = 'text-muted small';
+                version.textContent = 'Version ' + (device.version || 'unknown') + ' · Seen ' + (device.last_seen_label || 'recently');
+                info.append(name, ip, version);
+                row.appendChild(info);
+
+                const actions = document.createElement('div');
+                if (device.is_configured && !device.ip_changed) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-success';
+                    badge.textContent = 'Added';
+                    actions.appendChild(badge);
+                } else {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/network/add_discovered_secondary';
+                    form.className = 'd-inline';
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = 'device_id';
+                    hidden.value = device.device_id || '';
+                    form.appendChild(hidden);
+                    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+                    if (csrf) {
+                        const csrfInput = document.createElement('input');
+                        csrfInput.type = 'hidden';
+                        csrfInput.name = 'csrf_token';
+                        csrfInput.value = csrf;
+                        form.appendChild(csrfInput);
+                    }
+                    const add = document.createElement('button');
+                    add.type = 'submit';
+                    add.className = 'btn btn-outline-primary btn-sm';
+                    add.textContent = device.ip_changed ? 'Update IP' : (device.needs_link ? 'Link Device' : 'Add');
+                    form.appendChild(add);
+                    actions.appendChild(form);
+                }
+                row.appendChild(actions);
+                item.appendChild(row);
+                list.appendChild(item);
+            });
+        } catch (error) {
+            list.replaceChildren();
+            const failure = document.createElement('div');
+            failure.className = 'alert alert-danger mb-0';
+            failure.textContent = error.message || 'Unable to discover secondary Pis.';
+            list.appendChild(failure);
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+    });
+})();

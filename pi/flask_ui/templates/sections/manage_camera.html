@@ -1,44 +1,27 @@
 <section id="manage" class="section">
   <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
-    <i class="bi bi-folder2-open"></i> Manage Videos
+    <i class="bi bi-folder2-open"></i> Videos
   </h3>
 
-  <!-- Tabs -->
-  <ul class="nav nav-tabs mb-3" id="manageTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-      <button class="nav-link active" id="videos-tab" data-bs-toggle="tab" data-bs-target="#videos-pane"
-        type="button" role="tab" aria-controls="videos-pane" aria-selected="true">
-        Videos
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload-pane"
-        type="button" role="tab" aria-controls="upload-pane" aria-selected="false">
-        Upload
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="schedule-tags-tab" data-bs-toggle="tab" data-bs-target="#schedule-tags-pane"
-        type="button" role="tab" aria-controls="schedule-tags-pane" aria-selected="false">
-        Schedule Tags
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="sync-tags-tab" data-bs-toggle="tab" data-bs-target="#sync-tags-pane"
-        type="button" role="tab" aria-controls="sync-tags-pane" aria-selected="false">
-        Sync Tags
-      </button>
-    </li>
-  </ul>
-
-  <div class="tab-content" id="manageTabsContent">
+  <div id="manageTabsContent">
 
     <!-- Videos Tab -->
-<div class="tab-pane fade show active" id="videos-pane" role="tabpanel" aria-labelledby="videos-tab">
+<div id="videos-pane">
   <form method="POST" action="{{ url_for('update_all') }}">
     <div class="card shadow-sm">
-      <div class="card-header bg-primary text-white">
-        <strong>Videos</strong>
+      <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <strong><i class="bi bi-collection-play me-1"></i> Video Library</strong>
+        <div class="d-flex flex-wrap gap-2" aria-label="Video library actions">
+          <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#scheduleTagsModal">
+            <i class="bi bi-tags me-1"></i> Schedule Tags
+          </button>
+          <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#syncTagsModal">
+            <i class="bi bi-arrow-repeat me-1"></i> Sync Tags
+          </button>
+          <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            <i class="bi bi-cloud-arrow-up me-1"></i> Upload Video
+          </button>
+        </div>
       </div>
       <div class="card-body">
         <p class="text-muted small mb-4">
@@ -47,27 +30,123 @@
           and schedules to determine which videos are available for playback.
         </p>
 
-        <ul class="list-group">
+        <div class="video-library-toolbar d-flex flex-wrap align-items-center gap-2 mb-3">
+          <div class="video-search-control flex-grow-1">
+            <label class="visually-hidden" for="videoSearch">Search videos</label>
+            <input type="search" class="form-control" id="videoSearch" placeholder="Search videos by name...">
+          </div>
+          <div class="video-tag-control">
+            <label class="visually-hidden" for="videoTagFilter">Filter by tag</label>
+            <select class="form-select" id="videoTagFilter">
+              <option value="">All tags</option>
+              {% for tag in schedule_tags %}
+              <option value="{{ tag.name|lower }}">{{ tag.name }}</option>
+              {% endfor %}
+              {% for tag in sync_tags %}
+              {% if tag|lower not in schedule_tags|map(attribute='name')|map('lower')|list %}
+              <option value="{{ tag|lower }}">{{ tag }} (Sync)</option>
+              {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+          <div class="video-sort-control">
+            <label class="visually-hidden" for="videoSort">Sort videos</label>
+            <select class="form-select" id="videoSort">
+              <option value="name-asc">Name (A–Z)</option>
+              <option value="name-desc">Name (Z–A)</option>
+            </select>
+          </div>
+          <div class="video-layout-control d-flex justify-content-end gap-1 flex-shrink-0">
+            <div class="btn-group" role="group" aria-label="Video layout">
+              <button type="button" class="btn btn-outline-secondary active" id="videoListView" aria-pressed="true" title="List view">
+                <i class="bi bi-list-ul"></i> List
+              </button>
+              <button type="button" class="btn btn-outline-secondary" id="videoGridView" aria-pressed="false" title="Grid view">
+                <i class="bi bi-grid-3x3-gap"></i> Grid
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="video-library-column-headings" aria-hidden="true">
+          <div>Video</div>
+          <div>Enable</div>
+          <div>Mute Audio</div>
+          <div>Schedule Tags</div>
+          <div>Sync Tag</div>
+          <div>Actions</div>
+        </div>
+        <ul class="list-group video-library-list video-library-list-view" id="videoLibraryList">
           {% for video in manage_videos %}
-          <li class="list-group-item">
+          <li class="list-group-item video-library-item"
+              data-video-name="{{ video.filename|lower }}"
+              data-video-tags="{% for tag in schedule_tags %}{% if tag.id in video.get('tags', []) %}|{{ tag.name|lower }}{% endif %}{% endfor %}{% if video.get('sync_tag', '') %}|{{ video.get('sync_tag', '')|lower }}{% endif %}|">
             <div class="row g-3 align-items-center">
-              <!-- Video / Enable -->
-              <div class="col-12 col-lg-4">
+              <!-- Thumbnail and filename -->
+              <div class="col-12 col-lg-3">
                 <input type="hidden" name="videos[{{ loop.index0 }}][filename]" value="{{ video.filename }}">
+                <input type="hidden" name="videos[{{ loop.index0 }}][thumbnail_rotation]"
+                  value="{{ video.get('thumbnail_rotation', 0) }}" class="thumbnail-rotation-value">
+                <div class="d-flex align-items-center gap-3">
+                  <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rotate-thumbnail-btn"
+                      data-filename="{{ video.filename }}"
+                      aria-label="Rotate thumbnail for {{ video.filename }}" title="Rotate thumbnail 90° clockwise">
+                      <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                    </button>
+                    <div class="video-thumbnail">
+                      <i class="bi bi-film video-thumbnail-placeholder" aria-hidden="true"></i>
+                      <img data-src="{{ url_for('thumbnail_file', filename=video.filename) }}"
+                        alt="Thumbnail for {{ video.filename }}"
+                        data-rotation="{{ video.get('thumbnail_rotation', 0) }}"
+                        loading="lazy"
+                        onerror="this.style.display='none'">
+                    </div>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="fw-semibold video-filename text-break">{{ video.filename }}</div>
+                    <div class="small video-file-details mt-1">
+                      <span>{{ video.get('file_size') or '—' }}</span>
+                      <span class="text-muted mx-1">·</span>
+                      <span>{{ video.get('resolution') or '—' }}</span>
+                      <span class="text-muted mx-1">·</span>
+                      <span>{{ video.get('duration') or '—' }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Enable (separate column) -->
+              <div class="col-6 col-lg-1">
+                <div class="video-field-label">Enable</div>
                 <div class="form-check form-switch">
                   <input class="form-check-input" type="checkbox" id="activeSwitch-{{ loop.index0 }}"
                     name="videos[{{ loop.index0 }}][active]" value="true" {% if video.active %}checked{% endif %}>
-                  <label class="form-check-label fw-semibold" for="activeSwitch-{{ loop.index0 }}">
-                    {{ video.filename }}
+                </div>
+              </div>
+
+              <!-- Mute Audio -->
+              <div class="col-6 col-lg-1 video-audio-control">
+                <div class="video-field-label">Mute Audio</div>
+                <div class="mute-audio-toggle-wrap">
+                  <input class="mute-audio-checkbox" type="checkbox"
+                    id="muteAudio-{{ loop.index0 }}"
+                    name="videos[{{ loop.index0 }}][mute_audio]"
+                    aria-label="Mute audio for {{ video.filename }}"
+                    title="Mute audio"
+                    value="true"
+                    {% if video.get('mute_audio', False) %}checked{% endif %}>
+                  <label class="mute-audio-toggle" for="muteAudio-{{ loop.index0 }}"
+                    title="{% if video.get('mute_audio', False) %}Audio muted — click to unmute{% else %}Audio on — click to mute{% endif %}">
+                    <i class="bi bi-volume-up-fill audio-on-icon" aria-hidden="true"></i>
+                    <i class="bi bi-volume-mute-fill audio-muted-icon" aria-hidden="true"></i>
                   </label>
                 </div>
               </div>
 
               <!-- Schedule Tags -->
               <div class="col-12 col-lg-3">
-                <label class="form-label small text-muted mb-1">
-                  Schedule Tags
-                </label>
+                <div class="video-field-label">Schedule Tags</div>
                 <select name="videos[{{ loop.index0 }}][tags][]" class="form-select form-select-sm tomselect" multiple>
                   {% for tag in schedule_tags %}
                   <option value="{{ tag.id }}" {% if tag.id in video.get('tags', []) %}selected{% endif %}>
@@ -79,9 +158,7 @@
 
               <!-- Sync Tag -->
               <div class="col-12 col-lg-2">
-                <label class="form-label small text-muted mb-1" for="syncTag-{{ loop.index0 }}">
-                  Sync Tag
-                </label>
+                <div class="video-field-label">Sync Tag</div>
                 <select class="form-select form-select-sm" id="syncTag-{{ loop.index0 }}"
                   name="videos[{{ loop.index0 }}][sync_tag]">
                   <option value="">None</option>
@@ -93,28 +170,13 @@
                 </select>
               </div>
 
-              <!-- Mute Audio -->
-              <div class="col-12 col-lg-2">
-                <label class="form-label small text-muted mb-1 d-block">
-                  Mute Audio
-                </label>
-                <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox"
-                    id="muteAudio-{{ loop.index0 }}"
-                    name="videos[{{ loop.index0 }}][mute_audio]"
-                    value="true"
-                    {% if video.get('mute_audio', False) %}checked{% endif %}>
-                  <label class="form-check-label" for="muteAudio-{{ loop.index0 }}">
-                    Mute
-                  </label>
-                </div>
-              </div>
-
               <!-- Delete Video -->
               <div class="col-12 col-lg-1">
-                <button type="button" class="btn btn-danger btn-sm w-100"
-                  onclick="deleteVideo('{{ video.filename }}')">
-                  Delete
+                <button type="button" class="btn btn-outline-danger btn-sm"
+                  onclick="deleteVideo('{{ video.filename }}')"
+                  aria-label="Delete {{ video.filename }}"
+                  title="Delete video">
+                  <i class="bi bi-trash" aria-hidden="true"></i>
                 </button>
               </div>
             </div>
@@ -125,6 +187,29 @@
           </li>
           {% endfor %}
         </ul>
+        <script>
+          // Defer thumbnail requests until they are near the viewport. This
+          // prevents the dashboard from launching FFmpeg for every video at once.
+          (function () {
+            const images = document.querySelectorAll('#videos-pane .video-thumbnail img[data-src]');
+            if (!('IntersectionObserver' in window)) {
+              images.forEach(img => { img.src = img.dataset.src; img.removeAttribute('data-src'); });
+              return;
+            }
+            const observer = new IntersectionObserver(entries => {
+              entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                  const img = entry.target;
+                  img.src = img.dataset.src;
+                  img.removeAttribute('data-src');
+                  observer.unobserve(img);
+                }
+              });
+            }, { rootMargin: '200px' });
+            images.forEach(img => observer.observe(img));
+          })();
+        </script>
+
 
     <div class="text-end mt-3">
       <button type="submit" class="btn btn-primary">
@@ -138,248 +223,135 @@
   </form>
 </div>
 
-    <!-- Upload Tab -->
-    <div class="tab-pane fade" id="upload-pane" role="tabpanel" aria-labelledby="upload-tab">
-      <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white">
-          <strong>Upload Video</strong>
-        </div>
-
-        <div class="card-body">
-          <p class="text-muted small mb-4">
-            Upload new MP4 videos by dragging them here or selecting from your device.
-          </p>
-
-          <div class="text-center">
-            <form id="uploadForm" method="POST" action="{{ url_for('upload') }}" enctype="multipart/form-data">
-              <div id="dropArea" class="border border-3 border-secondary rounded p-5 bg-light">
-                <p class="mb-2">Drag &amp; drop an MP4 file here</p>
-                <p class="small text-muted">or click to select</p>
-
-                <input type="file" id="fileInput" name="file" accept=".mp4" hidden>
-
-                <button type="button" class="btn btn-outline-secondary btn-sm"
-                  onclick="document.getElementById('fileInput').click()">
-                  Choose File
-                </button>
-
-                <p id="fileName" class="mt-3 fw-bold text-success"></p>
-              </div>
-
-              <div class="mt-3">
-                <button type="submit" class="btn btn-primary" id="uploadBtn" disabled>
-                  Upload
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Schedule Tags Tab -->
-    <div class="tab-pane fade" id="schedule-tags-pane" role="tabpanel" aria-labelledby="schedule-tags-tab">
-      <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white">
-          <strong>Schedule Tags</strong>
-        </div>
-
-        <div class="card-body">
-          <p class="text-muted small mb-3">
-            Schedule Tags are used to categorize videos for scheduled playback.
-            A video can have multiple Schedule Tags.
-          </p>
-
-          <!-- Add Schedule Tag -->
-          <div class="row g-2 align-items-end mb-4">
-            <form method="POST" action="{{ url_for('add_schedule_tag') }}" class="col-12 col-md-7">
-              <label for="newScheduleTag" class="form-label small text-muted mb-1">
-                Add Schedule Tag
-              </label>
-
-              <div class="input-group">
-                <input type="text" class="form-control" id="newScheduleTag" name="schedule_tag"
-                  placeholder="Enter a Schedule Tag" maxlength="50" required>
-
-                <button type="submit" class="btn btn-success">
-                  <i class="bi bi-plus-lg me-1"></i>
-                  Add Schedule Tag
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <!-- Available Schedule Tags -->
-          <div class="d-flex align-items-center mb-2">
-            <i class="bi bi-tags text-primary me-2"></i>
-            <strong>Available Schedule Tags</strong>
-          </div>
-
-          {% if schedule_tags %}
-          <div class="border rounded">
-            {% for tag in schedule_tags %}
-            {% set tag_video_count = namespace(count=0) %}
-
-            {% for video in manage_videos %}
-            {% if tag.id in video.get('tags', []) %}
-            {% set tag_video_count.count = tag_video_count.count + 1 %}
-            {% endif %}
-            {% endfor %}
-
-            <div class="d-flex align-items-center justify-content-between px-3 py-2 {% if not loop.last %}border-bottom{% endif %}">
-              <div class="d-flex align-items-center">
-                <i class="bi bi-tag text-primary me-2"></i>
-
-                <span class="fw-semibold me-3">
-                  {{ tag.name }}
-                </span>
-
-                <span class="text-muted small">
-                  {% if tag_video_count.count == 0 %}
-                  Not assigned
-                  {% elif tag_video_count.count == 1 %}
-                  1 video assigned
-                  {% else %}
-                  {{ tag_video_count.count }} videos assigned
-                  {% endif %}
-                </span>
-              </div>
-
-              <form method="POST" action="{{ url_for('delete_schedule_tag') }}"
-                onsubmit="return confirm('Delete Schedule Tag {{ tag.name }}?');">
-                <input type="hidden" name="schedule_tag" value="{{ tag.id }}">
-
-                <button type="submit" class="btn btn-outline-danger btn-sm">
-                  <i class="bi bi-trash me-1"></i>
-                  Delete
-                </button>
-              </form>
-            </div>
-            {% endfor %}
-          </div>
-          {% else %}
-          <div class="border rounded text-center text-muted p-3">
-            <div class="small">
-              No Schedule Tags have been created yet.
-            </div>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-    <!-- Sync Tags Tab -->
-    <div class="tab-pane fade" id="sync-tags-pane" role="tabpanel" aria-labelledby="sync-tags-tab">
-      <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white">
-          <strong>Sync Tags</strong>
-        </div>
-
-        <div class="card-body">
-          <p class="text-muted small mb-3">
-            Sync Tags are used to match corresponding videos between the
-            Primary and Secondary Pis. Each Sync Tag can only be assigned
-            to one video on each Pi.
-          </p>
-
-          <!-- Primary Only -->
-          {% if role == "primary" %}
-          <div class="row g-2 align-items-end mb-3">
-            <!-- Add Sync Tag -->
-            <form method="POST" action="{{ url_for('add_sync_tag') }}" class="col-12 col-md-7">
-              <label for="newSyncTag" class="form-label small text-muted mb-1">
-                Add Sync Tag
-              </label>
-
-              <div class="input-group">
-                <input type="text" class="form-control" id="newSyncTag" name="sync_tag"
-                  placeholder="Enter a Sync Tag" maxlength="50" required>
-
-                <button type="submit" class="btn btn-success">
-                  <i class="bi bi-plus-lg me-1"></i>
-                  Add Sync Tag
-                </button>
-              </div>
-            </form>
-
-            <!-- Sync Tags to Secondaries -->
-            <form method="POST" action="{{ url_for('sync_tags_to_secondaries') }}"
-              class="col-12 col-md-auto" id="syncTagsForm">
-              <button type="submit" class="btn btn-primary">
-                <i class="bi bi-arrow-repeat me-1"></i>
-                Sync Tags to Secondaries
-              </button>
-            </form>
-          </div>
-          {% endif %}
-
-          <!-- Available Sync Tags -->
-          <div class="d-flex align-items-center mb-2">
-            <i class="bi bi-tags text-primary me-2"></i>
-            <strong>Available Sync Tags</strong>
-          </div>
-
-          {% if sync_tags %}
-          <div class="border rounded">
-            {% for tag in sync_tags %}
-            {% set tag_video_count = namespace(count=0) %}
-
-            {% for video in manage_videos %}
-            {% if video.get('sync_tag', '').lower() == tag.lower() %}
-            {% set tag_video_count.count = tag_video_count.count + 1 %}
-            {% endif %}
-            {% endfor %}
-
-            <div class="d-flex align-items-center justify-content-between px-3 py-2 {% if not loop.last %}border-bottom{% endif %}">
-              <div class="d-flex align-items-center">
-                <i class="bi bi-link-45deg text-primary me-2"></i>
-
-                <span class="fw-semibold me-3">
-                  {{ tag }}
-                </span>
-
-                <span class="text-muted small">
-                  {% if tag_video_count.count == 0 %}
-                  Not assigned
-                  {% elif tag_video_count.count == 1 %}
-                  1 video assigned
-                  {% else %}
-                  {{ tag_video_count.count }} videos assigned
-                  {% endif %}
-                </span>
-              </div>
-
-              {% if role == "primary" %}
-              <form method="POST" action="{{ url_for('delete_sync_tag') }}"
-                onsubmit="return confirm('Delete Sync Tag {{ tag }}? Any video using this tag will be cleared.');">
-                <input type="hidden" name="sync_tag" value="{{ tag }}">
-
-                <button type="submit" class="btn btn-outline-danger btn-sm">
-                  <i class="bi bi-trash me-1"></i>
-                  Delete
-                </button>
-              </form>
-              {% endif %}
-            </div>
-            {% endfor %}
-          </div>
-          {% else %}
-          <div class="border rounded text-center text-muted p-3">
-            <div class="small">
-              No Sync Tags have been created yet.
-            </div>
-
-            {% if role != "primary" %}
-            <div class="small mt-1">
-              Sync Tags must be created on the Primary Pi.
-            </div>
-            {% endif %}
-          </div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
+   
   </div>
+
+  <script>
+    (() => {
+      const list = document.getElementById("videoLibraryList");
+      if (!list || list.dataset.controlsReady === "true") return;
+      list.dataset.controlsReady = "true";
+
+      const search = document.getElementById("videoSearch");
+      const tagFilter = document.getElementById("videoTagFilter");
+      const sort = document.getElementById("videoSort");
+      const listButton = document.getElementById("videoListView");
+      const gridButton = document.getElementById("videoGridView");
+
+      function applyThumbnailRotation(item) {
+        const image = item.querySelector(".video-thumbnail img");
+        const input = item.querySelector(".thumbnail-rotation-value");
+        if (!image || !input) return;
+        const rotation = ((parseInt(input.value, 10) || 0) % 360 + 360) % 360;
+        const thumbnail = item.querySelector(".video-thumbnail");
+        image.dataset.rotation = String(rotation);
+        thumbnail?.classList.toggle("is-portrait", rotation === 90 || rotation === 270);
+        image.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+      }
+
+      const items = () => Array.from(list.querySelectorAll(".video-library-item"));
+
+      function applyVideoFilters() {
+        const query = search.value.trim().toLowerCase();
+        const tag = tagFilter.value.trim().toLowerCase();
+
+        items().forEach(item => {
+          const name = item.dataset.videoName || "";
+          const tags = (item.dataset.videoTags || "").split('|').filter(Boolean);
+          item.hidden = !(name.includes(query) && (!tag || tags.includes(tag)));
+        });
+
+        const sorted = items().sort((a, b) => {
+          const aName = a.dataset.videoName || "";
+          const bName = b.dataset.videoName || "";
+          return sort.value === "name-desc"
+            ? bName.localeCompare(aName)
+            : aName.localeCompare(bName);
+        });
+        sorted.forEach(item => list.appendChild(item));
+      }
+
+      function setVideoLayout(layout) {
+        const grid = layout === "grid";
+        list.classList.toggle("video-library-grid", grid);
+        list.classList.toggle("video-library-list-view", !grid);
+        listButton.classList.toggle("active", !grid);
+        gridButton.classList.toggle("active", grid);
+        listButton.setAttribute("aria-pressed", String(!grid));
+        gridButton.setAttribute("aria-pressed", String(grid));
+      }
+
+      list.querySelectorAll(".video-library-item").forEach(item => {
+        applyThumbnailRotation(item);
+        item.querySelector(".rotate-thumbnail-btn")?.addEventListener("click", async (event) => {
+          const button = event.currentTarget;
+          const input = item.querySelector(".thumbnail-rotation-value");
+          if (!input || button.disabled) return;
+
+          const previousRotation = parseInt(input.value, 10) || 0;
+          const nextRotation = (previousRotation + 90) % 360;
+          const filename = button.dataset.filename;
+          const csrfToken = document.querySelector('input[name="csrf_token"]')?.value;
+
+          button.disabled = true;
+          input.value = String(nextRotation);
+          applyThumbnailRotation(item);
+
+          try {
+            const body = new URLSearchParams({
+              filename: filename,
+              rotation: String(nextRotation),
+              csrf_token: csrfToken || ""
+            });
+            const response = await fetch("/update_thumbnail_rotation", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                "X-Requested-With": "XMLHttpRequest"
+              },
+              body: body.toString()
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+              throw new Error(result.error || "Could not save thumbnail rotation.");
+            }
+          } catch (error) {
+            input.value = String(previousRotation);
+            applyThumbnailRotation(item);
+            alert(error.message || "Could not save thumbnail rotation. Please try again.");
+          } finally {
+            button.disabled = false;
+          }
+        });
+      });
+
+      search.addEventListener("input", applyVideoFilters);
+      tagFilter.addEventListener("change", applyVideoFilters);
+      sort.addEventListener("change", applyVideoFilters);
+      listButton.addEventListener("click", () => setVideoLayout("list"));
+      gridButton.addEventListener("click", () => setVideoLayout("grid"));
+
+      // Keep the user's selected layout across form saves and page refreshes.
+      const savedLayout = (() => {
+        try {
+          return window.localStorage.getItem("livingPortraitVideoLayout") === "grid"
+            ? "grid"
+            : "list";
+        } catch (_) {
+          return "list";
+        }
+      })();
+
+      listButton.addEventListener("click", () => {
+        try { window.localStorage.setItem("livingPortraitVideoLayout", "list"); } catch (_) {}
+      });
+      gridButton.addEventListener("click", () => {
+        try { window.localStorage.setItem("livingPortraitVideoLayout", "grid"); } catch (_) {}
+      });
+
+      setVideoLayout(savedLayout);
+      applyVideoFilters();
+    })();
+  </script>
 </section>
 

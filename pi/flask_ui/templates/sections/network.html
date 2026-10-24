@@ -124,13 +124,13 @@
                     <h5 class="mb-1"><i class="bi bi-radar me-1"></i> Discover Secondary Pis</h5>
                     <p class="text-muted small mb-0">Compatible secondary devices on your network appear here automatically.</p>
                 </div>
-                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.location.reload()">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshDiscoveredSecondaryBtn" data-url="{{ url_for('network_refresh_discovered_secondary') }}">
                     <i class="bi bi-arrow-clockwise me-1"></i> Refresh
                 </button>
             </div>
 
-            <div class="list-group mb-4">
-                {% for device in discovered_secondary_pis %}
+            <div class="list-group mb-4" id="discoveredSecondaryList">
+                {% for device in discovered_secondary_pis|default([]) %}
                 <div class="list-group-item">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                         <div class="flex-grow-1">
@@ -182,7 +182,7 @@
                 <h5 class="mb-0"><i class="bi bi-pc-display-horizontal me-1"></i> Configured Secondary Pis</h5>
                 <span class="badge bg-secondary">{{ secondary_pis|length }} configured</span>
             </div>
-            <p class="text-muted small mb-3">These are the devices the primary is set up to manage. Offline devices remain listed.</p>
+            <p class="text-muted small mb-3">These are the devices the primary is set up to manage. Offline devices remain listed. When Enable MQTT is on, status is checked automatically every 15 minutes.</p>
 
             <div class="table-responsive border rounded mb-3">
                 <table class="table table-hover mb-0 align-middle">
@@ -194,43 +194,37 @@
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="secondaryStatusTableBody" data-status-url="{{ url_for('network_secondary_status') }}">
                         {% for pi in secondary_pis %}
-                        <tr>
-                            <td colspan="3" class="p-0">
-                                <form method="POST" action="{{ url_for('network_edit_secondary', index=loop.index0) }}" class="row g-2 align-items-center m-0 p-2">
-                                    <div class="col-md-5">
-                                        <label class="visually-hidden">Secondary Pi name</label>
-                                        <input type="text" class="form-control form-control-sm" name="name" value="{{ pi.name }}" required>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="visually-hidden">IP address</label>
-                                        <input type="text" class="form-control form-control-sm" name="ip" value="{{ pi.ip }}" required>
-                                    </div>
-                                    <div class="col-md-3">
-                                        {% if pi.status == 'online' %}
-                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Online</span>
-                                        {% elif pi.status == 'offline' %}
-                                        <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Offline</span>
-                                        {% else %}
-                                        <span class="badge bg-secondary">Not Checked</span>
-                                        {% endif %}
-                                        {% if pi.last_checked %}
-                                        <div class="text-muted small mt-1">{{ pi.last_checked }}</div>
-                                        {% endif %}
-                                    </div>
-                                    <div class="col-12 d-flex justify-content-end gap-2">
-                                        <button type="submit" class="btn btn-outline-primary btn-sm">
-                                            <i class="bi bi-check-lg me-1"></i> Save
-                                        </button>
-                                    </form>
-                                    <form method="POST" action="{{ url_for('network_delete_secondary', index=loop.index0) }}" class="d-inline" onsubmit="return confirm('Delete {{ pi.name }}?');">
-                                        <button type="submit" class="btn btn-outline-danger btn-sm">
-                                            <i class="bi bi-trash me-1"></i> Delete
-                                        </button>
-                                    </form>
-                                    </div>
-                                </td>
+                        <tr data-secondary-index="{{ loop.index0 }}">
+                            <td>
+                                <form method="POST" action="{{ url_for('network_edit_secondary', index=loop.index0) }}" class="d-flex flex-wrap align-items-center gap-2">
+                                    <input type="text" class="form-control form-control-sm" name="name" value="{{ pi.name }}" aria-label="Secondary Pi name" required>
+                            </td>
+                            <td>
+                                    <input type="text" class="form-control form-control-sm" name="ip" value="{{ pi.ip }}" aria-label="IP address" required>
+                            </td>
+                            <td>
+                                {% if pi.status == 'online' %}
+                                <span class="badge bg-success secondary-status-badge"><i class="bi bi-check-circle me-1"></i>Online</span>
+                                {% elif pi.status == 'offline' %}
+                                <span class="badge bg-danger secondary-status-badge"><i class="bi bi-x-circle me-1"></i>Offline</span>
+                                {% else %}
+                                <span class="badge bg-secondary secondary-status-badge">Not Checked</span>
+                                {% endif %}
+                                <div class="text-muted small mt-1 secondary-status-last-checked">{{ pi.last_checked or '' }}</div>
+                            </td>
+                            <td class="text-end text-nowrap">
+                                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-check-lg me-1"></i> Save
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('network_delete_secondary', index=loop.index0) }}" class="d-inline" onsubmit="return confirm('Delete {{ pi.name }}?');">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                                        <i class="bi bi-trash me-1"></i> Delete
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
                         {% else %}
                         <tr>
@@ -268,6 +262,60 @@
         </div>
     </div>
 </section>
+
+<script>
+(function () {
+    const tableBody = document.getElementById("secondaryStatusTableBody");
+    if (!tableBody) return;
+
+    const statusUrl = tableBody.dataset.statusUrl;
+    const automaticChecksEnabled = {{ 'true' if role == 'primary' and enable == '1' else 'false' }};
+    if (!automaticChecksEnabled || !statusUrl) return;
+
+    async function refreshSecondaryStatusDisplay() {
+        if (document.hidden) return;
+
+        try {
+            const response = await fetch(statusUrl, {
+                method: "GET",
+                headers: { "Accept": "application/json" },
+                cache: "no-store"
+            });
+            if (!response.ok) return;
+
+            const data = await response.json();
+            if (!data.success || data.role !== "primary" || data.enable !== "1") return;
+
+            data.secondary_pis.forEach(function (pi, index) {
+                const row = tableBody.querySelector('[data-secondary-index="' + index + '"]');
+                if (!row) return;
+
+                const badge = row.querySelector(".secondary-status-badge");
+                const lastChecked = row.querySelector(".secondary-status-last-checked");
+                if (!badge) return;
+
+                if (pi.status === "online") {
+                    badge.className = "badge bg-success secondary-status-badge";
+                    badge.innerHTML = '<i class="bi bi-check-circle me-1"></i>Online';
+                } else if (pi.status === "offline") {
+                    badge.className = "badge bg-danger secondary-status-badge";
+                    badge.innerHTML = '<i class="bi bi-x-circle me-1"></i>Offline';
+                } else {
+                    badge.className = "badge bg-secondary secondary-status-badge";
+                    badge.textContent = "Not Checked";
+                }
+
+                if (lastChecked) lastChecked.textContent = pi.last_checked || "";
+            });
+        } catch (error) {
+            // Keep the last known status visible if the lightweight refresh fails.
+        }
+    }
+
+    refreshSecondaryStatusDisplay();
+    window.setInterval(refreshSecondaryStatusDisplay, 60 * 1000);
+})();
+</script>
 
 <!-- Network Settings Loading Overlay -->
 <div id="networkLoading" style="
