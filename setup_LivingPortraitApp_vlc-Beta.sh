@@ -63,6 +63,7 @@ log_success "System update completed"
 echo -e "\nChecking required packages..."
 
 REQUIRED_PKGS=(
+    ffmpeg
     vlc
     python3-gpiozero
     python3-vlc

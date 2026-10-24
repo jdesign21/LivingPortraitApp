@@ -10,8 +10,10 @@ import sys
 import json
 import time
 import subprocess
+import shutil
 import re
 import secrets
+import threading
 
 HOME = Path(os.path.expanduser("~"))
 
@@ -41,6 +43,8 @@ from shared.vlc_helper import (
     write_pause_flag,
     get_days_schedule,
     update_days_schedule,
+    get_playback_schedules,
+    get_current_scheduler_category,
     is_schedule_enabled_now,
     get_next_start_time,
     get_secondary_video_mode,
@@ -361,6 +365,164 @@ VIDEO_FOLDER.mkdir(parents=True, exist_ok=True)
 IMAGES_FOLDER.mkdir(parents=True, exist_ok=True)
 
 
+def _thumbnail_path(filename):
+    """Return the thumbnail path for a video filename without trusting user input."""
+    safe_name = secure_filename(Path(filename).name)
+    if not safe_name or not safe_name.lower().endswith(".mp4"):
+        return None
+    return IMAGES_FOLDER / f"{Path(safe_name).stem}.jpg"
+
+
+def _ensure_video_thumbnail(filename):
+    """Create a cached JPEG from about one second into an MP4, if possible."""
+    video_path = VIDEO_FOLDER / secure_filename(Path(filename).name)
+    thumbnail_path = _thumbnail_path(filename)
+    if thumbnail_path is None or not video_path.is_file():
+        return False
+
+    try:
+        if thumbnail_path.is_file() and thumbnail_path.stat().st_mtime >= video_path.stat().st_mtime:
+            return True
+    except OSError:
+        pass
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return False
+
+    try:
+        result = subprocess.run(
+            [
+                ffmpeg, "-hide_banner", "-loglevel", "error", "-y",
+                "-ss", "1", "-autorotate", "-i", str(video_path),
+                # Respect the MP4 display-rotation metadata so thumbnails
+                # match the orientation viewers see during playback.
+                "-frames:v", "1", "-vf", "scale=320:-2",
+                "-q:v", "5", str(thumbnail_path),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+            check=False,
+        )
+        return result.returncode == 0 and thumbnail_path.is_file() and thumbnail_path.stat().st_size > 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+# Persistent per-video metadata is stored in each playlist entry. The in-memory
+# cache remains as a fast fallback for callers that don't pass an entry.
+_VIDEO_DETAILS_CACHE = {}
+
+
+def _get_video_file_details(filename, video_entry=None):
+    """Return video details, reusing complete persistent metadata until the file changes."""
+    safe_name = secure_filename(Path(filename).name)
+    video_path = VIDEO_FOLDER / safe_name
+    details = {"file_size": None, "resolution": None, "duration": None}
+    if not safe_name or not video_path.is_file():
+        return details
+
+    try:
+        stat = video_path.stat()
+    except OSError:
+        return details
+
+    signature = {"mtime_ns": stat.st_mtime_ns, "size_bytes": stat.st_size}
+    cached_info = video_entry.get("video_info", {}) if isinstance(video_entry, dict) else {}
+    cache_matches = (
+        isinstance(cached_info, dict)
+        and cached_info.get("mtime_ns") == signature["mtime_ns"]
+        and cached_info.get("size_bytes") == signature["size_bytes"]
+    )
+
+    # Reuse saved metadata only when all displayed details are present. Older or
+    # incomplete entries must be probed again rather than preserving em dashes.
+    if cache_matches and all(cached_info.get(key) for key in ("file_size", "resolution", "duration")):
+        details.update({
+            "file_size": cached_info.get("file_size"),
+            "resolution": cached_info.get("resolution"),
+            "duration": cached_info.get("duration"),
+        })
+        _VIDEO_DETAILS_CACHE[safe_name] = ((safe_name, stat.st_mtime_ns, stat.st_size), dict(details))
+        return details
+
+    cache_key = (safe_name, stat.st_mtime_ns, stat.st_size)
+    cached = _VIDEO_DETAILS_CACHE.get(safe_name)
+    if cached and cached[0] == cache_key and all(cached[1].get(key) for key in ("file_size", "resolution", "duration")):
+        details.update(cached[1])
+        width = height = duration_seconds = None
+    else:
+        details["file_size"] = (
+            f"{stat.st_size / (1024 * 1024):.1f} MB"
+            if stat.st_size >= 1024 * 1024
+            else f"{max(1, stat.st_size // 1024)} KB"
+        )
+
+        ffprobe = shutil.which("ffprobe")
+        width = height = None
+        duration_seconds = None
+        if ffprobe:
+            try:
+                result = subprocess.run(
+                    [
+                        ffprobe, "-v", "error", "-select_streams", "v:0",
+                        "-show_entries", "stream=width,height:format=duration",
+                        "-of", "json", str(video_path),
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                    timeout=10,
+                    check=False,
+                )
+                if result.returncode == 0:
+                    probe = json.loads(result.stdout or "{}")
+                    streams = probe.get("streams", [])
+                    if streams:
+                        width = streams[0].get("width")
+                        height = streams[0].get("height")
+                        if width and height:
+                            details["resolution"] = f"{width} × {height}"
+
+                    duration_seconds = float(probe.get("format", {}).get("duration", 0) or 0)
+                    if duration_seconds > 0:
+                        total_seconds = int(duration_seconds + 0.5)
+                        hours, remainder = divmod(total_seconds, 3600)
+                        minutes, seconds = divmod(remainder, 60)
+                        details["duration"] = (
+                            f"{hours}:{minutes:02d}:{seconds:02d}"
+                            if hours else f"{minutes}:{seconds:02d}"
+                        )
+            except (OSError, ValueError, TypeError, subprocess.SubprocessError, json.JSONDecodeError):
+                pass
+
+        _VIDEO_DETAILS_CACHE[safe_name] = (cache_key, dict(details))
+
+    if isinstance(video_entry, dict):
+        thumbnail_path = _thumbnail_path(safe_name)
+        video_entry["video_info"] = {
+            **signature,
+            "width": width,
+            "height": height,
+            "duration_seconds": duration_seconds,
+            "file_size": details.get("file_size"),
+            "resolution": details.get("resolution"),
+            "duration": details.get("duration"),
+            "thumbnail_path": f"images/{thumbnail_path.name}" if thumbnail_path else None,
+        }
+    return details
+
+def _get_video_duration(filename):
+    """Compatibility wrapper returning the cached duration."""
+    return _get_video_file_details(filename).get("duration")
+
+
+def _get_video_resolution(filename):
+    """Compatibility wrapper returning the cached resolution."""
+    return _get_video_file_details(filename).get("resolution")
+
+
 def format_ampm(time_str, time_format="12"):
     try:
         if time_format == "24":
@@ -404,17 +566,20 @@ def index():
     if not settings.get("setup_complete", False):
         return redirect(url_for("setup"))
 
-    time_format = get_time_format()
+    # Reuse one settings snapshot and timestamp for this page render. This
+    # avoids repeated JSON reads and keeps schedule indicators consistent.
+    request_now = datetime.now()
+    time_format = get_time_format(settings)
 
     if time_format not in ("12", "24"):
         time_format = "12"
 
     if time_format == "24":
-        current_time = datetime.now().strftime(
+        current_time = request_now.strftime(
             "%A %H:%M:%S"
         )
     else:
-        current_time = datetime.now().strftime(
+        current_time = request_now.strftime(
             "%A %I:%M:%S %p"
         )
 
@@ -465,36 +630,14 @@ def index():
     enable = network_settings.get("enable", "0")
     sync_start_delay_ms = get_sync_start_delay_ms()
     sync_start_lead_ms = get_sync_start_lead_ms()
-    secondary_pis = check_secondary_status()
-    discovered_secondary_pis = get_discovered_secondary_pis()
-    configured_device_ips = {
-        str(pi.get("device_id")): str(pi.get("ip", "")).strip()
-        for pi in secondary_pis
-        if pi.get("device_id")
-    }
-    configured_device_ids = set(configured_device_ips)
-    configured_ips = {
-        str(pi.get("ip", "")).strip()
-        for pi in secondary_pis
-        if str(pi.get("ip", "")).strip()
-    }
-    for discovered_pi in discovered_secondary_pis:
-        device_id = discovered_pi.get("device_id")
-        discovered_ip = str(discovered_pi.get("ip", "")).strip()
-        matched_by_id = device_id in configured_device_ids
-        matched_by_ip = discovered_ip in configured_ips
-        discovered_pi["is_configured"] = matched_by_id or matched_by_ip
-        discovered_pi["ip_changed"] = (
-            matched_by_id
-            and configured_device_ips.get(device_id, "") != discovered_ip
-        )
-        discovered_pi["needs_link"] = matched_by_ip and not matched_by_id
-
+    # Display the last known status on page loads. Network checks are triggered
+    # explicitly by the Check Status action, not by every dashboard refresh.
+    secondary_pis = network_settings.get("secondary_pis", [])
     # Read MQTT status without importing mqtt_client.
     # This prevents Flask from starting a second MQTT worker.
     mqtt_connected = get_mqtt_status()
 
-    mode, interval, last_updated, order, triggered_flag, delay = get_playlist_settings()
+    mode, interval, last_updated, order, triggered_flag, delay = get_playlist_settings(settings)
     delay = delay or 0
 
     playlist_settings = settings.get("playlist", {})
@@ -526,7 +669,58 @@ def index():
     if secondary_video_mode not in ("sync_tag", "playlist"):
         secondary_video_mode = "sync_tag"
 
-    # Get days schedule
+    # Independent schedule rows; migrate legacy day slots on first access.
+    playback_schedules = get_playback_schedules(settings)
+
+    # Build dashboard rows from the independent playback schedules.
+    # The first enabled schedule matching the current time wins when schedules overlap.
+    today = request_now.strftime("%A")
+    now_time = request_now.time()
+    dashboard_schedules = []
+    winning_schedule_found = False
+
+    for schedule in playback_schedules:
+        schedule_days = schedule.get("days", [])
+        enabled = bool(schedule.get("enabled", True))
+        start_value = schedule.get("start", "00:00")
+        end_value = schedule.get("end", "23:59")
+
+        # Only show rows selected for today. A row from yesterday never carries
+        # over into today, even if an older saved range crosses midnight.
+        if today not in schedule_days:
+            continue
+
+        try:
+            start_time = datetime.strptime(start_value, "%H:%M").time()
+            end_time = datetime.strptime(end_value, "%H:%M").time()
+        except (TypeError, ValueError):
+            continue
+
+        # Overnight/equal-time ranges are invalid and cannot become active.
+        matches_now = end_time > start_time and start_time <= now_time < end_time
+
+        is_active = enabled and matches_now and not winning_schedule_found
+        if is_active:
+            winning_schedule_found = True
+
+        category = schedule.get("category", "")
+        category_name = "None"
+        for tag in schedule_tags:
+            if tag.get("id") == category:
+                category_name = tag.get("name", "None")
+                break
+
+        dashboard_schedules.append({
+            "name": schedule.get("name") or "Schedule",
+            "start_ampm": format_ampm(start_value, time_format),
+            "end_ampm": format_ampm(end_value, time_format),
+            "category_name": category_name if category else "None",
+            "is_active": is_active,
+            "enabled": enabled,
+            "priority_blocked": bool(enabled and matches_now and not is_active),
+        })
+
+    # Legacy day data remains available for older dashboard indicators.
     days_schedule = settings.get("days", {})
 
     # Format times for all slots and store in a list
@@ -547,7 +741,7 @@ def index():
                     "%H:%M"
                 ).time()
 
-                now_time = datetime.now().time()
+                now_time = request_now.time()
                 is_active = start_time <= now_time < end_time
 
                 slots.append({
@@ -566,13 +760,11 @@ def index():
 
         sched["slots"] = slots
 
-    # Get today's name
-    today = datetime.now().strftime("%A")
     today_schedule = days_schedule.get(today, {})
 
     # Check if schedule is enabled right now
-    schedule_enabled = is_schedule_enabled_now()
-    next_start_time, next_category = get_next_start_time(settings)
+    schedule_enabled = is_schedule_enabled_now(settings, request_now)
+    next_start_time, next_category = get_next_start_time(settings, time_format, request_now)
 
     fixed_order = [
         entry
@@ -585,12 +777,18 @@ def index():
     # Fixed Playlist Schedule Tag display
     fixed_order_display = []
 
-    active_schedule_tag = None
-
-    for slot in today_schedule.get("slots", []):
-        if slot.get("is_active"):
-            active_schedule_tag = slot.get("category", "")
-            break
+    active_schedule_tag = get_current_scheduler_category() or ""
+    active_schedule_tag_counts = {}
+    for video in order:
+        if not isinstance(video, dict) or not video.get("active", True):
+            continue
+        video_tags = video.get("tags", [])
+        if not isinstance(video_tags, (list, tuple, set)):
+            continue
+        for tag_id in video_tags:
+            key = str(tag_id).strip().lower()
+            if key:
+                active_schedule_tag_counts[key] = active_schedule_tag_counts.get(key, 0) + 1
 
     for entry in fixed_order:
         video_tags = entry.get("tags", [])
@@ -613,6 +811,23 @@ def index():
         if isinstance(entry, dict)
         and entry.get("filename") in videos
     ]
+
+    # One-time migration for installations upgrading from versions that did
+    # not persist complete video metadata. After this flag is saved, normal
+    # dashboard loads never stat or probe every managed video.
+    if not settings.get("video_metadata_migration_complete", False):
+        for video in manage_videos:
+            info = video.get("video_info")
+            info = info if isinstance(info, dict) else {}
+            required_metadata = (
+                "mtime_ns", "size_bytes", "file_size", "resolution", "duration"
+            )
+            if not all(info.get(key) for key in required_metadata):
+                video.update(_get_video_file_details(video.get("filename", ""), video))
+
+        settings["video_metadata_migration_complete"] = True
+        settings.setdefault("playlist", {})["order"] = order
+        save_settings(settings)
 
     manage_videosTags = settings.get(
         "playlist",
@@ -667,103 +882,144 @@ def index():
     if LOG_FOLDER.exists():
         log_files = list(LOG_FOLDER.glob("*.txt"))
 
-        for f in log_files:
-            if time_format == "24":
-                log_mtime = datetime.fromtimestamp(
-                    f.stat().st_mtime
-                ).strftime("%Y-%m-%d %H:%M")
-            else:
-                log_mtime = datetime.fromtimestamp(
-                    f.stat().st_mtime
-                ).strftime("%Y-%m-%d %I:%M %p")
+        # Keep the log-file management list complete, but read activity only
+        # from newest files and newest lines until eight entries are collected.
+        log_files.sort(
+            key=lambda path: path.stat().st_mtime if path.exists() else 0,
+            reverse=True
+        )
 
-            logs.append({
-                "name": f.name,
-                "mtime": log_mtime,
-                "size": f.stat().st_size
-            })
+        for f in log_files:
+            try:
+                file_stat = f.stat()
+                log_mtime = datetime.fromtimestamp(file_stat.st_mtime)
+                if time_format == "24":
+                    formatted_mtime = log_mtime.strftime("%Y-%m-%d %H:%M")
+                else:
+                    formatted_mtime = log_mtime.strftime("%Y-%m-%d %I:%M %p")
+
+                logs.append({
+                    "name": f.name,
+                    "mtime": formatted_mtime,
+                    "size": file_stat.st_size
+                })
+            except OSError as e:
+                log(f"Error reading log file metadata for {f.name}: {e}", "ERROR")
+
+        # Parse activity backwards, avoiding loading whole historical log files.
+        for f in log_files:
+            if len(recent_activity) >= 8:
+                break
 
             try:
-                with open(
-                    f,
-                    "r",
-                    errors="replace"
-                ) as log_file:
+                file_mtime = datetime.fromtimestamp(f.stat().st_mtime)
+                with open(f, "rb") as log_file:
+                    log_file.seek(0, os.SEEK_END)
+                    position = log_file.tell()
+                    pending = b""
+                    parsed_entries = []
 
-                    for line in log_file:
-                        line = line.strip()
+                    while position > 0 and len(parsed_entries) < (8 - len(recent_activity)):
+                        chunk_size = min(8192, position)
+                        position -= chunk_size
+                        log_file.seek(position)
+                        chunk = log_file.read(chunk_size)
+                        lines = (chunk + pending).splitlines()
+                        pending = lines.pop(0) if position > 0 and lines else b""
 
-                        if not line:
-                            continue
+                        # These lines are in reverse chronological order.
+                        for raw_line in reversed(lines):
+                            line = raw_line.decode("utf-8", errors="replace").strip()
+                            if not line:
+                                continue
 
-                        timestamp = None
-                        category = "SYSTEM"
-                        message = line
+                            timestamp = None
+                            category = "SYSTEM"
+                            message = line
 
-                        if line.startswith("["):
-                            first_end = line.find("]")
+                            if line.startswith("["):
+                                first_end = line.find("]")
+                                if first_end != -1:
+                                    timestamp_text = line[1:first_end]
+                                    try:
+                                        timestamp = datetime.fromisoformat(timestamp_text)
+                                    except ValueError:
+                                        timestamp = file_mtime
 
-                            if first_end != -1:
-                                timestamp_text = line[1:first_end]
-
-                                try:
-                                    timestamp = datetime.fromisoformat(
-                                        timestamp_text
-                                    )
-                                except ValueError:
-                                    timestamp = datetime.fromtimestamp(
-                                        f.stat().st_mtime
-                                    )
-
-                                remainder = line[
-                                    first_end + 1:
-                                ].strip()
-
-                                if remainder.startswith("["):
-                                    category_end = remainder.find("]")
-
-                                    if category_end != -1:
-                                        category = remainder[
-                                            1:category_end
-                                        ]
-
-                                        message = remainder[
-                                            category_end + 1:
-                                        ].strip()
+                                    remainder = line[first_end + 1:].strip()
+                                    if remainder.startswith("["):
+                                        category_end = remainder.find("]")
+                                        if category_end != -1:
+                                            category = remainder[1:category_end]
+                                            message = remainder[category_end + 1:].strip()
+                                        else:
+                                            message = remainder
                                     else:
                                         message = remainder
-                                else:
-                                    message = remainder
 
-                        if timestamp is None:
-                            timestamp = datetime.fromtimestamp(
-                                f.stat().st_mtime
-                            )
+                            if timestamp is None:
+                                timestamp = file_mtime
 
-                        if time_format == "24":
-                            activity_time = timestamp.strftime(
-                                "%H:%M"
-                            )
-                        else:
-                            activity_time = timestamp.strftime(
-                                "%I:%M %p"
-                            ).lstrip("0")
+                            if time_format == "24":
+                                activity_time = timestamp.strftime("%H:%M")
+                            else:
+                                activity_time = timestamp.strftime("%I:%M %p").lstrip("0")
 
-                        recent_activity.append({
-                            "time": activity_time,
-                            "category": category,
-                            "message": message,
-                            "timestamp": timestamp
-                        })
+                            parsed_entries.append({
+                                "time": activity_time,
+                                "category": category,
+                                "message": message,
+                                "timestamp": timestamp
+                            })
+
+                            if len(parsed_entries) >= (8 - len(recent_activity)):
+                                break
+
+                    # Include a partial first line if the file did not start at byte zero.
+                    if position == 0 and pending and len(parsed_entries) < (8 - len(recent_activity)):
+                        line = pending.decode("utf-8", errors="replace").strip()
+                        if line:
+                            timestamp = file_mtime
+                            category = "SYSTEM"
+                            message = line
+                            if line.startswith("["):
+                                first_end = line.find("]")
+                                if first_end != -1:
+                                    try:
+                                        timestamp = datetime.fromisoformat(line[1:first_end])
+                                    except ValueError:
+                                        pass
+                                    remainder = line[first_end + 1:].strip()
+                                    if remainder.startswith("["):
+                                        category_end = remainder.find("]")
+                                        if category_end != -1:
+                                            category = remainder[1:category_end]
+                                            message = remainder[category_end + 1:].strip()
+                                        else:
+                                            message = remainder
+                                    else:
+                                        message = remainder
+                            if time_format == "24":
+                                activity_time = timestamp.strftime("%H:%M")
+                            else:
+                                activity_time = timestamp.strftime("%I:%M %p").lstrip("0")
+                            parsed_entries.append({
+                                "time": activity_time,
+                                "category": category,
+                                "message": message,
+                                "timestamp": timestamp
+                            })
+
+                    recent_activity.extend(parsed_entries)
 
             except Exception as e:
-                log(
-                    f"Error reading recent activity from {f.name}: {e}",
-                    "ERROR"
-                )
+                log(f"Error reading recent activity from {f.name}: {e}", "ERROR")
 
         logs.sort(
-            key=lambda x: x["mtime"],
+            key=lambda x: datetime.strptime(
+                x["mtime"],
+                "%Y-%m-%d %H:%M" if time_format == "24" else "%Y-%m-%d %I:%M %p"
+            ),
             reverse=True
         )
 
@@ -772,7 +1028,6 @@ def index():
             reverse=True
         )
 
-        recent_activity = recent_activity[:8]
         system_info = get_system_info()
 
     return render_template(
@@ -791,6 +1046,9 @@ def index():
         time_remaining=time_remaining,
         available_tags=available_tags,
         schedule_tags=schedule_tags,
+        active_schedule_tag_counts=active_schedule_tag_counts,
+        playback_schedules=playback_schedules,
+        dashboard_schedules=dashboard_schedules,
         sync_tags=sync_tags,
         pause=pause_flag,
         video_count=len(fixed_order),
@@ -813,7 +1071,6 @@ def index():
         primary_ip=primary_ip,
         enable=enable,
         secondary_pis=secondary_pis,
-        discovered_secondary_pis=discovered_secondary_pis,
         mqtt_connected=mqtt_connected,
         sync_start_delay_ms=sync_start_delay_ms,
         sync_start_lead_ms=sync_start_lead_ms,
@@ -1435,120 +1692,238 @@ def image_file(filename):
 
     return send_from_directory(IMAGES_FOLDER, filename)
 
+@app.route("/thumbnails/<filename>")
+def thumbnail_file(filename):
+    thumbnail_path = _thumbnail_path(filename)
+    if thumbnail_path is None:
+        return "Thumbnail not found", 404
+
+    video_path = VIDEO_FOLDER / secure_filename(Path(filename).name)
+    if not video_path.is_file():
+        return "Video not found", 404
+
+    _ensure_video_thumbnail(filename)
+    if not thumbnail_path.is_file():
+        return "Thumbnail unavailable", 404
+
+    return send_from_directory(IMAGES_FOLDER, thumbnail_path.name)
+
 @app.route("/upload", methods=["POST"])
 def upload():
-    if "file" not in request.files:
-        flash("No file part", "danger")
+    files = request.files.getlist("file")
+    if not files or not any(file.filename for file in files):
+        message = "Select at least one MP4 video to upload."
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for("index"))
 
-    file = request.files["file"]
+    settings = load_settings()
+    playlist = settings.setdefault("playlist", {})
+    order = playlist.setdefault("order", [])
+    existing_names = {item.get("filename") for item in order if isinstance(item, dict)}
+    uploaded = []
+    errors = []
 
-    if file.filename == "":
-        flash("No selected file", "danger")
-        return redirect(url_for("index"))
+    for file in files:
+        if not file or not file.filename:
+            continue
 
-    if file and file.filename.lower().endswith(".mp4"):
+        if not file.filename.lower().endswith(".mp4"):
+            errors.append(f"{file.filename}: only MP4 files are allowed.")
+            continue
+
         filename = secure_filename(file.filename)
-
         if not filename:
-            flash("Invalid filename", "danger")
-            return redirect(url_for("index"))
+            errors.append("A selected file has an invalid filename.")
+            continue
 
-        save_path = VIDEO_FOLDER / filename
-        file.save(save_path)
+        try:
+            save_path = VIDEO_FOLDER / filename
+            file.save(save_path)
 
-        settings = load_settings()
-        order = settings.get("playlist", {}).get("order", [])
+            # A successful upload is the authoritative point to calculate and
+            # persist metadata. Invalidate any old cache entry first, including
+            # when a file with the same name is replaced.
+            _VIDEO_DETAILS_CACHE.pop(filename, None)
+            video_entry = next(
+                (item for item in order
+                 if isinstance(item, dict) and item.get("filename") == filename),
+                None,
+            )
+            if video_entry is None:
+                video_entry = {"filename": filename, "active": True}
+                order.append(video_entry)
+                existing_names.add(filename)
+            else:
+                video_entry.pop("video_info", None)
 
-        if not any(item["filename"] == filename for item in order):
-            order.append({
-                "filename": filename,
-                "active": True
-            })
-            settings["playlist"]["order"] = order
-            save_settings(settings)
+            video_entry.update(_get_video_file_details(filename, video_entry))
 
-        flash(f"Uploaded: {filename}", "success")
-    else:
-        flash("Only .mp4 files are allowed", "danger")
+            # Generate thumbnails in the background so upload completion does not
+            # wait for FFmpeg to decode a frame from every video.
+            threading.Thread(
+                target=_ensure_video_thumbnail,
+                args=(filename,),
+                daemon=True,
+                name=f"thumbnail-{filename}",
+            ).start()
+
+            uploaded.append(filename)
+        except Exception as exc:
+            log(f"Upload failed for {filename}: {exc}", "UPLOAD")
+            errors.append(f"{filename}: upload failed.")
+
+    if uploaded:
+        playlist["order"] = order
+        settings["playlist"] = playlist
+        save_settings(settings)
+        flash(f"Uploaded {len(uploaded)} video(s): {', '.join(uploaded)}", "success")
+
+    for error in errors:
+        flash(error, "danger")
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        if errors or not uploaded:
+            return jsonify(success=False, uploaded=uploaded, errors=errors,
+                           error="; ".join(errors) if errors else "No files were uploaded."), 400
+        return jsonify(success=True, uploaded=uploaded)
 
     return redirect(url_for("index"))
+
+def _normalize_unavailable_schedule_tags(settings):
+    """Switch schedules to all active videos when their tag has no active videos."""
+    order = settings.get("playlist", {}).get("order", [])
+    active_tags = set()
+    for video in order:
+        if not isinstance(video, dict) or not video.get("active", True):
+            continue
+        video_tags = video.get("tags", [])
+        if not isinstance(video_tags, (list, tuple, set)):
+            continue
+        active_tags.update(
+            str(tag).strip().lower()
+            for tag in video_tags
+            if str(tag).strip()
+        )
+    schedules = settings.get("playback_schedules", [])
+    changed = []
+    for schedule in schedules:
+        category = str(schedule.get("category") or "").strip().lower()
+        if category and category not in active_tags:
+            schedule["category"] = ""
+            changed.append(schedule.get("name") or "Schedule")
+    if changed:
+        settings["playback_schedules"] = schedules
+    return changed
+
 
 @app.route("/save_schedule", methods=["POST"])
 def save_schedule():
+    """Save independent schedule rows from the Playback Schedule table."""
     settings = load_settings()
-    current_days = settings.get("days", {})
-    days = {}
-
-    schedule_tags = settings.get("schedule_tags", [])
-
     valid_tag_ids = {
-        tag.get("id", "").lower()
-        for tag in schedule_tags
+        str(tag.get("id", "")).lower()
+        for tag in settings.get("schedule_tags", [])
         if tag.get("id")
     }
+    valid_days = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
+    schedules = []
+    try:
+        count = int(request.form.get("schedule_count", "0"))
+    except (TypeError, ValueError):
+        count = 0
+    if count < 0 or count > 200:
+        flash("Invalid number of schedules.", "danger")
+        return redirect(url_for("index"))
 
-    for day in [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday"
-    ]:
-        key = day.lower()
-        day_enabled = True
+    for index in range(count):
+        prefix = f"schedules[{index}]"
+        name = request.form.get(f"{prefix}[name]", "").strip()[:80]
+        enabled = request.form.get(f"{prefix}[enabled]") == "on"
+        days = [day for day in request.form.getlist(f"{prefix}[days]") if day in valid_days]
+        start_time = request.form.get(f"{prefix}[start]", "").strip()
+        end_time = request.form.get(f"{prefix}[end]", "").strip()
+        category = request.form.get(f"{prefix}[category]", "").strip().lower()
 
-        # SLOT 1
-        slot1_enabled = request.form.get(f"{key}Slot1Enabled") == "on" if day_enabled else False
+        if not name:
+            flash(f"Schedule {index + 1}: enter a schedule name.", "danger")
+            return redirect(url_for("index"))
+        try:
+            start_time_value = datetime.strptime(start_time, "%H:%M").time()
+            end_time_value = datetime.strptime(end_time, "%H:%M").time()
+        except ValueError:
+            flash(f"{name}: enter valid start and end times.", "danger")
+            return redirect(url_for("index"))
+        if end_time_value <= start_time_value:
+            flash(
+                f"{name}: the end time must be later than the start time. "
+                "Overnight schedules are not supported. Create a separate "
+                "schedule for the next day starting at 12:00 AM.",
+                "danger"
+            )
+            return redirect(url_for("index"))
+        if not days:
+            flash(f"{name}: select at least one day.", "danger")
+            return redirect(url_for("index"))
+        if category and category not in valid_tag_ids:
+            category = ""
 
-        slot1_start = request.form.get(f"{key}Slot1Start") or current_days.get(day, {}).get("slot1", {}).get("start", "00:00")
-        slot1_end = request.form.get(f"{key}Slot1End") or current_days.get(day, {}).get("slot1", {}).get("end", "23:59")
+        schedule_id = request.form.get(f"{prefix}[id]", "").strip()
+        if not schedule_id or len(schedule_id) > 100:
+            schedule_id = f"schedule-{index + 1}"
+        schedules.append({
+            "id": schedule_id,
+            "name": name,
+            "enabled": enabled,
+            "days": list(dict.fromkeys(days)),
+            "start": start_time,
+            "end": end_time,
+            "category": category
+        })
 
-        if f"{key}Slot1Category" in request.form:
-            slot1_category = request.form.get(f"{key}Slot1Category")
-        else:
-            slot1_category = current_days.get(day, {}).get("slot1", {}).get("category", "")
-
-        if slot1_category and slot1_category.lower() not in valid_tag_ids:
-            slot1_category = ""
-
-        # SLOT 2
-        slot2_enabled = request.form.get(f"{key}Slot2Enabled") == "on" if day_enabled else False
-
-        slot2_start = request.form.get(f"{key}Slot2Start") or current_days.get(day, {}).get("slot2", {}).get("start", "")
-        slot2_end = request.form.get(f"{key}Slot2End") or current_days.get(day, {}).get("slot2", {}).get("end", "")
-
-        if f"{key}Slot2Category" in request.form:
-            slot2_category = request.form.get(f"{key}Slot2Category")
-        else:
-            slot2_category = current_days.get(day, {}).get("slot2", {}).get("category", "")
-
-        if slot2_category and slot2_category.lower() not in valid_tag_ids:
-            slot2_category = ""
-
-        days[day] = {
-            "enabled": day_enabled,
-            "slot1": {
-                "enabled": slot1_enabled,
-                "start": slot1_start,
-                "end": slot1_end,
-                "category": slot1_category
-            },
-            "slot2": {
-                "enabled": slot2_enabled,
-                "start": slot2_start,
-                "end": slot2_end,
-                "category": slot2_category
-            }
+    settings["playback_schedules"] = schedules
+    _normalize_unavailable_schedule_tags(settings)
+    # Keep legacy slots disabled so older code paths cannot unexpectedly
+    # apply stale schedule periods after migration.
+    settings["days"] = {
+        day: {
+            "enabled": True,
+            "slot1": {"enabled": False, "start": "00:00", "end": "23:59", "category": ""},
+            "slot2": {"enabled": False, "start": "", "end": "", "category": ""}
         }
-
-    settings["days"] = days
+        for day in ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    }
     save_settings(settings)
-
-    flash("Schedule saved successfully!", "success")
+    flash("Playback schedule saved successfully.", "success")
     return redirect(url_for("index"))
+
+
+@app.route("/update_thumbnail_rotation", methods=["POST"])
+def update_thumbnail_rotation():
+    """Persist a video's thumbnail display rotation immediately."""
+    filename = request.form.get("filename", "").strip()
+    try:
+        rotation = int(request.form.get("rotation", "0")) % 360
+    except (TypeError, ValueError):
+        return jsonify(success=False, error="Invalid thumbnail rotation."), 400
+
+    if rotation not in (0, 90, 180, 270):
+        return jsonify(success=False, error="Invalid thumbnail rotation."), 400
+    if not filename or Path(filename).name != filename:
+        return jsonify(success=False, error="Invalid video filename."), 400
+
+    settings = load_settings()
+    order = settings.get("playlist", {}).get("order", [])
+    video = next((entry for entry in order if entry.get("filename") == filename), None)
+    if video is None:
+        return jsonify(success=False, error="Video not found."), 404
+
+    video["thumbnail_rotation"] = rotation
+    settings["playlist"]["order"] = order
+    save_settings(settings)
+    return jsonify(success=True, filename=filename, rotation=rotation)
+
 
 @app.route("/update_all", methods=["POST"])
 def update_all():
@@ -1574,6 +1949,15 @@ def update_all():
             f"videos[{index}][mute_audio]"
         ) == "true"
 
+        try:
+            thumbnail_rotation = int(request.form.get(
+                f"videos[{index}][thumbnail_rotation]", "0"
+            )) % 360
+        except (TypeError, ValueError):
+            thumbnail_rotation = 0
+        if thumbnail_rotation not in (0, 90, 180, 270):
+            thumbnail_rotation = 0
+
         log(f"{filename} sync_tag = '{sync_tag}'", "SYNC TAGS")
 
         videos.append({
@@ -1581,7 +1965,8 @@ def update_all():
             "active": active,
             "tags": tags,
             "sync_tag": sync_tag,
-            "mute_audio": mute_audio
+            "mute_audio": mute_audio,
+            "thumbnail_rotation": thumbnail_rotation
         })
 
         index += 1
@@ -1633,6 +2018,9 @@ def update_all():
 
     settings["playlist"]["order"] = order
 
+    # If a tag no longer has active videos, affected schedules become unrestricted.
+    normalized_schedules = _normalize_unavailable_schedule_tags(settings)
+
     # Validate schedule categories against the master Schedule Tags.
     valid_schedule_tags = {
         tag.get("id", "").lower()
@@ -1649,6 +2037,9 @@ def update_all():
                 slot["category"] = ""
 
     save_settings(settings)
+    if normalized_schedules:
+        names = ", ".join(normalized_schedules)
+        flash(f"No active videos remain for a schedule tag. Updated to All active videos: {names}.", "warning")
 
     if len(active_videos) == 1:
         only_video = active_videos[0]["filename"]
@@ -1677,13 +2068,16 @@ def add_sync_tag():
     """
     Add a new Sync Tag to the Primary master list.
     """
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     settings = load_settings()
     sync_tags = settings.get("sync_tags", [])
 
     new_tag = request.form.get("sync_tag", "").strip()
 
     if not new_tag:
-        flash("Sync Tag cannot be blank.", "danger")
+        message = "Sync Tag cannot be blank."
+        if is_ajax: return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for("index"))
 
     # Enforce maximum length.
@@ -1696,7 +2090,9 @@ def add_sync_tag():
     }
 
     if new_tag.lower() in existing_tags_lower:
-        flash(f'Sync Tag "{new_tag}" already exists.', "warning")
+        message = f'Sync Tag "{new_tag}" already exists.'
+        if is_ajax: return jsonify(success=False, error=message), 409
+        flash(message, "warning")
         return redirect(url_for("index"))
 
     sync_tags.append(new_tag)
@@ -1707,7 +2103,9 @@ def add_sync_tag():
     settings["sync_tags"] = sync_tags
     save_settings(settings)
 
-    flash(f'Sync Tag "{new_tag}" added.', "success")
+    message = f'Sync Tag "{new_tag}" added.'
+    if is_ajax: return jsonify(success=True, message=message, tag=new_tag, tags=sync_tags)
+    flash(message, "success")
     return redirect(url_for("index"))
 
 @app.route("/delete_sync_tag", methods=["POST"])
@@ -1718,13 +2116,16 @@ def delete_sync_tag():
     Any video currently assigned to the deleted tag will have
     its sync_tag cleared so there are no orphaned assignments.
     """
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     settings = load_settings()
     sync_tags = settings.get("sync_tags", [])
 
     tag_to_delete = request.form.get("sync_tag", "").strip()
 
     if not tag_to_delete:
-        flash("No Sync Tag was specified.", "danger")
+        message = "No Sync Tag was specified."
+        if is_ajax: return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for("index"))
 
     tag_key = tag_to_delete.lower()
@@ -1740,7 +2141,9 @@ def delete_sync_tag():
     )
 
     if matching_tag is None:
-        flash(f'Sync Tag "{tag_to_delete}" was not found.', "warning")
+        message = f'Sync Tag "{tag_to_delete}" was not found.'
+        if is_ajax: return jsonify(success=False, error=message), 404
+        flash(message, "warning")
         return redirect(url_for("index"))
 
     # Remove the tag from the master list.
@@ -1764,15 +2167,9 @@ def delete_sync_tag():
     settings["playlist"]["order"] = order
     save_settings(settings)
 
-    if assignments_removed:
-        flash(
-            f'Sync Tag "{matching_tag}" deleted and removed '
-            f'from {assignments_removed} video assignment(s).',
-            "success"
-        )
-    else:
-        flash(f'Sync Tag "{matching_tag}" deleted.', "success")
-
+    message = (f'Sync Tag "{matching_tag}" deleted and removed from {assignments_removed} video assignment(s).' if assignments_removed else f'Sync Tag "{matching_tag}" deleted.')
+    if is_ajax: return jsonify(success=True, message=message, tag=matching_tag, tags=settings["sync_tags"])
+    flash(message, "success")
     return redirect(url_for("index"))
 
 @app.route("/sync_tags_to_secondaries", methods=["POST"])
@@ -1786,6 +2183,14 @@ def sync_tags_to_secondaries():
 
     network_settings = load_network_settings()
     secondary_pis = network_settings.get("secondary_pis", [])
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+    if not secondary_pis:
+        message = "No Secondary Pis are configured."
+        if is_ajax:
+            return jsonify({"success": False, "message": message, "results": []})
+        flash(message, "warning")
+        return redirect(url_for("index"))
 
     # Clear acknowledgments from any previous sync.
     mqtt_client.clear_sync_tag_acknowledgments()
@@ -1801,46 +2206,55 @@ def sync_tags_to_secondaries():
 
     # Give Secondaries time to receive, process, and acknowledge.
     time.sleep(2)
-
     acknowledgments = mqtt_client.get_sync_tag_acknowledgments()
 
-    # Check every configured Secondary.
-    if not secondary_pis:
-        flash("No Secondary Pis are configured.", "warning")
-        return redirect(url_for("index"))
-
+    results = []
     for secondary in secondary_pis:
         secondary_name = secondary.get("name", "Unknown")
         secondary_ip = secondary.get("ip", "").strip()
 
         if not secondary_ip:
-            flash(
-                f"{secondary_name} — No IP address configured.",
-                "danger"
-            )
+            results.append({
+                "name": secondary_name,
+                "success": False,
+                "message": "No IP address configured."
+            })
             continue
 
         result = acknowledgments.get(secondary_ip)
-
         if result is None:
-            flash(
-                f"{secondary_name} — {secondary_ip} — No response",
-                "danger"
-            )
-            continue
-
-        if result.get("success"):
-            flash(
-                f"{secondary_name} — {secondary_ip} — Sync successful",
-                "success"
-            )
+            results.append({
+                "name": secondary_name,
+                "ip": secondary_ip,
+                "success": False,
+                "message": "No response from Secondary. It may be offline or disconnected."
+            })
+        elif result.get("success"):
+            results.append({
+                "name": secondary_name,
+                "ip": secondary_ip,
+                "success": True,
+                "message": "Sync successful."
+            })
         else:
-            message = result.get("message", "Unknown error")
-            flash(
-                f"{secondary_name} — {secondary_ip} — "
-                f"Sync failed: {message}",
-                "danger"
-            )
+            results.append({
+                "name": secondary_name,
+                "ip": secondary_ip,
+                "success": False,
+                "message": f"Sync failed: {result.get('message', 'Unknown error')}"
+            })
+
+    if is_ajax:
+        return jsonify({
+            "success": all(item["success"] for item in results),
+            "message": "Sync completed." if all(item["success"] for item in results) else "Sync completed with errors.",
+            "results": results
+        })
+
+    for item in results:
+        location = f" — {item['ip']}" if item.get("ip") else ""
+        flash(f"{item['name']}{location} — {item['message']}",
+              "success" if item["success"] else "danger")
 
     return redirect(url_for("index"))
 
@@ -1848,7 +2262,10 @@ def sync_tags_to_secondaries():
 def delete(filename):
     filepath = VIDEO_FOLDER / filename
 
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if not filepath.exists():
+        if is_ajax:
+            return jsonify(success=False, error="File not found."), 404
         flash('File not found', 'danger')
         return redirect(url_for('index'))
 
@@ -1876,12 +2293,24 @@ def delete(filename):
 
     # Inactive videos can be deleted without affecting the active-video minimum.
     if target_is_active and len(active_videos) <= 1:
-        flash("At least one active video must remain.", "danger")
+        message = "At least one active video must remain."
+        if is_ajax:
+            return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for('index'))
 
     was_selected = Path(settings.get("selected_video", "")).name == filename
 
     filepath.unlink()
+    _VIDEO_DETAILS_CACHE.pop(secure_filename(Path(filename).name), None)
+
+    # Remove the cached thumbnail along with its video.
+    thumbnail_path = _thumbnail_path(filename)
+    if thumbnail_path is not None:
+        try:
+            thumbnail_path.unlink(missing_ok=True)
+        except OSError:
+            log(f"Could not remove thumbnail for {filename}.", "WARNING")
 
     # Remove from playlist order.
     order = [
@@ -1910,7 +2339,11 @@ def delete(filename):
             )
             settings["selected_video"] = replacement
 
+    normalized_schedules = _normalize_unavailable_schedule_tags(settings)
     save_settings(settings)
+    if normalized_schedules:
+        names = ", ".join(normalized_schedules)
+        flash(f"No active videos remain for a schedule tag. Updated to All active videos: {names}.", "warning")
 
     # Check remaining active videos.
     remaining_active = [
@@ -1941,13 +2374,16 @@ def delete(filename):
         settings["selected_video"] = only_video
         save_settings(settings)
 
-        flash(
-            f"Deleted {filename}. Only one active video remains. Switched to single mode with video: {only_video}",
-            "info"
+        message = (
+            f"Deleted {filename}. Only one active video remains. "
+            f"Switched to single mode with video: {only_video}"
         )
     else:
-        flash(f"Deleted {filename}", "success")
+        message = f"Deleted {filename}"
 
+    if is_ajax:
+        return jsonify(success=True, message=message, filename=filename)
+    flash(message, "info" if len(remaining_active) == 1 else "success")
     return redirect(url_for("index"))
 
 
@@ -2127,6 +2563,19 @@ def setup_add_discovered_secondary_ajax():
     })
 
 
+@app.route("/network/refresh_discovered_secondary", methods=["POST"])
+def network_refresh_discovered_secondary():
+    """Discover secondary Pis only when the user requests a refresh."""
+    network_settings = load_network_settings()
+    secondary_pis = network_settings.get("secondary_pis", [])
+    if not isinstance(secondary_pis, list):
+        secondary_pis = []
+    return jsonify({
+        "success": True,
+        "devices": _get_discovered_secondary_pis_for_config(secondary_pis),
+    })
+
+
 # Refresh the discovery list during initial setup without reloading the wizard.
 @app.route("/setup/refresh_discovered_secondary", methods=["POST"])
 def setup_refresh_discovered_secondary():
@@ -2300,6 +2749,79 @@ def network_delete_secondary(index):
     return redirect(url_for("index"))
 
 # Check Secondary Pi status
+SECONDARY_STATUS_CHECK_INTERVAL_SECONDS = 15 * 60
+SECONDARY_STATUS_MONITOR_POLL_SECONDS = 30
+_secondary_status_monitor_started = False
+_secondary_status_monitor_lock = threading.Lock()
+
+
+def _secondary_status_monitor():
+    """Refresh configured Secondary Pi reachability every 15 minutes while MQTT is enabled."""
+    last_check = None
+
+    while True:
+        try:
+            network_settings = load_network_settings()
+            monitoring_enabled = (
+                network_settings.get("role") == "primary"
+                and network_settings.get("enable", "0") == "1"
+            )
+
+            if not monitoring_enabled:
+                # Re-enabling MQTT should trigger a fresh check instead of waiting
+                # for the remainder of the previous interval.
+                last_check = None
+            elif (
+                last_check is None
+                or time.monotonic() - last_check >= SECONDARY_STATUS_CHECK_INTERVAL_SECONDS
+            ):
+                # Record the attempt time before checking so a failure does not
+                # cause repeated network scans every 30 seconds.
+                last_check = time.monotonic()
+                check_secondary_status()
+                log("Automatic Secondary Pi status check completed.", "NETWORK")
+        except Exception as e:
+            log(f"Automatic Secondary Pi status check failed: {e}", "ERROR")
+
+        time.sleep(SECONDARY_STATUS_MONITOR_POLL_SECONDS)
+
+
+def start_secondary_status_monitor():
+    """Start the background status monitor once per Flask process."""
+    global _secondary_status_monitor_started
+
+    with _secondary_status_monitor_lock:
+        if _secondary_status_monitor_started:
+            return
+        monitor = threading.Thread(
+            target=_secondary_status_monitor,
+            name="secondary-status-monitor",
+            daemon=True,
+        )
+        monitor.start()
+        _secondary_status_monitor_started = True
+
+
+@app.route("/network/secondary_status", methods=["GET"])
+def network_secondary_status():
+    """Return the latest saved status without initiating a network check."""
+    network_settings = load_network_settings()
+    return jsonify({
+        "success": True,
+        "role": network_settings.get("role", ""),
+        "enable": network_settings.get("enable", "0"),
+        "secondary_pis": [
+            {
+                "name": pi.get("name", "Unknown"),
+                "ip": pi.get("ip", ""),
+                "status": pi.get("status", "unknown"),
+                "last_checked": pi.get("last_checked", ""),
+            }
+            for pi in network_settings.get("secondary_pis", [])
+        ],
+    })
+
+
 @app.route("/network/check_secondary", methods=["POST"])
 def network_check_secondary():
     try:
@@ -2390,13 +2912,16 @@ def update_status():
 
 @app.route("/add_schedule_tag", methods=["POST"])
 def add_schedule_tag():
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     settings = load_settings()
     schedule_tags = settings.get("schedule_tags", [])
 
     new_tag = request.form.get("schedule_tag", "").strip()
 
     if not new_tag:
-        flash("Schedule Tag cannot be blank.", "danger")
+        message = "Schedule Tag cannot be blank."
+        if is_ajax: return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for("index"))
 
     new_tag = new_tag[:50]
@@ -2412,7 +2937,9 @@ def add_schedule_tag():
     )
 
     if not tag_id:
-        flash("Invalid Schedule Tag name.", "danger")
+        message = "Invalid Schedule Tag name."
+        if is_ajax: return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for("index"))
 
     existing_ids = {
@@ -2426,7 +2953,9 @@ def add_schedule_tag():
     }
 
     if tag_id.lower() in existing_ids or new_tag.lower() in existing_names:
-        flash(f'Schedule Tag "{new_tag}" already exists.', "warning")
+        message = f'Schedule Tag "{new_tag}" already exists.'
+        if is_ajax: return jsonify(success=False, error=message), 409
+        flash(message, "warning")
         return redirect(url_for("index"))
 
     schedule_tags.append({
@@ -2441,18 +2970,23 @@ def add_schedule_tag():
     settings["schedule_tags"] = schedule_tags
     save_settings(settings)
 
-    flash(f'Schedule Tag "{new_tag}" added.', "success")
+    message = f'Schedule Tag "{new_tag}" added.'
+    if is_ajax: return jsonify(success=True, message=message, tag={"id": tag_id, "name": new_tag}, tags=schedule_tags)
+    flash(message, "success")
     return redirect(url_for("index"))
 
 @app.route("/delete_schedule_tag", methods=["POST"])
 def delete_schedule_tag():
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     settings = load_settings()
     schedule_tags = settings.get("schedule_tags", [])
 
     tag_to_delete = request.form.get("schedule_tag", "").strip()
 
     if not tag_to_delete:
-        flash("No Schedule Tag was specified.", "danger")
+        message = "No Schedule Tag was specified."
+        if is_ajax: return jsonify(success=False, error=message), 400
+        flash(message, "danger")
         return redirect(url_for("index"))
 
     tag_key = tag_to_delete.lower()
@@ -2467,7 +3001,9 @@ def delete_schedule_tag():
     )
 
     if matching_tag is None:
-        flash(f'Schedule Tag "{tag_to_delete}" was not found.', "warning")
+        message = f'Schedule Tag "{tag_to_delete}" was not found.'
+        if is_ajax: return jsonify(success=False, error=message), 404
+        flash(message, "warning")
         return redirect(url_for("index"))
 
     tag_id = matching_tag.get("id", "")
@@ -2496,11 +3032,9 @@ def delete_schedule_tag():
                 schedule_count += 1
 
     if video_count > 0 or schedule_count > 0:
-        flash(
-            f'Cannot delete Schedule Tag "{matching_tag.get("name", tag_id)}" '
-            f'because it is currently in use.',
-            "danger"
-        )
+        message = f'Cannot delete Schedule Tag "{matching_tag.get("name", tag_id)}" because it is currently in use.'
+        if is_ajax: return jsonify(success=False, error=message), 409
+        flash(message, "danger")
         return redirect(url_for("index"))
 
     settings["schedule_tags"] = [
@@ -2511,11 +3045,9 @@ def delete_schedule_tag():
 
     save_settings(settings)
 
-    flash(
-        f'Schedule Tag "{matching_tag.get("name", tag_id)}" deleted.',
-        "success"
-    )
-
+    message = f'Schedule Tag "{matching_tag.get("name", tag_id)}" deleted.'
+    if is_ajax: return jsonify(success=True, message=message, tag_id=tag_id, tags=settings["schedule_tags"])
+    flash(message, "success")
     return redirect(url_for("index"))
 
 @app.route("/save_appearance_settings", methods=["POST"])
@@ -2795,6 +3327,11 @@ def save_power_schedule():
     )
 
     return redirect(url_for("index"))
+
+
+# Run the periodic checker in the Flask service process. It only pings devices
+# when this Pi is Primary and Enable MQTT is turned on.
+start_secondary_status_monitor()
 
 
 if __name__ == "__main__":

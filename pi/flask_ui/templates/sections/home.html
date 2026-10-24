@@ -307,55 +307,35 @@
 
     <div class="card-body p-0">
 
-      {% if today_schedule.enabled and today_schedule.slots %}
+      {% if dashboard_schedules %}
 
       <div class="list-group list-group-flush">
 
-        {% for slot in today_schedule.slots %}
+        {% for schedule in dashboard_schedules %}
 
-        <div class="list-group-item d-flex align-items-center justify-content-between px-3 py-2">
+        <div class="list-group-item d-flex align-items-center justify-content-between gap-2 px-3 py-2">
 
-          <div class="d-flex align-items-center gap-2">
-
-            <span class="d-flex align-items-center justify-content-center rounded-circle {% if slot.is_active %}bg-success-subtle{% else %}bg-light{% endif %}"
-              style="width:30px;height:30px;">
-
-              <i class="bi bi-clock-history {% if slot.is_active %}text-success{% else %}text-muted{% endif %}"></i>
-
+          <div class="d-flex align-items-center gap-2 min-w-0">
+            <span class="d-flex align-items-center justify-content-center rounded-circle {% if schedule.is_active %}bg-success-subtle{% else %}bg-light{% endif %}"
+              style="width:30px;height:30px;flex-shrink:0;">
+              <i class="bi bi-clock-history {% if schedule.is_active %}text-success{% else %}text-muted{% endif %}"></i>
             </span>
 
-            <div>
-              <span class="fw-semibold small">
-                {{ "Time Slot 1" if slot.name == "slot1" else "Time Slot 2" if slot.name == "slot2" else slot.name }}
-              </span>
-
-              <span class="text-muted small ms-2">
-                {{ slot.start_ampm }} – {{ slot.end_ampm }}
-              </span>
+            <div class="min-w-0">
+              <div class="fw-semibold small text-break">{{ schedule.name }}</div>
+              <div class="text-muted small">{{ schedule.start_ampm }} – {{ schedule.end_ampm }}</div>
             </div>
-
           </div>
 
-          <div class="d-flex align-items-center gap-2">
-
-            {% set schedule_tag_name = slot.category or "None" %}
-
-            {% for tag in schedule_tags %}
-            {% if tag.id == slot.category %}
-            {% set schedule_tag_name = tag.name %}
-            {% endif %}
-            {% endfor %}
-
+          <div class="d-flex align-items-center gap-2 flex-shrink-0">
             <span class="badge bg-light text-secondary border fw-normal d-none d-sm-inline">
-              <i class="bi bi-tag me-1"></i>{{ schedule_tag_name }}
+              <i class="bi bi-tag me-1"></i>{{ schedule.category_name }}
             </span>
-
-            {% if slot.is_active %}
+            {% if schedule.is_active %}
             <span class="badge bg-success-subtle text-success">Active</span>
             {% else %}
             <span class="badge bg-light text-muted border">Inactive</span>
             {% endif %}
-
           </div>
 
         </div>
@@ -369,7 +349,7 @@
       <div class="text-center py-3">
         <span class="fw-semibold text-muted small">
           <i class="bi bi-calendar-x me-1"></i>
-          No scheduled slots configured for today
+          No schedules configured for today
         </span>
       </div>
 
