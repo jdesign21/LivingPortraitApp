@@ -113,7 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: (form.method || 'POST').toUpperCase(),
                 body: new FormData(form),
                 credentials: 'same-origin',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                }
             });
             if (form.id === 'syncTagsForm') {
                 const data = await response.json();
@@ -1902,6 +1905,18 @@ if (updateNowBtn) {
 // GLOBAL FUNCTIONS
 // ============================================================
 
+// Keep the posted row indexes consecutive after a video is removed. The
+// update_all route reads videos[index][field] names from the submitted form.
+function reindexVideoFormRows() {
+    const rows = document.querySelectorAll('#videoLibraryList > li.video-library-item');
+
+    rows.forEach((row, index) => {
+        row.querySelectorAll('[name]').forEach(field => {
+            field.name = field.name.replace(/^videos\[\d+\]/, `videos[${index}]`);
+        });
+    });
+}
+
 async function deleteVideo(filename) {
     if (!confirm(`Delete ${filename}?`)) return;
 
@@ -1928,6 +1943,8 @@ async function deleteVideo(filename) {
         }
 
         item?.remove();
+        reindexVideoFormRows();
+
         const list = document.getElementById('videoLibraryList');
         if (list && !list.querySelector('.video-library-item')) {
             list.innerHTML = '<li class="list-group-item text-muted">No videos found.</li>';
