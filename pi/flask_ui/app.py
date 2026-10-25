@@ -1185,11 +1185,36 @@ def setup():
     audio_outputs = get_audio_outputs()
     audio_output = get_audio_output()
 
+    auth_data = load_auth_data()
+    existing_admin = bool(auth_data.get("username") and auth_data.get("password"))
+    ui_password_enabled = bool(auth_data.get("ui_password_enabled", False))
+
     if request.method == "POST":
         role = request.form.get("role", "secondary")
         enable = "1" if request.form.get("enable") == "1" else "0"
         primary_ip = request.form.get("primary_ip", "").strip()
         audio_output = request.form.get("audio_output", "default")
+        ui_password_choice = request.form.get("ui_password_enabled", "0")
+        ui_password_enabled = ui_password_choice == "1"
+        new_admin_username = request.form.get("admin_username", "")
+        new_admin_password = request.form.get("admin_password", "")
+        confirm_admin_password = request.form.get("confirm_admin_password", "")
+
+        if ui_password_choice not in ("0", "1"):
+            flash("Select No or Yes for UI Password.", "danger")
+            return redirect(url_for("setup"))
+
+        if ui_password_enabled and not existing_admin:
+            username = validate_username(new_admin_username)
+            if not username:
+                flash("When UI Password is Yes, enter a username with 3–32 letters, numbers, periods, underscores, or hyphens.", "danger")
+                return render_template("setup.html", role=role, enable=enable, primary_ip=primary_ip, secondary_pis=secondary_pis, discovered_secondary_pis=discovered_secondary_pis, videos=videos, audio_outputs=audio_outputs, audio_output=audio_output, ui_password_enabled=True)
+            if not validate_password(new_admin_password):
+                flash("Administrator password must be at least 12 characters and have no leading or trailing whitespace.", "danger")
+                return render_template("setup.html", role=role, enable=enable, primary_ip=primary_ip, secondary_pis=secondary_pis, discovered_secondary_pis=discovered_secondary_pis, videos=videos, audio_outputs=audio_outputs, audio_output=audio_output, ui_password_enabled=True)
+            if new_admin_password != confirm_admin_password:
+                flash("The administrator passwords do not match.", "danger")
+                return render_template("setup.html", role=role, enable=enable, primary_ip=primary_ip, secondary_pis=secondary_pis, discovered_secondary_pis=discovered_secondary_pis, videos=videos, audio_outputs=audio_outputs, audio_output=audio_output, ui_password_enabled=True)
 
         if role not in ("primary", "secondary"):
             role = "secondary"
@@ -1383,6 +1408,20 @@ def setup():
                 settings["pause_flag"] = False
                 save_settings(settings)
 
+        # Persist the UI Password choice only after the setup form has been
+        # validated. Create credentials only when protection was requested.
+        auth_data = load_auth_data()
+        if ui_password_enabled and not (auth_data.get("username") and auth_data.get("password")):
+            created_admin = create_admin(validate_username(new_admin_username), new_admin_password)
+            auth_data = load_auth_data()
+            session.clear()
+            session.permanent = True
+            session["auth_user"] = auth_data.get("username")
+            session["auth_version"] = auth_data.get("session_version")
+            session["last_activity"] = time.time()
+        auth_data["ui_password_enabled"] = ui_password_enabled
+        save_auth_data(auth_data)
+
         settings = load_settings()
         settings["setup_complete"] = True
         save_settings(settings)
@@ -1405,10 +1444,11 @@ def setup():
         enable=enable,
         primary_ip=primary_ip,
         secondary_pis=secondary_pis,
-                    discovered_secondary_pis=_get_discovered_secondary_pis_for_config(secondary_pis),
+        discovered_secondary_pis=_get_discovered_secondary_pis_for_config(secondary_pis),
         videos=videos,
         audio_outputs=audio_outputs,
-        audio_output=audio_output
+        audio_output=audio_output,
+        ui_password_enabled=ui_password_enabled
     )
 
 
