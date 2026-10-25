@@ -291,7 +291,12 @@ def admin_setup():
 
 def _safe_next_url(target):
     """Accept only relative paths so login cannot become an open redirect."""
-    if not isinstance(target, str) or not target.startswith("/") or target.startswith("//"):
+    if (
+        not isinstance(target, str)
+        or not target.startswith("/")
+        or target.startswith("//")
+        or "\\" in target
+    ):
         return url_for("index")
     parsed = urlsplit(target)
     if parsed.scheme or parsed.netloc:
