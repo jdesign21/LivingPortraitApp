@@ -77,6 +77,16 @@
                 </div>
               </div>
 
+              <!-- Optional UI authentication -->
+              <div class="mb-4">
+                <label for="setupUiPassword" class="form-label fw-semibold">UI Password</label>
+                <select class="form-select" id="setupUiPassword" name="ui_password_enabled">
+                  <option value="0" {% if not ui_password_enabled %}selected{% endif %}>No</option>
+                  <option value="1" {% if ui_password_enabled %}selected{% endif %}>Yes</option>
+                </select>
+                <div class="form-text">Choose Yes to require a username and password to access the LivingPortraitApp interface. The default is No.</div>
+              </div>
+
               <!-- Audio Output -->
               <div class="mb-4">
                 <label for="audio_output" class="form-label fw-semibold">
@@ -256,6 +266,31 @@
                 </div>
               </div>
 
+              <!-- Create credentials only when UI Password is enabled -->
+              <div id="setupAdminCredentials" class="border rounded p-3 mb-4" style="display:none;">
+                {% if admin_account_exists %}
+                <div class="fw-semibold mb-1">Administrator Account</div>
+                <p class="small text-muted mb-0">An administrator account already exists. Its credentials will be retained and used when UI Password is enabled.</p>
+                {% else %}
+                <div class="fw-semibold mb-1">Create Administrator Account</div>
+                <p class="small text-muted mb-3">Because UI Password is set to Yes, create the account that will be used to sign in.</p>
+                <div class="mb-3">
+                  <label for="setupAdminUsername" class="form-label">Username</label>
+                  <input id="setupAdminUsername" name="admin_username" class="form-control" autocomplete="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9._-]+">
+                  <div class="form-text">3–32 characters: letters, numbers, period, underscore, or hyphen.</div>
+                </div>
+                <div class="mb-3">
+                  <label for="setupAdminPassword" class="form-label">Password</label>
+                  <input id="setupAdminPassword" name="admin_password" type="password" class="form-control" autocomplete="new-password" minlength="12">
+                  <div class="form-text">At least 12 characters, with no leading or trailing spaces.</div>
+                </div>
+                <div class="mb-0">
+                  <label for="setupConfirmAdminPassword" class="form-label">Confirm Password</label>
+                  <input id="setupConfirmAdminPassword" name="confirm_admin_password" type="password" class="form-control" autocomplete="new-password" minlength="12">
+                </div>
+                {% endif %}
+              </div>
+
               <!-- Complete -->
               <div class="d-flex justify-content-between align-items-center mt-4">
                 <button type="button" class="btn btn-outline-secondary" id="setupBackBtn"><i class="bi bi-arrow-left me-1"></i> Back</button>
@@ -314,6 +349,25 @@
 
     const enable = document.getElementById('enable');
     const primaryIp = document.getElementById('primary_ip');
+    const setupUiPassword = document.getElementById('setupUiPassword');
+    const setupAdminCredentials = document.getElementById('setupAdminCredentials');
+
+    function updateSetupUiPassword() {
+      const requirePassword = setupUiPassword && setupUiPassword.value === '1';
+      if (setupAdminCredentials) {
+        setupAdminCredentials.style.display = requirePassword ? 'block' : 'none';
+      }
+      if (setupAdminCredentials) {
+        setupAdminCredentials.querySelectorAll('input').forEach(input => {
+          input.required = requirePassword && !input.disabled;
+        });
+      }
+    }
+
+    if (setupUiPassword) {
+      setupUiPassword.addEventListener('change', updateSetupUiPassword);
+      updateSetupUiPassword();
+    }
 
     const setupForm = document.getElementById('setupForm');
     const setupError = document.getElementById('setupError');
@@ -617,6 +671,24 @@
         }
       }
 
+      }
+
+      if (setupUiPassword && setupUiPassword.value === '1' && setupAdminCredentials && setupAdminCredentials.querySelector('#setupAdminUsername')) {
+        const username = setupAdminCredentials.querySelector('#setupAdminUsername').value.trim();
+        const password = setupAdminCredentials.querySelector('#setupAdminPassword').value;
+        const confirmation = setupAdminCredentials.querySelector('#setupConfirmAdminPassword').value;
+        if (!/^[A-Za-z0-9._-]{3,32}$/.test(username)) {
+          showSetupError('Enter a valid administrator username (3–32 letters, numbers, periods, underscores, or hyphens).');
+          return false;
+        }
+        if (password.length < 12 || password.trim() !== password) {
+          showSetupError('Administrator password must be at least 12 characters and have no leading or trailing spaces.');
+          return false;
+        }
+        if (password !== confirmation) {
+          showSetupError('The administrator passwords do not match.');
+          return false;
+        }
       }
 
       if (setupVideo) {
