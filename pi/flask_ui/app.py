@@ -344,8 +344,8 @@ def ui_password_settings():
         flash("UI Password disabled. The application is now accessible without signing in.", "success")
         return redirect(url_for("index"))
 
-    flash("UI Password enabled. Sign in is now required.", "success")
     session.clear()
+    flash("UI Password enabled. Sign in is now required.", "success")
     return redirect(url_for("login"))
 
 
