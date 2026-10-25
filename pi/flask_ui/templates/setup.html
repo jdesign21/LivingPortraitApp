@@ -673,7 +673,7 @@
 
       }
 
-      if (setupUiPassword && setupUiPassword.value === '1' && setupAdminCredentials && setupAdminCredentials.querySelector('#setupAdminUsername')) {
+      if (step === 2 && setupUiPassword && setupUiPassword.value === '1' && setupAdminCredentials && setupAdminCredentials.querySelector('#setupAdminUsername')) {
         const username = setupAdminCredentials.querySelector('#setupAdminUsername').value.trim();
         const password = setupAdminCredentials.querySelector('#setupAdminPassword').value;
         const confirmation = setupAdminCredentials.querySelector('#setupConfirmAdminPassword').value;
