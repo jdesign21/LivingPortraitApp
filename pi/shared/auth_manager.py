@@ -47,13 +47,52 @@ def get_or_create_secret_key():
     return value
 
 
+class AuthDataError(RuntimeError):
+    """Raised when existing authentication data cannot be read safely."""
+
+
 def load_auth_data():
-    _ensure_private_dir()
     try:
-        data = json.loads(AUTH_FILE.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError, TypeError):
+        _ensure_private_dir()
+    except OSError as exc:
+        raise AuthDataError(
+            "The authentication directory cannot be accessed. Check its permissions; "
+            "access is blocked for safety."
+        ) from exc
+
+    try:
+        raw_data = AUTH_FILE.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        # A missing file is expected on legacy installs and means UI Password
+        # is disabled until the user explicitly enables it.
         return {}
+    except UnicodeError as exc:
+        raise AuthDataError(
+            "Authentication data is not valid UTF-8. Restore a valid auth.json; "
+            "access is blocked for safety."
+        ) from exc
+    except OSError as exc:
+        # Do not treat permission or I/O failures as an unconfigured account:
+        # that could silently disable authentication on a protected install.
+        raise AuthDataError(
+            "Authentication data exists but cannot be read. Check its file "
+            "permissions or restore a valid auth.json; access is blocked for safety."
+        ) from exc
+
+    try:
+        data = json.loads(raw_data)
+    except (ValueError, TypeError) as exc:
+        raise AuthDataError(
+            "Authentication data is malformed. Restore a valid auth.json; "
+            "access is blocked for safety."
+        ) from exc
+
+    if not isinstance(data, dict):
+        raise AuthDataError(
+            "Authentication data has an invalid format. Restore a valid auth.json; "
+            "access is blocked for safety."
+        )
+    return data
 
 
 def save_auth_data(data):
@@ -121,12 +160,15 @@ def verify_password(password, stored):
 
 
 def create_admin(username, password):
-    data = {
+    # Preserve non-credential preferences (including UI Password state) when
+    # creating an account after initial setup or from Account & Security.
+    data = load_auth_data()
+    data.update({
         "username": username,
         "password": hash_password(password),
         "session_version": secrets.token_hex(16),
         "created_at": int(time.time()),
-    }
+    })
     save_auth_data(data)
     return data
 

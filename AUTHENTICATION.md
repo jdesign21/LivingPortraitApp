@@ -1,4 +1,12 @@
-# LivingPortraitApp Authentication Recovery
+# LivingPortraitApp UI Password and Authentication
+
+UI Password controls whether the web interface requires an administrator login. It defaults to **No**. Disabling UI Password does not delete an existing administrator account; credentials remain stored so authentication can be re-enabled later.
+
+During initial setup, choose **No** to finish without creating an account. Choose **Yes** to create an administrator username and password at the final setup step. When enabling UI Password later from Account & Security, an existing account is reused. If no account exists, the application directs you to create one before requiring sign-in.
+
+Changing UI Password takes effect immediately and does not require a reboot. Existing installations that do not yet have the UI Password setting default to **No** after upgrading, so upgrading does not force account creation or login.
+
+## Administrator Password Recovery
 
 If the administrator password is forgotten, sign in to the Raspberry Pi operating-system account locally or over SSH. Run:
 
