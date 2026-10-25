@@ -359,10 +359,11 @@
     const setupAdminCredentials = document.getElementById('setupAdminCredentials');
 
     function updateSetupUiPassword() {
-      const requirePassword = setupUiPassword && setupUiPassword.value === '1';
+      // Credential validation is handled explicitly when leaving the admin step
+      // and before final submission, so hidden fields do not block the form.
       if (setupAdminCredentials) {
         setupAdminCredentials.querySelectorAll('input').forEach(input => {
-          input.required = requirePassword && !input.disabled;
+          input.required = false;
         });
       }
     }
@@ -989,6 +990,10 @@
         event.preventDefault();
 
         if (!validateSetup(3)) {
+          return;
+        }
+        if (adminStepRequired() && !validateSetup(2)) {
+          showSetupStep(2);
           return;
         }
 
