@@ -733,6 +733,7 @@
         document.getElementById('setupStepLabel3')
       ];
       labels[1].style.display = showAdminStep ? '' : 'none';
+      labels[2].textContent = showAdminStep ? '3. Network Setup' : '2. Network Setup';
       labels.forEach((label, index) => {
         const active = index + 1 === activeStep;
         label.classList.toggle('text-primary', active);
