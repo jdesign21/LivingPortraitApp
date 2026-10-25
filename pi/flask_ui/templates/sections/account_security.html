@@ -5,7 +5,7 @@
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-primary text-white"><i class="bi bi-shield-lock me-2"></i><strong>UI Password</strong></div>
     <div class="card-body">
-      <form method="POST" action="{{ url_for('ui_password_settings') }}">
+      <form id="uiPasswordSettingsForm" method="POST" action="{{ url_for('ui_password_settings') }}">
         <div class="row align-items-end g-3">
           <div class="col-md-5">
             <label for="ui_password_enabled" class="form-label fw-semibold">UI Password</label>
@@ -13,9 +13,6 @@
               <option value="0" {% if not ui_password_enabled %}selected{% endif %}>No</option>
               <option value="1" {% if ui_password_enabled %}selected{% endif %}>Yes</option>
             </select>
-          </div>
-          <div class="col-md-7">
-            <button type="submit" class="btn btn-primary"><i class="bi bi-save me-2"></i>Save UI Password</button>
           </div>
         </div>
       </form>
@@ -127,7 +124,16 @@
   </div>
 </section>
 <script>
-// Administrator Account visibility is based on the saved server-side setting.
-// Changing the dropdown alone does not alter visibility; Save UI Password applies it.
+document.addEventListener('DOMContentLoaded', function () {
+  const uiPasswordSelect = document.getElementById('ui_password_enabled');
+  const settingsForm = document.getElementById('uiPasswordSettingsForm');
+  if (uiPasswordSelect && settingsForm) {
+    uiPasswordSelect.addEventListener('change', function () {
+      // Submit immediately so the server persists the setting and applies
+      // authentication changes; do not change section visibility client-side.
+      settingsForm.requestSubmit();
+    });
+  }
+});
 </script>
 
