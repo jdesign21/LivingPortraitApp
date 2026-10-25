@@ -169,6 +169,11 @@ def enforce_authentication_and_csrf():
             return redirect(url_for("login"))
         return None
 
+    # Allow an administrator to cancel account creation and turn protection
+    # back off if they enabled it before an account existed.
+    if endpoint == "ui_password_settings" and not configured:
+        return None
+
     # Initial setup and its discovery actions remain available before setup is complete.
     if not load_settings().get("setup_complete", False):
         if endpoint == "setup" or endpoint.startswith("setup_") or endpoint == "image_file":
