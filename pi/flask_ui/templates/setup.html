@@ -770,6 +770,9 @@
       setupAdminBackBtn.addEventListener('click', () => showSetupStep(1));
     }
 
+    // Initialize the progress labels for the selected UI Password setting.
+    showSetupStep(1);
+
     const refreshDiscoveredPisBtn = document.getElementById('refreshDiscoveredPisBtn');
     const setupDiscoveryList = document.getElementById('setupDiscoveryList');
 
