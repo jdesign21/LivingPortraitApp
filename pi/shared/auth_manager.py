@@ -52,13 +52,25 @@ class AuthDataError(RuntimeError):
 
 
 def load_auth_data():
-    _ensure_private_dir()
+    try:
+        _ensure_private_dir()
+    except OSError as exc:
+        raise AuthDataError(
+            "The authentication directory cannot be accessed. Check its permissions; "
+            "access is blocked for safety."
+        ) from exc
+
     try:
         raw_data = AUTH_FILE.read_text(encoding="utf-8")
     except FileNotFoundError:
         # A missing file is expected on legacy installs and means UI Password
         # is disabled until the user explicitly enables it.
         return {}
+    except UnicodeError as exc:
+        raise AuthDataError(
+            "Authentication data is not valid UTF-8. Restore a valid auth.json; "
+            "access is blocked for safety."
+        ) from exc
     except OSError as exc:
         # Do not treat permission or I/O failures as an unconfigured account:
         # that could silently disable authentication on a protected install.
