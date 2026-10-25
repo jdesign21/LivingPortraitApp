@@ -1932,9 +1932,17 @@ def update_all():
     videos_form = request.form.to_dict(flat=False)
 
     videos = []
-    index = 0
 
-    while f"videos[{index}][filename]" in request.form:
+    # The UI reindexes remaining rows after a delete. Also tolerate sparse
+    # indexes here so a missing row can never cause later submitted videos
+    # to be silently skipped.
+    video_indexes = []
+    for key in request.form.keys():
+        match = re.fullmatch(r"videos\[(\d+)\]\[filename\]", key)
+        if match:
+            video_indexes.append(int(match.group(1)))
+
+    for index in sorted(video_indexes):
         filename = request.form.get(f"videos[{index}][filename]")
         active = request.form.get(f"videos[{index}][active]") == "true"
         tags = request.form.getlist(f"videos[{index}][tags][]")
@@ -1969,7 +1977,6 @@ def update_all():
             "thumbnail_rotation": thumbnail_rotation
         })
 
-        index += 1
 
     active_videos = [
         v
