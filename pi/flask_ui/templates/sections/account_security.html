@@ -127,15 +127,7 @@
   </div>
 </section>
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-  const uiPasswordSelect = document.getElementById('ui_password_enabled');
-  const administratorSection = document.getElementById('administratorAccountSection');
-  if (uiPasswordSelect && administratorSection) {
-    uiPasswordSelect.addEventListener('change', function () {
-      administratorSection.hidden = this.value !== '1' || administratorSection.dataset.hasAccount !== 'true';
-    });
-    administratorSection.dataset.hasAccount = '{{ "true" if admin_account_exists else "false" }}';
-  }
-});
+// Administrator Account visibility is based on the saved server-side setting.
+// Changing the dropdown alone does not alter visibility; Save UI Password applies it.
 </script>
 
