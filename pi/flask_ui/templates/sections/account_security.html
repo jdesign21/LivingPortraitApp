@@ -15,18 +15,13 @@
             </select>
           </div>
           <div class="col-md-7">
-            <div class="small text-muted mb-2">No allows access to the UI without signing in. Yes requires an administrator username and password. Changes take effect immediately; no reboot is needed.</div>
             <button type="submit" class="btn btn-primary"><i class="bi bi-save me-2"></i>Save UI Password</button>
           </div>
         </div>
       </form>
-      {% if not admin_account_exists %}
-      <p class="small text-muted mt-3 mb-0">No administrator account exists. Select Yes and save to create one.</p>
-      {% elif not ui_password_enabled %}
-      <p class="small text-muted mt-3 mb-0">An administrator account is stored, but it is not required while UI Password is set to No.</p>
-      {% endif %}
     </div>
   </div>
+  <div id="administratorAccountSection" {% if not ui_password_enabled or not admin_account_exists %}hidden{% endif %}>
   {% if admin_account_exists %}
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-primary text-white"><i class="bi bi-person-gear me-2"></i><strong>Administrator Account</strong></div>
@@ -129,4 +124,18 @@
   </div>
   {% endif %}
   {% endif %}
+  </div>
 </section>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const uiPasswordSelect = document.getElementById('ui_password_enabled');
+  const administratorSection = document.getElementById('administratorAccountSection');
+  if (uiPasswordSelect && administratorSection) {
+    uiPasswordSelect.addEventListener('change', function () {
+      administratorSection.hidden = this.value !== '1' || administratorSection.dataset.hasAccount !== 'true';
+    });
+    administratorSection.dataset.hasAccount = '{{ "true" if admin_account_exists else "false" }}';
+  }
+});
+</script>
+
