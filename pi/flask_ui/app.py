@@ -332,11 +332,14 @@ def ui_password_settings():
         return redirect(url_for("admin_setup"))
 
     auth_data["ui_password_enabled"] = enabled
+    # Rotate the version whenever the setting changes so sessions created
+    # before the transition cannot silently become valid again later.
+    auth_data["session_version"] = secrets.token_hex(16)
     save_auth_data(auth_data)
 
     if not enabled:
-        # Drop the authenticated session immediately; the next request uses
-        # normal unauthenticated UI access without restarting Flask.
+        # Drop the current session immediately; the next request uses normal
+        # unauthenticated UI access without restarting Flask.
         session.clear()
         flash("UI Password disabled. The application is now accessible without signing in.", "success")
         return redirect(url_for("index"))
