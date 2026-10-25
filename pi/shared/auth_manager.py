@@ -121,12 +121,15 @@ def verify_password(password, stored):
 
 
 def create_admin(username, password):
-    data = {
+    # Preserve non-credential preferences (including UI Password state) when
+    # creating an account after initial setup or from Account & Security.
+    data = load_auth_data()
+    data.update({
         "username": username,
         "password": hash_password(password),
         "session_version": secrets.token_hex(16),
         "created_at": int(time.time()),
-    }
+    })
     save_auth_data(data)
     return data
 
