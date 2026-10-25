@@ -5,6 +5,7 @@
   <div class="card shadow-sm mb-4">
     <div class="card-header bg-primary text-white"><i class="bi bi-shield-lock me-2"></i><strong>UI Password</strong></div>
     <div class="card-body">
+      <p class="small text-muted mb-3">Changing this setting takes effect immediately. Selecting <strong>Yes</strong> requires an administrator account. If you don't have one, you'll be prompted to create it.</p>
       <form id="uiPasswordSettingsForm" method="POST" action="{{ url_for('ui_password_settings') }}">
         <div class="row align-items-end g-3">
           <div class="col-md-5">
