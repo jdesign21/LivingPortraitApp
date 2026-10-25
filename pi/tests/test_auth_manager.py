@@ -40,6 +40,20 @@ class LoadAuthDataTests(unittest.TestCase):
         with self.assertRaises(auth_manager.AuthDataError):
             auth_manager.load_auth_data()
 
+    def test_unreadable_existing_file_raises_instead_of_being_treated_as_empty(self):
+        self.auth_dir.mkdir(parents=True)
+        self.auth_file.write_text("{}", encoding="utf-8")
+        original_read_text = Path.read_text
+
+        def read_text_with_permission_error(path, *args, **kwargs):
+            if path == self.auth_file:
+                raise PermissionError("permission denied")
+            return original_read_text(path, *args, **kwargs)
+
+        with patch.object(Path, "read_text", read_text_with_permission_error):
+            with self.assertRaises(auth_manager.AuthDataError):
+                auth_manager.load_auth_data()
+
     def test_non_dictionary_json_raises_instead_of_being_treated_as_empty(self):
         self.auth_dir.mkdir(parents=True)
         self.auth_file.write_text(json.dumps(["not", "an", "object"]), encoding="utf-8")
