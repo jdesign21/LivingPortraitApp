@@ -4,6 +4,7 @@ from werkzeug.utils import secure_filename
 from pathlib import Path
 import os
 from datetime import datetime, timedelta
+from urllib.parse import urlsplit
 import random
 from flask import jsonify, send_file
 import sys
@@ -21,6 +22,7 @@ HOME = Path(os.path.expanduser("~"))
 sys.path.append(str(HOME))
 
 from shared.auth_manager import (
+    AuthDataError,
     get_or_create_secret_key,
     load_auth_data,
     validate_username,
@@ -125,10 +127,14 @@ def _get_session_timeout_hours(auth_data=None):
 
 @app.context_processor
 def inject_auth_template_values():
+    auth_data = load_auth_data()
     return {
         "csrf_token": _csrf_token,
-        "session_timeout_hours": _get_session_timeout_hours(),
+        "session_timeout_hours": _get_session_timeout_hours(auth_data),
         "session_timeout_options": SESSION_TIMEOUT_OPTIONS,
+        "ui_password_enabled": bool(auth_data.get("ui_password_enabled", False)),
+        "admin_account_exists": bool(auth_data.get("username") and auth_data.get("password")),
+        "stored_auth_username": auth_data.get("username", ""),
     }
 
 
@@ -141,21 +147,62 @@ def enforce_authentication_and_csrf():
         if not expected or not supplied or not secrets.compare_digest(str(expected), str(supplied)):
             return "CSRF validation failed. Reload the page and try again.", 400
 
-    auth_data = load_auth_data()
+    try:
+        auth_data = load_auth_data()
+    except AuthDataError as exc:
+        # Never interpret damaged or unreadable credentials as "no password".
+        # Return a plain response here so template context processors do not
+        # attempt to read the same broken file again.
+        app.logger.error("Authentication data could not be loaded: %s", exc)
+        return (
+            "LivingPortraitApp has blocked UI access because its authentication "
+            "data could not be read safely. Check permissions or restore a valid "
+            "~/.livingportrait_auth/auth.json file, then reload this page.",
+            503,
+        )
     configured = bool(auth_data.get("username") and auth_data.get("password"))
+    ui_password_enabled = bool(auth_data.get("ui_password_enabled", False))
     timeout_hours = _get_session_timeout_hours(auth_data)
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=timeout_hours)
     endpoint = request.endpoint or ""
 
-    if endpoint in ("static", "login", "admin_setup"):
-        if endpoint == "login" and not configured:
+    if endpoint == "static":
+        return None
+
+    if endpoint == "login":
+        if not ui_password_enabled:
+            return redirect(url_for("index"))
+        if not configured:
             return redirect(url_for("admin_setup"))
-        if endpoint == "admin_setup" and configured:
+        return None
+
+    if endpoint == "admin_setup":
+        if not ui_password_enabled:
+            return redirect(url_for("setup") if not load_settings().get("setup_complete", False) else url_for("index"))
+        if configured:
             return redirect(url_for("login"))
         return None
 
+    # Allow an administrator to cancel account creation and turn protection
+    # back off if they enabled it before an account existed.
+    if endpoint == "ui_password_settings" and not configured:
+        return None
+
+    # Initial setup and its discovery actions remain available before setup is complete.
+    if not load_settings().get("setup_complete", False):
+        if endpoint == "setup" or endpoint.startswith("setup_") or endpoint == "image_file":
+            if endpoint == "image_file" and request.view_args and request.view_args.get("filename") != "logo.png":
+                return redirect(url_for("setup"))
+            return None
+        return redirect(url_for("setup"))
+
     # The logo is the only image available before login; all other media is private.
     if endpoint == "image_file" and request.view_args and request.view_args.get("filename") == "logo.png":
+        return None
+
+    # UI Password is the switch that controls access. Stored credentials alone
+    # must never force a login when the setting is disabled.
+    if not ui_password_enabled:
         return None
 
     if not configured:
@@ -242,8 +289,24 @@ def admin_setup():
     return render_template("admin_setup.html")
 
 
+def _safe_next_url(target):
+    """Accept only relative paths so login cannot become an open redirect."""
+    if (
+        not isinstance(target, str)
+        or not target.startswith("/")
+        or target.startswith("//")
+        or "\\" in target
+    ):
+        return url_for("index")
+    parsed = urlsplit(target)
+    if parsed.scheme or parsed.netloc:
+        return url_for("index")
+    return target
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    next_url = _safe_next_url(request.values.get("next", ""))
     auth_data = load_auth_data()
     if not auth_data.get("username") or not auth_data.get("password"):
         return redirect(url_for("admin_setup"))
@@ -253,14 +316,14 @@ def login():
         and session.get("auth_user")
         and session.get("auth_version") == auth_data.get("session_version")
     ):
-        return redirect(url_for("index"))
+        return redirect(next_url)
 
     if request.method == "POST":
         remote = request.remote_addr or "unknown"
         key = remote[:128]
         if _login_is_rate_limited(key):
             flash("Too many sign-in attempts. Wait 15 minutes before trying again.", "danger")
-            return redirect(url_for("login"))
+            return redirect(url_for("login", next=next_url))
 
         username = request.form.get("username", "")
         password = request.form.get("password", "")
@@ -272,12 +335,48 @@ def login():
             session["auth_version"] = auth_data.get("session_version")
             session["last_activity"] = time.time()
             _csrf_token()
-            return redirect(url_for("index"))
+            return redirect(next_url)
 
         _record_login_failure(key)
         flash("Invalid username or password.", "danger")
 
     return render_template("login.html")
+
+
+@app.route("/ui-password-settings", methods=["POST"])
+def ui_password_settings():
+    auth_data = load_auth_data()
+    requested = request.form.get("ui_password_enabled", "0")
+    if requested not in ("0", "1"):
+        flash("Select No or Yes for UI Password.", "danger")
+        return redirect(url_for("index") + "#account_security")
+
+    enabled = requested == "1"
+    configured = bool(auth_data.get("username") and auth_data.get("password"))
+
+    if enabled and not configured:
+        auth_data["ui_password_enabled"] = True
+        save_auth_data(auth_data)
+        session.clear()
+        flash("Create an administrator username and password to enable UI Password.", "info")
+        return redirect(url_for("admin_setup"))
+
+    auth_data["ui_password_enabled"] = enabled
+    # Rotate the version whenever the setting changes so sessions created
+    # before the transition cannot silently become valid again later.
+    auth_data["session_version"] = secrets.token_hex(16)
+    save_auth_data(auth_data)
+
+    if not enabled:
+        # Drop the current session immediately; the next request uses normal
+        # unauthenticated UI access without restarting Flask.
+        session.clear()
+        flash("UI Password disabled. The application is now accessible without signing in.", "success")
+        return redirect(url_for("index"))
+
+    session.clear()
+    flash("UI Password enabled. Sign in is now required.", "success")
+    return redirect(url_for("login"))
 
 
 @app.route("/account-session-settings", methods=["POST"])
@@ -305,6 +404,9 @@ def account_session_settings():
 def logout():
     session.clear()
     flash("You have been signed out.", "success")
+    auth_data = load_auth_data()
+    if not auth_data.get("ui_password_enabled", False):
+        return redirect(url_for("index"))
     return redirect(url_for("login"))
 
 
@@ -1032,7 +1134,7 @@ def index():
 
     return render_template(
         "index.html",
-        auth_username=session.get("auth_user", ""),
+        auth_username=load_auth_data().get("username", ""),
         logs=logs,
         recent_activity=recent_activity,
         videos=fixed_order,
@@ -1125,11 +1227,36 @@ def setup():
     audio_outputs = get_audio_outputs()
     audio_output = get_audio_output()
 
+    auth_data = load_auth_data()
+    existing_admin = bool(auth_data.get("username") and auth_data.get("password"))
+    ui_password_enabled = bool(auth_data.get("ui_password_enabled", False))
+
     if request.method == "POST":
         role = request.form.get("role", "secondary")
         enable = "1" if request.form.get("enable") == "1" else "0"
         primary_ip = request.form.get("primary_ip", "").strip()
         audio_output = request.form.get("audio_output", "default")
+        ui_password_choice = request.form.get("ui_password_enabled", "0")
+        ui_password_enabled = ui_password_choice == "1"
+        new_admin_username = request.form.get("admin_username", "")
+        new_admin_password = request.form.get("admin_password", "")
+        confirm_admin_password = request.form.get("confirm_admin_password", "")
+
+        if ui_password_choice not in ("0", "1"):
+            flash("Select No or Yes for UI Password.", "danger")
+            return redirect(url_for("setup"))
+
+        if ui_password_enabled and not existing_admin:
+            username = validate_username(new_admin_username)
+            if not username:
+                flash("When UI Password is Yes, enter a username with 3–32 letters, numbers, periods, underscores, or hyphens.", "danger")
+                return render_template("setup.html", role=role, enable=enable, primary_ip=primary_ip, secondary_pis=secondary_pis, discovered_secondary_pis=discovered_secondary_pis, videos=videos, audio_outputs=audio_outputs, audio_output=audio_output, ui_password_enabled=True)
+            if not validate_password(new_admin_password):
+                flash("Administrator password must be at least 12 characters and have no leading or trailing whitespace.", "danger")
+                return render_template("setup.html", role=role, enable=enable, primary_ip=primary_ip, secondary_pis=secondary_pis, discovered_secondary_pis=discovered_secondary_pis, videos=videos, audio_outputs=audio_outputs, audio_output=audio_output, ui_password_enabled=True)
+            if new_admin_password != confirm_admin_password:
+                flash("The administrator passwords do not match.", "danger")
+                return render_template("setup.html", role=role, enable=enable, primary_ip=primary_ip, secondary_pis=secondary_pis, discovered_secondary_pis=discovered_secondary_pis, videos=videos, audio_outputs=audio_outputs, audio_output=audio_output, ui_password_enabled=True)
 
         if role not in ("primary", "secondary"):
             role = "secondary"
@@ -1152,7 +1279,8 @@ def setup():
                     discovered_secondary_pis=discovered_secondary_pis,
                 videos=videos,
                 audio_outputs=audio_outputs,
-                audio_output=audio_output
+                audio_output=audio_output,
+                ui_password_enabled=ui_password_enabled
             )
 
         # Read Secondary Pis configured on the Primary.
@@ -1184,7 +1312,8 @@ def setup():
                     discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
-                    audio_output=audio_output
+                    audio_output=audio_output,
+                ui_password_enabled=ui_password_enabled
                 )
 
             secondary_entry = {
@@ -1232,7 +1361,8 @@ def setup():
                     discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                 videos=videos,
                 audio_outputs=audio_outputs,
-                audio_output=audio_output
+                audio_output=audio_output,
+                ui_password_enabled=ui_password_enabled
             )
 
         if setup_video and setup_video.filename:
@@ -1251,7 +1381,8 @@ def setup():
                     discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
-                    audio_output=audio_output
+                    audio_output=audio_output,
+                ui_password_enabled=ui_password_enabled
                 )
 
             filename = secure_filename(setup_video.filename)
@@ -1268,7 +1399,8 @@ def setup():
                     discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
-                    audio_output=audio_output
+                    audio_output=audio_output,
+                ui_password_enabled=ui_password_enabled
                 )
 
             save_path = VIDEO_FOLDER / filename
@@ -1323,6 +1455,20 @@ def setup():
                 settings["pause_flag"] = False
                 save_settings(settings)
 
+        # Persist the UI Password choice only after the setup form has been
+        # validated. Create credentials only when protection was requested.
+        auth_data = load_auth_data()
+        if ui_password_enabled and not (auth_data.get("username") and auth_data.get("password")):
+            created_admin = create_admin(validate_username(new_admin_username), new_admin_password)
+            auth_data = load_auth_data()
+            session.clear()
+            session.permanent = True
+            session["auth_user"] = auth_data.get("username")
+            session["auth_version"] = auth_data.get("session_version")
+            session["last_activity"] = time.time()
+        auth_data["ui_password_enabled"] = ui_password_enabled
+        save_auth_data(auth_data)
+
         settings = load_settings()
         settings["setup_complete"] = True
         save_settings(settings)
@@ -1345,10 +1491,11 @@ def setup():
         enable=enable,
         primary_ip=primary_ip,
         secondary_pis=secondary_pis,
-                    discovered_secondary_pis=_get_discovered_secondary_pis_for_config(secondary_pis),
+        discovered_secondary_pis=_get_discovered_secondary_pis_for_config(secondary_pis),
         videos=videos,
         audio_outputs=audio_outputs,
-        audio_output=audio_output
+        audio_output=audio_output,
+        ui_password_enabled=ui_password_enabled
     )
 
 
@@ -1932,9 +2079,17 @@ def update_all():
     videos_form = request.form.to_dict(flat=False)
 
     videos = []
-    index = 0
 
-    while f"videos[{index}][filename]" in request.form:
+    # The UI reindexes remaining rows after a delete. Also tolerate sparse
+    # indexes here so a missing row can never cause later submitted videos
+    # to be silently skipped.
+    video_indexes = []
+    for key in request.form.keys():
+        match = re.fullmatch(r"videos\[(\d+)\]\[filename\]", key)
+        if match:
+            video_indexes.append(int(match.group(1)))
+
+    for index in sorted(video_indexes):
         filename = request.form.get(f"videos[{index}][filename]")
         active = request.form.get(f"videos[{index}][active]") == "true"
         tags = request.form.getlist(f"videos[{index}][tags][]")
@@ -1969,7 +2124,6 @@ def update_all():
             "thumbnail_rotation": thumbnail_rotation
         })
 
-        index += 1
 
     active_videos = [
         v

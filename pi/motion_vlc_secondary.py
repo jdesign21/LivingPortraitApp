@@ -26,7 +26,8 @@ from shared.vlc_helper import (
     is_schedule_enabled_now,
     is_current_schedule_active,
     get_current_scheduler_category,
-    get_mute_audio
+    get_mute_audio,
+    get_video_mute_audio
 )
 
 from shared.network import (
@@ -57,7 +58,7 @@ current_playback_path = None
 def load_and_pause(media_path):
     media = instance.media_new(media_path)
     player.set_media(media)
-    player.audio_set_mute(get_mute_audio())
+    player.audio_set_mute(get_mute_audio() or get_video_mute_audio(media_path))
     player.play()
     sleep(0.5)
     player.set_pause(1)
@@ -68,7 +69,7 @@ def prepare_media_for_sync(media_path):
     with playback_lock:
         media = instance.media_new(media_path)
         player.set_media(media)
-        player.audio_set_mute(get_mute_audio())
+        player.audio_set_mute(get_mute_audio() or get_video_mute_audio(media_path))
         player.play()
 
         log(f"Waiting for VLC to open sync media: {Path(media_path).name}", "SYNC")
@@ -323,7 +324,7 @@ def play_selected_video():
     with playback_lock:
         media = instance.media_new(str(media_path))
         player.set_media(media)
-        player.audio_set_mute(get_mute_audio())
+        player.audio_set_mute(get_mute_audio() or get_video_mute_audio(media_path))
         player.play()
         current_playback_path = str(media_path)
 
@@ -612,7 +613,7 @@ def scheduled_play(start_at_ms, sync_id):
 
         log(f"Secondary VLC before PLAY: State={before_state} Time={before_time} ms System={before_system_ms:.3f}", "SYNC")
 
-        player.audio_set_mute(get_mute_audio())
+        player.audio_set_mute(get_mute_audio() or get_video_mute_audio(media_path))
         player.play()
         current_playback_path = media_path
 

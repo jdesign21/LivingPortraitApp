@@ -47,7 +47,8 @@
             <div class="mb-4" aria-label="Setup progress">
               <div class="d-flex justify-content-between small mb-2">
                 <span id="setupStepLabel1" class="fw-semibold text-primary">1. Basic Setup</span>
-                <span id="setupStepLabel2" class="text-muted">2. Network Setup</span>
+                <span id="setupStepLabel2" class="text-muted">2. Create Administrator Account</span>
+                <span id="setupStepLabel3" class="text-muted">3. Network Setup</span>
               </div>
               <div class="progress" role="progressbar" aria-label="Setup progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" style="height:6px;">
                 <div id="setupProgressBar" class="progress-bar" style="width:50%;"></div>
@@ -75,6 +76,16 @@
                     Secondary
                   </label>
                 </div>
+              </div>
+
+              <!-- Optional UI authentication -->
+              <div class="mb-4">
+                <label for="setupUiPassword" class="form-label fw-semibold">UI Password</label>
+                <select class="form-select" id="setupUiPassword" name="ui_password_enabled">
+                  <option value="0" {% if not ui_password_enabled %}selected{% endif %}>No</option>
+                  <option value="1" {% if ui_password_enabled %}selected{% endif %}>Yes</option>
+                </select>
+                <div class="form-text">Choose Yes to require a username and password to access the LivingPortraitApp interface. The default is No.</div>
               </div>
 
               <!-- Audio Output -->
@@ -127,6 +138,36 @@
               </div>
 
               <div id="setupStep2" style="display:none;">
+                <div id="setupAdminCredentials" class="border rounded p-3 mb-4">
+                  {% if admin_account_exists %}
+                  <div class="fw-semibold mb-1">Administrator Account</div>
+                  <p class="small text-muted mb-0">An administrator account already exists. Its credentials will be retained and used when UI Password is enabled.</p>
+                  {% else %}
+                  <div class="fw-semibold mb-1">Create Administrator Account</div>
+                  <p class="small text-muted mb-3">Because UI Password is set to Yes, create the account that will be used to sign in.</p>
+                  <div class="mb-3">
+                    <label for="setupAdminUsername" class="form-label">Username</label>
+                    <input id="setupAdminUsername" name="admin_username" class="form-control" autocomplete="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9._-]+">
+                    <div class="form-text">3–32 characters: letters, numbers, period, underscore, or hyphen.</div>
+                  </div>
+                  <div class="mb-3">
+                    <label for="setupAdminPassword" class="form-label">Password</label>
+                    <input id="setupAdminPassword" name="admin_password" type="password" class="form-control" autocomplete="new-password" minlength="12">
+                    <div class="form-text">At least 12 characters, with no leading or trailing spaces.</div>
+                  </div>
+                  <div class="mb-0">
+                    <label for="setupConfirmAdminPassword" class="form-label">Confirm Password</label>
+                    <input id="setupConfirmAdminPassword" name="confirm_admin_password" type="password" class="form-control" autocomplete="new-password" minlength="12">
+                  </div>
+                  {% endif %}
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-4">
+                  <button type="button" class="btn btn-outline-secondary" id="setupAdminBackBtn"><i class="bi bi-arrow-left me-1"></i> Back</button>
+                  <button type="button" class="btn btn-primary" id="setupAdminNextBtn">Next <i class="bi bi-arrow-right ms-1"></i></button>
+                </div>
+              </div>
+
+              <div id="setupStep3" style="display:none;">
                             <!-- MQTT -->
               <div class="mb-4">
                 <div class="d-flex justify-content-between align-items-center">
@@ -314,6 +355,23 @@
 
     const enable = document.getElementById('enable');
     const primaryIp = document.getElementById('primary_ip');
+    const setupUiPassword = document.getElementById('setupUiPassword');
+    const setupAdminCredentials = document.getElementById('setupAdminCredentials');
+
+    function updateSetupUiPassword() {
+      // Credential validation is handled explicitly when leaving the admin step
+      // and before final submission, so hidden fields do not block the form.
+      if (setupAdminCredentials) {
+        setupAdminCredentials.querySelectorAll('input').forEach(input => {
+          input.required = false;
+        });
+      }
+    }
+
+    if (setupUiPassword) {
+      setupUiPassword.addEventListener('change', updateSetupUiPassword);
+      updateSetupUiPassword();
+    }
 
     const setupForm = document.getElementById('setupForm');
     const setupError = document.getElementById('setupError');
@@ -559,7 +617,7 @@
         return false;
       }
 
-      if (step === 2) {
+      if (step === 3) {
       if (!isPrimary && mqttEnabled) {
         const ip = primaryIp ? primaryIp.value.trim() : '';
 
@@ -619,6 +677,24 @@
 
       }
 
+      if (step === 2 && setupUiPassword && setupUiPassword.value === '1' && setupAdminCredentials && setupAdminCredentials.querySelector('#setupAdminUsername')) {
+        const username = setupAdminCredentials.querySelector('#setupAdminUsername').value.trim();
+        const password = setupAdminCredentials.querySelector('#setupAdminPassword').value;
+        const confirmation = setupAdminCredentials.querySelector('#setupConfirmAdminPassword').value;
+        if (!/^[A-Za-z0-9._-]{3,32}$/.test(username)) {
+          showSetupError('Enter a valid administrator username (3–32 letters, numbers, periods, underscores, or hyphens).');
+          return false;
+        }
+        if (password.length < 12 || password.trim() !== password) {
+          showSetupError('Administrator password must be at least 12 characters and have no leading or trailing spaces.');
+          return false;
+        }
+        if (password !== confirmation) {
+          showSetupError('The administrator passwords do not match.');
+          return false;
+        }
+      }
+
       if (setupVideo) {
         if (!setupVideo.files || setupVideo.files.length === 0) {
           showSetupError('Please upload your first MP4 video before completing setup.');
@@ -640,31 +716,63 @@
     }
 
 
+    function adminStepRequired() {
+      return !!(setupUiPassword && setupUiPassword.value === '1');
+    }
+
     function showSetupStep(step) {
-      const onFirstStep = step === 1;
-      document.getElementById('setupStep1').style.display = onFirstStep ? 'block' : 'none';
-      document.getElementById('setupStep2').style.display = onFirstStep ? 'none' : 'block';
-      document.getElementById('setupStepLabel1').classList.toggle('text-primary', onFirstStep);
-      document.getElementById('setupStepLabel1').classList.toggle('text-muted', !onFirstStep);
-      document.getElementById('setupStepLabel1').classList.toggle('fw-semibold', onFirstStep);
-      document.getElementById('setupStepLabel2').classList.toggle('text-primary', !onFirstStep);
-      document.getElementById('setupStepLabel2').classList.toggle('text-muted', onFirstStep);
-      document.getElementById('setupStepLabel2').classList.toggle('fw-semibold', !onFirstStep);
-      document.getElementById('setupProgressBar').style.width = onFirstStep ? '50%' : '100%';
-      document.querySelector('[aria-label="Setup progress"][role="progressbar"]').setAttribute('aria-valuenow', onFirstStep ? '50' : '100');
+      const showAdminStep = adminStepRequired();
+      const activeStep = step === 2 && !showAdminStep ? 3 : step;
+      document.getElementById('setupStep1').style.display = activeStep === 1 ? 'block' : 'none';
+      document.getElementById('setupStep2').style.display = activeStep === 2 ? 'block' : 'none';
+      document.getElementById('setupStep3').style.display = activeStep === 3 ? 'block' : 'none';
+
+      const labels = [
+        document.getElementById('setupStepLabel1'),
+        document.getElementById('setupStepLabel2'),
+        document.getElementById('setupStepLabel3')
+      ];
+      labels[1].style.display = showAdminStep ? '' : 'none';
+      labels[2].textContent = showAdminStep ? '3. Network Setup' : '2. Network Setup';
+      labels.forEach((label, index) => {
+        const active = index + 1 === activeStep;
+        label.classList.toggle('text-primary', active);
+        label.classList.toggle('text-muted', !active);
+        label.classList.toggle('fw-semibold', active);
+      });
+
+      const progress = showAdminStep
+        ? (activeStep === 1 ? 33 : activeStep === 2 ? 67 : 100)
+        : (activeStep === 1 ? 50 : 100);
+      document.getElementById('setupProgressBar').style.width = progress + '%';
+      document.querySelector('[aria-label="Setup progress"][role="progressbar"]').setAttribute('aria-valuenow', progress);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     const setupNextBtn = document.getElementById('setupNextBtn');
     const setupBackBtn = document.getElementById('setupBackBtn');
+    const setupAdminNextBtn = document.getElementById('setupAdminNextBtn');
+    const setupAdminBackBtn = document.getElementById('setupAdminBackBtn');
+
     if (setupNextBtn) {
       setupNextBtn.addEventListener('click', () => {
-        if (validateSetup(1)) showSetupStep(2);
+        if (validateSetup(1)) showSetupStep(adminStepRequired() ? 2 : 3);
       });
     }
     if (setupBackBtn) {
-      setupBackBtn.addEventListener('click', () => showSetupStep(1));
+      setupBackBtn.addEventListener('click', () => showSetupStep(adminStepRequired() ? 2 : 1));
     }
+    if (setupAdminNextBtn) {
+      setupAdminNextBtn.addEventListener('click', () => {
+        if (validateSetup(2)) showSetupStep(3);
+      });
+    }
+    if (setupAdminBackBtn) {
+      setupAdminBackBtn.addEventListener('click', () => showSetupStep(1));
+    }
+
+    // Initialize the progress labels for the selected UI Password setting.
+    showSetupStep(1);
 
     const refreshDiscoveredPisBtn = document.getElementById('refreshDiscoveredPisBtn');
     const setupDiscoveryList = document.getElementById('setupDiscoveryList');
@@ -885,7 +993,11 @@
       setupForm.addEventListener('submit', event => {
         event.preventDefault();
 
-        if (!validateSetup(2)) {
+        if (!validateSetup(3)) {
+          return;
+        }
+        if (adminStepRequired() && !validateSetup(2)) {
+          showSetupStep(2);
           return;
         }
 
