@@ -143,19 +143,43 @@ def enforce_authentication_and_csrf():
 
     auth_data = load_auth_data()
     configured = bool(auth_data.get("username") and auth_data.get("password"))
+    ui_password_enabled = bool(auth_data.get("ui_password_enabled", False))
     timeout_hours = _get_session_timeout_hours(auth_data)
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=timeout_hours)
     endpoint = request.endpoint or ""
 
-    if endpoint in ("static", "login", "admin_setup"):
-        if endpoint == "login" and not configured:
+    if endpoint == "static":
+        return None
+
+    if endpoint == "login":
+        if not ui_password_enabled:
+            return redirect(url_for("index"))
+        if not configured:
             return redirect(url_for("admin_setup"))
-        if endpoint == "admin_setup" and configured:
+        return None
+
+    if endpoint == "admin_setup":
+        if not ui_password_enabled:
+            return redirect(url_for("setup") if not load_settings().get("setup_complete", False) else url_for("index"))
+        if configured:
             return redirect(url_for("login"))
         return None
 
+    # Initial setup and its discovery actions remain available before setup is complete.
+    if not load_settings().get("setup_complete", False):
+        if endpoint == "setup" or endpoint.startswith("setup_") or endpoint == "image_file":
+            if endpoint == "image_file" and request.view_args and request.view_args.get("filename") != "logo.png":
+                return redirect(url_for("setup"))
+            return None
+        return redirect(url_for("setup"))
+
     # The logo is the only image available before login; all other media is private.
     if endpoint == "image_file" and request.view_args and request.view_args.get("filename") == "logo.png":
+        return None
+
+    # UI Password is the switch that controls access. Stored credentials alone
+    # must never force a login when the setting is disabled.
+    if not ui_password_enabled:
         return None
 
     if not configured:
@@ -280,6 +304,39 @@ def login():
     return render_template("login.html")
 
 
+@app.route("/ui-password-settings", methods=["POST"])
+def ui_password_settings():
+    auth_data = load_auth_data()
+    requested = request.form.get("ui_password_enabled", "0")
+    if requested not in ("0", "1"):
+        flash("Select No or Yes for UI Password.", "danger")
+        return redirect(url_for("index") + "#account_security")
+
+    enabled = requested == "1"
+    configured = bool(auth_data.get("username") and auth_data.get("password"))
+
+    if enabled and not configured:
+        auth_data["ui_password_enabled"] = True
+        save_auth_data(auth_data)
+        session.clear()
+        flash("Create an administrator username and password to enable UI Password.", "info")
+        return redirect(url_for("admin_setup"))
+
+    auth_data["ui_password_enabled"] = enabled
+    save_auth_data(auth_data)
+
+    if not enabled:
+        # Drop the authenticated session immediately; the next request uses
+        # normal unauthenticated UI access without restarting Flask.
+        session.clear()
+        flash("UI Password disabled. The application is now accessible without signing in.", "success")
+        return redirect(url_for("index"))
+
+    flash("UI Password enabled. Sign in is now required.", "success")
+    session.clear()
+    return redirect(url_for("login"))
+
+
 @app.route("/account-session-settings", methods=["POST"])
 def account_session_settings():
     auth_data = load_auth_data()
@@ -305,6 +362,9 @@ def account_session_settings():
 def logout():
     session.clear()
     flash("You have been signed out.", "success")
+    auth_data = load_auth_data()
+    if not auth_data.get("ui_password_enabled", False):
+        return redirect(url_for("index"))
     return redirect(url_for("login"))
 
 
