@@ -125,10 +125,14 @@ def _get_session_timeout_hours(auth_data=None):
 
 @app.context_processor
 def inject_auth_template_values():
+    auth_data = load_auth_data()
     return {
         "csrf_token": _csrf_token,
-        "session_timeout_hours": _get_session_timeout_hours(),
+        "session_timeout_hours": _get_session_timeout_hours(auth_data),
         "session_timeout_options": SESSION_TIMEOUT_OPTIONS,
+        "ui_password_enabled": bool(auth_data.get("ui_password_enabled", False)),
+        "admin_account_exists": bool(auth_data.get("username") and auth_data.get("password")),
+        "stored_auth_username": auth_data.get("username", ""),
     }
 
 
@@ -1092,7 +1096,7 @@ def index():
 
     return render_template(
         "index.html",
-        auth_username=session.get("auth_user", ""),
+        auth_username=load_auth_data().get("username", ""),
         logs=logs,
         recent_activity=recent_activity,
         videos=fixed_order,
