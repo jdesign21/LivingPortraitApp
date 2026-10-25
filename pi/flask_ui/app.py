@@ -4,6 +4,7 @@ from werkzeug.utils import secure_filename
 from pathlib import Path
 import os
 from datetime import datetime, timedelta
+from urllib.parse import urlsplit
 import random
 from flask import jsonify, send_file
 import sys
@@ -21,6 +22,7 @@ HOME = Path(os.path.expanduser("~"))
 sys.path.append(str(HOME))
 
 from shared.auth_manager import (
+    AuthDataError,
     get_or_create_secret_key,
     load_auth_data,
     validate_username,
@@ -145,7 +147,19 @@ def enforce_authentication_and_csrf():
         if not expected or not supplied or not secrets.compare_digest(str(expected), str(supplied)):
             return "CSRF validation failed. Reload the page and try again.", 400
 
-    auth_data = load_auth_data()
+    try:
+        auth_data = load_auth_data()
+    except AuthDataError as exc:
+        # Never interpret damaged or unreadable credentials as "no password".
+        # Return a plain response here so template context processors do not
+        # attempt to read the same broken file again.
+        app.logger.error("Authentication data could not be loaded: %s", exc)
+        return (
+            "LivingPortraitApp has blocked UI access because its authentication "
+            "data could not be read safely. Check permissions or restore a valid "
+            "~/.livingportrait_auth/auth.json file, then reload this page.",
+            503,
+        )
     configured = bool(auth_data.get("username") and auth_data.get("password"))
     ui_password_enabled = bool(auth_data.get("ui_password_enabled", False))
     timeout_hours = _get_session_timeout_hours(auth_data)
@@ -275,8 +289,19 @@ def admin_setup():
     return render_template("admin_setup.html")
 
 
+def _safe_next_url(target):
+    """Accept only relative paths so login cannot become an open redirect."""
+    if not isinstance(target, str) or not target.startswith("/") or target.startswith("//"):
+        return url_for("index")
+    parsed = urlsplit(target)
+    if parsed.scheme or parsed.netloc:
+        return url_for("index")
+    return target
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    next_url = _safe_next_url(request.values.get("next", ""))
     auth_data = load_auth_data()
     if not auth_data.get("username") or not auth_data.get("password"):
         return redirect(url_for("admin_setup"))
@@ -286,14 +311,14 @@ def login():
         and session.get("auth_user")
         and session.get("auth_version") == auth_data.get("session_version")
     ):
-        return redirect(url_for("index"))
+        return redirect(next_url)
 
     if request.method == "POST":
         remote = request.remote_addr or "unknown"
         key = remote[:128]
         if _login_is_rate_limited(key):
             flash("Too many sign-in attempts. Wait 15 minutes before trying again.", "danger")
-            return redirect(url_for("login"))
+            return redirect(url_for("login", next=next_url))
 
         username = request.form.get("username", "")
         password = request.form.get("password", "")
@@ -305,7 +330,7 @@ def login():
             session["auth_version"] = auth_data.get("session_version")
             session["last_activity"] = time.time()
             _csrf_token()
-            return redirect(url_for("index"))
+            return redirect(next_url)
 
         _record_login_failure(key)
         flash("Invalid username or password.", "danger")
