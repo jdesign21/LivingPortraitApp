@@ -1241,7 +1241,7 @@ def setup():
                     discovered_secondary_pis=discovered_secondary_pis,
                 videos=videos,
                 audio_outputs=audio_outputs,
-                audio_output=audio_output
+                audio_output=audio_output,\n                ui_password_enabled=ui_password_enabled
             )
 
         # Read Secondary Pis configured on the Primary.
@@ -1273,7 +1273,7 @@ def setup():
                     discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
-                    audio_output=audio_output
+                    audio_output=audio_output,\n                ui_password_enabled=ui_password_enabled
                 )
 
             secondary_entry = {
@@ -1321,7 +1321,7 @@ def setup():
                     discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                 videos=videos,
                 audio_outputs=audio_outputs,
-                audio_output=audio_output
+                audio_output=audio_output,\n                ui_password_enabled=ui_password_enabled
             )
 
         if setup_video and setup_video.filename:
@@ -1340,7 +1340,7 @@ def setup():
                     discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
-                    audio_output=audio_output
+                    audio_output=audio_output,\n                ui_password_enabled=ui_password_enabled
                 )
 
             filename = secure_filename(setup_video.filename)
@@ -1357,7 +1357,7 @@ def setup():
                     discovered_secondary_pis=_get_discovered_secondary_pis_for_config(new_secondary_pis),
                     videos=videos,
                     audio_outputs=audio_outputs,
-                    audio_output=audio_output
+                    audio_output=audio_output,\n                ui_password_enabled=ui_password_enabled
                 )
 
             save_path = VIDEO_FOLDER / filename
