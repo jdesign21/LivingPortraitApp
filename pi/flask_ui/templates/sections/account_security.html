@@ -3,6 +3,32 @@
     <i class="bi bi-shield-lock me-2"></i>Account &amp; Security
   </h3>
   <div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white"><i class="bi bi-shield-lock me-2"></i><strong>UI Password</strong></div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('ui_password_settings') }}">
+        <div class="row align-items-end g-3">
+          <div class="col-md-5">
+            <label for="ui_password_enabled" class="form-label fw-semibold">UI Password</label>
+            <select id="ui_password_enabled" name="ui_password_enabled" class="form-select">
+              <option value="0" {% if not ui_password_enabled %}selected{% endif %}>No</option>
+              <option value="1" {% if ui_password_enabled %}selected{% endif %}>Yes</option>
+            </select>
+          </div>
+          <div class="col-md-7">
+            <div class="small text-muted mb-2">No allows access to the UI without signing in. Yes requires an administrator username and password. Changes take effect immediately; no reboot is needed.</div>
+            <button type="submit" class="btn btn-primary"><i class="bi bi-save me-2"></i>Save UI Password</button>
+          </div>
+        </div>
+      </form>
+      {% if not admin_account_exists %}
+      <p class="small text-muted mt-3 mb-0">No administrator account exists. Select Yes and save to create one.</p>
+      {% elif not ui_password_enabled %}
+      <p class="small text-muted mt-3 mb-0">An administrator account is stored, but it is not required while UI Password is set to No.</p>
+      {% endif %}
+    </div>
+  </div>
+  {% if admin_account_exists %}
+  <div class="card shadow-sm mb-4">
     <div class="card-header bg-primary text-white"><i class="bi bi-person-gear me-2"></i><strong>Administrator Account</strong></div>
     <div class="card-body">
       <div class="row g-4">
@@ -91,6 +117,7 @@
       <p class="small text-muted mt-3 mb-0">If you forget your administrator password, recovery requires access to the Raspberry Pi OS account. <a href="https://github.com/jdesign21/LivingPortraitApp/blob/login_feature/AUTHENTICATION.md" target="_blank" rel="noopener noreferrer">View password recovery instructions</a>.</p>
     </div>
   </div>
+  {% if ui_password_enabled %}
   <div class="card shadow-sm">
     <div class="card-header bg-primary text-white"><i class="bi bi-box-arrow-right me-2"></i><strong>Sign Out</strong></div>
     <div class="card-body">
@@ -100,4 +127,6 @@
       </form>
     </div>
   </div>
+  {% endif %}
+  {% endif %}
 </section>
