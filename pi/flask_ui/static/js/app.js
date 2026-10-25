@@ -709,84 +709,6 @@ document.querySelectorAll('.copy-to-all-btn').forEach(button => {
     }
 
     // ========================================================
-    // UPLOAD FORM
-    // ========================================================
-
-    const uploadForm = document.getElementById('uploadForm');
-
-    if (uploadForm) {
-        uploadForm.addEventListener('submit', async event => {
-            if (event.defaultPrevented) return;
-            event.preventDefault();
-
-            const overlay = document.getElementById('loadingOverlay');
-            const errorBox = document.getElementById('uploadError');
-            const uploadButton = document.getElementById('uploadBtn');
-            const fileInput = document.getElementById('fileInput');
-            if (!fileInput || !fileInput.files.length) return;
-
-            if (overlay) overlay.style.display = 'flex';
-            if (errorBox) {
-                errorBox.classList.add('d-none');
-                errorBox.classList.remove('alert-success');
-                errorBox.classList.add('alert-danger');
-                errorBox.textContent = '';
-            }
-            if (uploadButton) uploadButton.disabled = true;
-
-            try {
-                const response = await fetch(uploadForm.action, {
-                    method: 'POST',
-                    body: new FormData(uploadForm),
-                    credentials: 'same-origin',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                });
-                const data = await response.json();
-                if (!response.ok || !data.success) {
-                    throw new Error(data.error || (data.errors || []).join('\n') || 'Upload failed.');
-                }
-
-                if (overlay) overlay.style.display = 'none';
-                if (errorBox) {
-                    errorBox.classList.remove('d-none', 'alert-danger');
-                    errorBox.classList.add('alert-success');
-                    errorBox.textContent = 'Uploaded: ' + (data.uploaded || []).join(', ') + '. Close this window to refresh the video list.';
-                }
-                const cancelButton = uploadForm.querySelector('[data-bs-dismiss="modal"]');
-                if (cancelButton) cancelButton.textContent = 'Close & Refresh';
-                const modalElement = document.getElementById('uploadModal');
-                if (modalElement) {
-                    modalElement.addEventListener('hidden.bs.modal', () => {
-                        // The upload is complete, but rebuilding the video list can
-                        // take several seconds while metadata is collected and saved.
-                        // Keep the user informed while the page reloads.
-                        const loadingMessage = overlay
-                            ? overlay.querySelector('p')
-                            : null;
-                        if (loadingMessage) {
-                            loadingMessage.textContent = 'Refreshing video list, please wait...';
-                        }
-                        if (overlay) overlay.style.display = 'flex';
-                        window.location.reload();
-                    }, { once: true });
-                }
-                if (uploadButton) {
-                    uploadButton.disabled = true;
-                    uploadButton.innerHTML = '<i class="bi bi-check-circle me-1"></i> Uploaded';
-                }
-            } catch (error) {
-                if (overlay) overlay.style.display = 'none';
-                if (errorBox) {
-                    errorBox.classList.remove('d-none');
-                    errorBox.textContent = error.message || 'Upload failed.';
-                } else {
-                    window.alert(error.message || 'Upload failed.');
-                }
-                if (uploadButton) uploadButton.disabled = false;
-            }
-        });
-    }
-
     // ========================================================
     // NETWORK SETTINGS
     // ========================================================
@@ -1995,7 +1917,10 @@ async function deleteVideo(filename) {
         const response = await fetch(`/delete/${encodeURIComponent(filename)}`, {
             method: 'POST',
             credentials: 'same-origin',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            }
         });
         const data = await response.json();
         if (!response.ok || !data.success) {
