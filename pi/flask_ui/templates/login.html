@@ -29,6 +29,7 @@
           <div class="card-header bg-primary text-white"><strong>Administrator Sign In</strong></div>
           <div class="card-body p-4">
             <form method="POST" action="{{ url_for('login') }}">
+              <input type="hidden" name="next" value="{{ request.values.get('next', '') }}">
               <div class="mb-3">
                 <label for="username" class="form-label">Username</label>
                 <input id="username" name="username" class="form-control" autocomplete="username" maxlength="32" required autofocus>
