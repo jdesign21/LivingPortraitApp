@@ -2218,6 +2218,15 @@ async function deleteVideo(filename) {
         readSensor();
     });
 
-    modal.addEventListener('hide.bs.modal', stopMonitoring);
+    modal.addEventListener('hide.bs.modal', () => {
+        stopMonitoring();
+
+        // Bootstrap hides the modal from assistive technology during the hide transition.
+        // Blur any focused control inside it first to avoid retaining focus under aria-hidden.
+        const focusedElement = document.activeElement;
+        if (focusedElement && modal.contains(focusedElement)) {
+            focusedElement.blur();
+        }
+    });
     window.addEventListener('pagehide', stopMonitoring);
 })();
