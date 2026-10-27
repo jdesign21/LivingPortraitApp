@@ -2098,13 +2098,14 @@ async function deleteVideo(filename) {
     async function readSensor() {
         if (!active) return;
 
-        controller = new AbortController();
+        const requestController = new AbortController();
+        controller = requestController;
         try {
             const response = await fetch(statusUrl, {
                 method: 'GET',
                 credentials: 'same-origin',
                 cache: 'no-store',
-                signal: controller.signal
+                signal: requestController.signal
             });
             const data = await response.json();
 
@@ -2127,7 +2128,9 @@ async function deleteVideo(filename) {
             message.textContent = error.message || 'Unable to read the PIR sensor.';
             rawOutput.textContent = '';
         } finally {
-            controller = null;
+            if (controller === requestController) {
+                controller = null;
+            }
             if (active) {
                 pollTimer = window.setTimeout(readSensor, 500);
             }
