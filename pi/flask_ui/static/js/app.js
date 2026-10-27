@@ -2169,7 +2169,9 @@ async function deleteVideo(filename) {
                 throw new Error(data.error || 'Unable to read the PIR sensor.');
             }
 
-            const state = data.state;
+            // pinctrl reports the level as HI/LO; normalize it for the monitor history.
+            const rawState = String(data.state || '').toUpperCase();
+            const state = rawState === 'HI' ? 'HIGH' : rawState === 'LO' ? 'LOW' : rawState;
             const now = new Date();
             const isHigh = state === 'HIGH';
             stateBadge.textContent = state;
