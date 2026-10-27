@@ -2199,8 +2199,28 @@ async function deleteVideo(filename) {
                     stateSince = now;
                     addStateRow(state, now);
                 } else if (state !== previousState) {
-                    // Finalize the state interval that just ended, then add the new transition.
+                    // Finalize the state interval that just ended, then log the transition.
+                    const priorState = previousState;
+                    const durationMs = now.getTime() - stateSince.getTime();
                     updateCurrentDuration(now);
+
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                    fetch('/pir_sensor_event', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
+                        },
+                        body: JSON.stringify({
+                            previous_state: priorState,
+                            state,
+                            duration_ms: durationMs
+                        })
+                    }).catch(() => {
+                        // Continue monitoring if a log event cannot be delivered.
+                    });
+
                     previousState = state;
                     stateSince = now;
                     addStateRow(state, now);
