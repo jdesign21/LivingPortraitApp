@@ -257,9 +257,19 @@ def secondary_mqtt_worker():
 if is_enabled():
     if role == "primary":
         log(f"Connecting MQTT to {BROKER}:{PORT}...", "MQTT")
-        client.connect(BROKER, PORT, 60)
-        client.loop_start()
 
+        # Start the network loop before attempting the connection asynchronously.
+        # A broker that is not ready yet must not crash the process during import;
+        # Paho will retry the connection while the loop is running.
+        try:
+            client.connect_async(BROKER, PORT, 60)
+            client.loop_start()
+        except Exception as e:
+            save_mqtt_status(False)
+            log(f"Unable to start MQTT connection: {e}", "ERROR")
+
+        # Give the first connection attempt a short window to complete, but do not
+        # block application startup or treat a temporarily unavailable broker as fatal.
         for _ in range(20):
             if client.is_connected():
                 break
@@ -269,6 +279,7 @@ if is_enabled():
 
         if not client.is_connected():
             save_mqtt_status(False)
+            log("MQTT unavailable at startup; connection will be retried in the background.", "MQTT")
 
     elif role == "secondary":
         mqtt_thread = threading.Thread(
