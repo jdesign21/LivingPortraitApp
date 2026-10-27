@@ -2184,11 +2184,36 @@ async function deleteVideo(filename) {
             rawOutput.textContent = data.raw || '';
 
             if (state === 'HIGH' || state === 'LOW') {
-                if (previousState === null || state !== previousState) {
+                if (previousState === null) {
+                    previousState = state;
+                    stateSince = now;
+                } else if (state !== previousState) {
+                    const priorState = previousState;
+                    const durationMs = now.getTime() - stateSince.getTime();
+
+                    // Log state transitions on the Raspberry Pi using the app's existing logger.
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                    fetch('/pir_sensor_event', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
+                        },
+                        body: JSON.stringify({
+                            previous_state: priorState,
+                            state,
+                            duration_ms: durationMs
+                        })
+                    }).catch(() => {
+                        // Keep monitoring even if the event log request cannot be delivered.
+                    });
+
                     previousState = state;
                     stateSince = now;
                 }
-                // Record every successful GPIO read, not only state transitions.
+
+                // Record every successful GPIO read in the on-screen diagnostic history.
                 recordSample(state, now, stateSince);
             }
         } catch (error) {
