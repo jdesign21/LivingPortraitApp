@@ -2080,7 +2080,7 @@ async function deleteVideo(filename) {
     const activityList = document.getElementById('pirSensorActivityList');
     const activityEmpty = document.getElementById('pirSensorActivityEmpty');
     const statusUrl = modal.dataset.statusUrl;
-    const maxActivityRows = 25;
+    const maxActivityRows = 100;
 
     let pollTimer = null;
     let active = false;
@@ -2089,12 +2089,13 @@ async function deleteVideo(filename) {
     let stateSince = null;
 
     function formatTime(date) {
-        return date.toLocaleTimeString([], {
+        const time = date.toLocaleTimeString([], {
             hour: 'numeric',
             minute: '2-digit',
             second: '2-digit',
             hour12: window.timeFormat !== '24'
         });
+        return time + '.' + String(date.getMilliseconds()).padStart(3, '0');
     }
 
     function formatDuration(milliseconds) {
@@ -2112,12 +2113,13 @@ async function deleteVideo(filename) {
         stateSince = null;
     }
 
-    function recordCompletedState(state, startedAt, endedAt) {
-        if (!activityList || !startedAt || !endedAt) return;
+    function recordSample(state, sampledAt, stateStartedAt) {
+        if (!activityList || !sampledAt || !stateStartedAt) return;
 
         const row = document.createElement('tr');
         const timeCell = document.createElement('td');
-        timeCell.textContent = formatTime(startedAt);
+        timeCell.className = 'text-nowrap';
+        timeCell.textContent = formatTime(sampledAt);
 
         const stateCell = document.createElement('td');
         const badge = document.createElement('span');
@@ -2127,7 +2129,7 @@ async function deleteVideo(filename) {
 
         const durationCell = document.createElement('td');
         durationCell.className = 'text-end text-nowrap';
-        durationCell.textContent = formatDuration(endedAt - startedAt);
+        durationCell.textContent = formatDuration(sampledAt - stateStartedAt);
 
         row.append(timeCell, stateCell, durationCell);
         activityList.prepend(row);
@@ -2182,14 +2184,12 @@ async function deleteVideo(filename) {
             rawOutput.textContent = data.raw || '';
 
             if (state === 'HIGH' || state === 'LOW') {
-                if (previousState === null) {
-                    previousState = state;
-                    stateSince = now;
-                } else if (state !== previousState) {
-                    recordCompletedState(previousState, stateSince, now);
+                if (previousState === null || state !== previousState) {
                     previousState = state;
                     stateSince = now;
                 }
+                // Record every successful GPIO read, not only state transitions.
+                recordSample(state, now, stateSince);
             }
         } catch (error) {
             if (!active || error.name === 'AbortError') return;
