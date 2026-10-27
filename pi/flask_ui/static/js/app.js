@@ -2077,11 +2077,66 @@ async function deleteVideo(filename) {
     const stateBadge = document.getElementById('pirSensorState');
     const message = document.getElementById('pirSensorMessage');
     const rawOutput = document.getElementById('pirSensorRaw');
+    const activityList = document.getElementById('pirSensorActivityList');
+    const activityEmpty = document.getElementById('pirSensorActivityEmpty');
     const statusUrl = modal.dataset.statusUrl;
+    const maxActivityRows = 25;
 
     let pollTimer = null;
     let active = false;
     let controller = null;
+    let previousState = null;
+    let stateSince = null;
+
+    function formatTime(date) {
+        return date.toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: window.timeFormat !== '24'
+        });
+    }
+
+    function formatDuration(milliseconds) {
+        const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        if (minutes > 0) return minutes + 'm ' + seconds + 's';
+        return seconds + 's';
+    }
+
+    function clearActivity() {
+        if (activityList) activityList.replaceChildren();
+        activityEmpty?.classList.remove('d-none');
+        previousState = null;
+        stateSince = null;
+    }
+
+    function recordCompletedState(state, startedAt, endedAt) {
+        if (!activityList || !startedAt || !endedAt) return;
+
+        const row = document.createElement('tr');
+        const timeCell = document.createElement('td');
+        timeCell.textContent = formatTime(startedAt);
+
+        const stateCell = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + (state === 'HIGH' ? 'bg-success' : 'bg-secondary');
+        badge.textContent = state;
+        stateCell.appendChild(badge);
+
+        const durationCell = document.createElement('td');
+        durationCell.className = 'text-end text-nowrap';
+        durationCell.textContent = formatDuration(endedAt - startedAt);
+
+        row.append(timeCell, stateCell, durationCell);
+        activityList.prepend(row);
+
+        while (activityList.rows.length > maxActivityRows) {
+            activityList.deleteRow(activityList.rows.length - 1);
+        }
+        activityEmpty?.classList.toggle('d-none', activityList.rows.length > 0);
+    }
 
     function stopMonitoring() {
         active = false;
@@ -2114,13 +2169,26 @@ async function deleteVideo(filename) {
                 throw new Error(data.error || 'Unable to read the PIR sensor.');
             }
 
-            const isHigh = data.state === 'HIGH';
-            stateBadge.textContent = data.state;
+            const state = data.state;
+            const now = new Date();
+            const isHigh = state === 'HIGH';
+            stateBadge.textContent = state;
             stateBadge.className = 'badge fs-4 px-4 py-3 ' + (isHigh ? 'bg-success' : 'bg-secondary');
             message.textContent = isHigh
                 ? 'GPIO 4 is HIGH. The PIR sensor is outputting an active signal.'
                 : 'GPIO 4 is LOW. No active signal is present at this moment.';
             rawOutput.textContent = data.raw || '';
+
+            if (state === 'HIGH' || state === 'LOW') {
+                if (previousState === null) {
+                    previousState = state;
+                    stateSince = now;
+                } else if (state !== previousState) {
+                    recordCompletedState(previousState, stateSince, now);
+                    previousState = state;
+                    stateSince = now;
+                }
+            }
         } catch (error) {
             if (!active || error.name === 'AbortError') return;
             stateBadge.textContent = 'Unavailable';
@@ -2139,6 +2207,7 @@ async function deleteVideo(filename) {
 
     modal.addEventListener('shown.bs.modal', () => {
         stopMonitoring();
+        clearActivity();
         active = true;
         stateBadge.textContent = 'Reading…';
         stateBadge.className = 'badge bg-secondary fs-4 px-4 py-3';
