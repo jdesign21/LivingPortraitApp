@@ -213,4 +213,30 @@
       </form>
     </div>
   </div>
+
+  {% if role == "primary" %}
+  <!-- PIR Sensor Diagnostic -->
+  <div class="card mb-3 shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <strong><i class="bi bi-radar me-2"></i>PIR Sensor</strong>
+    </div>
+    <div class="card-body py-3">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-start">
+          <i class="bi bi-activity fs-4 me-3"></i>
+          <div>
+            <div class="fw-semibold">PIR Sensor Monitor</div>
+            <div class="text-muted small">
+              Monitor GPIO 4 in real time while adjusting your PIR sensor's physical sensitivity and delay controls.
+            </div>
+          </div>
+        </div>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pirSensorModal">
+          <i class="bi bi-radar me-1"></i>Open PIR Sensor Monitor
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
 </section>
