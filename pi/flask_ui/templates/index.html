@@ -283,6 +283,27 @@
             Reading the sensor. Move in front of the PIR to observe changes.
           </p>
           <div id="pirSensorRaw" class="text-muted small mt-2"></div>
+          <div class="text-start mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="mb-0">Recent Activity</h6>
+              <span class="text-muted small">Last 25 completed state intervals</span>
+            </div>
+            <div class="table-responsive border rounded">
+              <table class="table table-sm table-striped align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th scope="col">Time</th>
+                    <th scope="col">GPIO State</th>
+                    <th scope="col" class="text-end">Duration</th>
+                  </tr>
+                </thead>
+                <tbody id="pirSensorActivityList"></tbody>
+              </table>
+            </div>
+            <div id="pirSensorActivityEmpty" class="text-muted small text-center border border-top-0 rounded-bottom p-2">
+              Waiting for the first GPIO state change…
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
