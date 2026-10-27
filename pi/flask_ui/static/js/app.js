@@ -2111,15 +2111,18 @@ async function deleteVideo(filename) {
         activityEmpty?.classList.remove('d-none');
         previousState = null;
         stateSince = null;
+        currentDurationCell = null;
     }
 
-    function recordSample(state, sampledAt, stateStartedAt) {
-        if (!activityList || !sampledAt || !stateStartedAt) return;
+    let currentDurationCell = null;
+
+    function addStateRow(state, stateStartedAt) {
+        if (!activityList || !stateStartedAt) return;
 
         const row = document.createElement('tr');
         const timeCell = document.createElement('td');
         timeCell.className = 'text-nowrap';
-        timeCell.textContent = formatTime(sampledAt);
+        timeCell.textContent = formatTime(stateStartedAt);
 
         const stateCell = document.createElement('td');
         const badge = document.createElement('span');
@@ -2127,17 +2130,23 @@ async function deleteVideo(filename) {
         badge.textContent = state;
         stateCell.appendChild(badge);
 
-        const durationCell = document.createElement('td');
-        durationCell.className = 'text-end text-nowrap';
-        durationCell.textContent = formatDuration(sampledAt - stateStartedAt);
+        currentDurationCell = document.createElement('td');
+        currentDurationCell.className = 'text-end text-nowrap';
+        currentDurationCell.textContent = '0s';
 
-        row.append(timeCell, stateCell, durationCell);
+        row.append(timeCell, stateCell, currentDurationCell);
         activityList.prepend(row);
 
         while (activityList.rows.length > maxActivityRows) {
             activityList.deleteRow(activityList.rows.length - 1);
         }
         activityEmpty?.classList.toggle('d-none', activityList.rows.length > 0);
+    }
+
+    function updateCurrentDuration(sampledAt) {
+        if (currentDurationCell && stateSince) {
+            currentDurationCell.textContent = formatDuration(sampledAt - stateSince);
+        }
     }
 
     function stopMonitoring() {
@@ -2184,12 +2193,21 @@ async function deleteVideo(filename) {
             rawOutput.textContent = data.raw || '';
 
             if (state === 'HIGH' || state === 'LOW') {
-                if (previousState === null || state !== previousState) {
+                if (previousState === null) {
+                    // Start the history with the first state observed when the monitor opens.
                     previousState = state;
                     stateSince = now;
+                    addStateRow(state, now);
+                } else if (state !== previousState) {
+                    // Finalize the state interval that just ended, then add the new transition.
+                    updateCurrentDuration(now);
+                    previousState = state;
+                    stateSince = now;
+                    addStateRow(state, now);
+                } else {
+                    // Keep the current duration live without adding duplicate rows.
+                    updateCurrentDuration(now);
                 }
-                // Record every successful GPIO read, not only state transitions.
-                recordSample(state, now, stateSince);
             }
         } catch (error) {
             if (!active || error.name === 'AbortError') return;
