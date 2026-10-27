@@ -2067,3 +2067,83 @@ async function deleteVideo(filename) {
         }
     });
 })();
+
+
+// PIR SENSOR DIAGNOSTIC MONITOR
+(() => {
+    const modal = document.getElementById('pirSensorModal');
+    if (!modal) return;
+
+    const stateBadge = document.getElementById('pirSensorState');
+    const message = document.getElementById('pirSensorMessage');
+    const rawOutput = document.getElementById('pirSensorRaw');
+    const statusUrl = modal.dataset.statusUrl;
+
+    let pollTimer = null;
+    let active = false;
+    let controller = null;
+
+    function stopMonitoring() {
+        active = false;
+        if (pollTimer !== null) {
+            window.clearTimeout(pollTimer);
+            pollTimer = null;
+        }
+        if (controller) {
+            controller.abort();
+            controller = null;
+        }
+    }
+
+    async function readSensor() {
+        if (!active) return;
+
+        controller = new AbortController();
+        try {
+            const response = await fetch(statusUrl, {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                signal: controller.signal
+            });
+            const data = await response.json();
+
+            if (!active) return;
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Unable to read the PIR sensor.');
+            }
+
+            const isHigh = data.state === 'HIGH';
+            stateBadge.textContent = data.state;
+            stateBadge.className = 'badge fs-4 px-4 py-3 ' + (isHigh ? 'bg-success' : 'bg-secondary');
+            message.textContent = isHigh
+                ? 'GPIO 4 is HIGH. The PIR sensor is outputting an active signal.'
+                : 'GPIO 4 is LOW. No active signal is present at this moment.';
+            rawOutput.textContent = data.raw || '';
+        } catch (error) {
+            if (!active || error.name === 'AbortError') return;
+            stateBadge.textContent = 'Unavailable';
+            stateBadge.className = 'badge bg-danger fs-5 px-4 py-3';
+            message.textContent = error.message || 'Unable to read the PIR sensor.';
+            rawOutput.textContent = '';
+        } finally {
+            controller = null;
+            if (active) {
+                pollTimer = window.setTimeout(readSensor, 500);
+            }
+        }
+    }
+
+    modal.addEventListener('shown.bs.modal', () => {
+        stopMonitoring();
+        active = true;
+        stateBadge.textContent = 'Reading…';
+        stateBadge.className = 'badge bg-secondary fs-4 px-4 py-3';
+        message.textContent = 'Reading the sensor. Move in front of the PIR to observe changes.';
+        rawOutput.textContent = '';
+        readSensor();
+    });
+
+    modal.addEventListener('hide.bs.modal', stopMonitoring);
+    window.addEventListener('pagehide', stopMonitoring);
+})();
