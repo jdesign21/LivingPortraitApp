@@ -286,7 +286,7 @@
           <div class="text-start mt-4">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h6 class="mb-0">Recent Activity</h6>
-              <span class="text-muted small">Last 25 completed state intervals</span>
+              <span class="text-muted small">Last 100 GPIO readings</span>
             </div>
             <div class="table-responsive border rounded">
               <table class="table table-sm table-striped align-middle mb-0">
@@ -294,14 +294,14 @@
                   <tr>
                     <th scope="col">Time</th>
                     <th scope="col">GPIO State</th>
-                    <th scope="col" class="text-end">Duration</th>
+                    <th scope="col" class="text-end">Time in State</th>
                   </tr>
                 </thead>
                 <tbody id="pirSensorActivityList"></tbody>
               </table>
             </div>
             <div id="pirSensorActivityEmpty" class="text-muted small text-center border border-top-0 rounded-bottom p-2">
-              Waiting for the first GPIO state change…
+              Waiting for the first GPIO reading…
             </div>
           </div>
         </div>
@@ -670,7 +670,7 @@
     })();
   </script>
 
-  <script src="{{ url_for('static', filename='js/app.js') }}?v=pir-activity-3"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}?v=pir-activity-4"></script>
 
 
 </body>
