@@ -3249,6 +3249,43 @@ def save_appearance_settings():
 
 
 
+@app.route("/pir_sensor_status", methods=["GET"])
+def pir_sensor_status():
+    """Read the current GPIO 4 level for the Settings PIR diagnostic modal."""
+    if load_network_settings().get("role", "primary") != "primary":
+        return jsonify(success=False, error="The PIR monitor is available on the Primary Pi only."), 403
+
+    try:
+        result = subprocess.run(
+            ["pinctrl", "get", "4"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=2,
+        )
+    except FileNotFoundError:
+        return jsonify(success=False, error="The pinctrl command was not found on this Raspberry Pi."), 503
+    except subprocess.TimeoutExpired:
+        return jsonify(success=False, error="Timed out while reading GPIO 4."), 504
+    except OSError as exc:
+        log(f"Unable to read PIR GPIO 4: {exc}", "ERROR")
+        return jsonify(success=False, error="Unable to read GPIO 4."), 500
+
+    output = (result.stdout or "").strip()
+    if result.returncode != 0:
+        detail = (result.stderr or output or "pinctrl returned an error").strip()
+        log(f"pinctrl get 4 failed: {detail}", "ERROR")
+        return jsonify(success=False, error="Unable to read GPIO 4. Check the application log."), 500
+
+    # Typical output: "4: ip -- | hi // GPIO4 = input"
+    match = re.search(r"\|\s*(hi|lo)\b", output, re.IGNORECASE)
+    if not match:
+        log(f"Unexpected pinctrl output for GPIO 4: {output}", "ERROR")
+        return jsonify(success=False, error="Unrecognized response from pinctrl."), 500
+
+    return jsonify(success=True, pin=4, state=match.group(1).upper(), raw=output)
+
+
 @app.route("/select_display_mode", methods=["POST"])
 def select_display_mode():
     selected_value = request.form.get("display_mode", "").strip()
