@@ -264,6 +264,34 @@
   </main>
 
 
+  {% if role == "primary" %}
+  <!-- PIR Sensor Diagnostic Modal -->
+  <div class="modal fade" id="pirSensorModal" tabindex="-1" aria-labelledby="pirSensorModalLabel" aria-hidden="true"
+       data-status-url="{{ url_for('pir_sensor_status') }}">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="pirSensorModalLabel">
+            <i class="bi bi-radar me-2"></i>PIR Sensor Monitor
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body text-center py-4">
+          <div class="text-muted small mb-2">GPIO 4 · Updates every 0.5 seconds</div>
+          <div id="pirSensorState" class="badge bg-secondary fs-4 px-4 py-3" role="status" aria-live="polite">Starting…</div>
+          <p id="pirSensorMessage" class="text-muted small mt-3 mb-0">
+            Reading the sensor. Move in front of the PIR to observe changes.
+          </p>
+          <div id="pirSensorRaw" class="text-muted small mt-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Validation Error Modal -->
   <div class="modal fade" id="validationModal" tabindex="-1" aria-labelledby="validationModalLabel" aria-hidden="true">
     <div class="modal-dialog">
