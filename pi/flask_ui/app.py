@@ -3249,6 +3249,83 @@ def save_appearance_settings():
 
 
 
+@app.route("/pir_sensor_status", methods=["GET"])
+def pir_sensor_status():
+    """Read the current GPIO 4 level for the Settings PIR diagnostic modal."""
+    if load_network_settings().get("role", "primary") != "primary":
+        return jsonify(success=False, error="The PIR monitor is available on the Primary Pi only."), 403
+
+    try:
+        result = subprocess.run(
+            ["pinctrl", "get", "4"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=2,
+        )
+    except FileNotFoundError:
+        return jsonify(success=False, error="The pinctrl command was not found on this Raspberry Pi."), 503
+    except subprocess.TimeoutExpired:
+        return jsonify(success=False, error="Timed out while reading GPIO 4."), 504
+    except OSError as exc:
+        log(f"Unable to read PIR GPIO 4: {exc}", "ERROR")
+        return jsonify(success=False, error="Unable to read GPIO 4."), 500
+
+    output = (result.stdout or "").strip()
+    if result.returncode != 0:
+        detail = (result.stderr or output or "pinctrl returned an error").strip()
+        log(f"pinctrl get 4 failed: {detail}", "ERROR")
+        return jsonify(success=False, error="Unable to read GPIO 4. Check the application log."), 500
+
+    # Typical output: "4: ip -- | hi // GPIO4 = input"
+    match = re.search(r"\|\s*(hi|lo)\b", output, re.IGNORECASE)
+    if not match:
+        log(f"Unexpected pinctrl output for GPIO 4: {output}", "ERROR")
+        return jsonify(success=False, error="Unrecognized response from pinctrl."), 500
+
+    return jsonify(success=True, pin=4, state=match.group(1).upper(), raw=output)
+
+
+@app.route("/pir_sensor_event", methods=["POST"])
+def pir_sensor_event():
+    """Log a GPIO 4 state transition observed while the PIR monitor is open."""
+    if load_network_settings().get("role", "primary") != "primary":
+        return jsonify(success=False, error="The PIR monitor is available on the Primary Pi only."), 403
+
+    payload = request.get_json(silent=True) or {}
+    state = str(payload.get("state", "")).upper()
+    previous_state = str(payload.get("previous_state", "")).upper()
+
+    if state not in ("HIGH", "LOW") or previous_state not in ("HIGH", "LOW") or state == previous_state:
+        return jsonify(success=False, error="Invalid PIR state transition."), 400
+
+    try:
+        duration_ms = float(payload.get("duration_ms"))
+        if duration_ms < 0 or duration_ms > 86400000:
+            raise ValueError("duration out of range")
+    except (TypeError, ValueError):
+        return jsonify(success=False, error="Invalid PIR state duration."), 400
+
+    duration_seconds = duration_ms / 1000
+    if duration_seconds < 1:
+        duration_label = "less than 1 second"
+    else:
+        rounded_seconds = round(duration_seconds)
+        if rounded_seconds < 60:
+            duration_label = f"{rounded_seconds} second" + ("" if rounded_seconds == 1 else "s")
+        else:
+            minutes, seconds = divmod(rounded_seconds, 60)
+            duration_label = f"{minutes} minute" + ("" if minutes == 1 else "s")
+            if seconds:
+                duration_label += f" {seconds} second" + ("" if seconds == 1 else "s")
+
+    log(
+        f"GPIO 4 changed to {state} (previous state {previous_state} duration: {duration_label})",
+        "PIR",
+    )
+    return jsonify(success=True)
+
+
 @app.route("/select_display_mode", methods=["POST"])
 def select_display_mode():
     selected_value = request.form.get("display_mode", "").strip()
