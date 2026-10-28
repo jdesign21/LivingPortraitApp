@@ -2067,3 +2067,204 @@ async function deleteVideo(filename) {
         }
     });
 })();
+
+
+// PIR SENSOR DIAGNOSTIC MONITOR
+(() => {
+    const modal = document.getElementById('pirSensorModal');
+    if (!modal) return;
+
+    const stateBadge = document.getElementById('pirSensorState');
+    const message = document.getElementById('pirSensorMessage');
+    const rawOutput = document.getElementById('pirSensorRaw');
+    const activityList = document.getElementById('pirSensorActivityList');
+    const activityEmpty = document.getElementById('pirSensorActivityEmpty');
+    const statusUrl = modal.dataset.statusUrl;
+    const maxActivityRows = 100;
+
+    let pollTimer = null;
+    let active = false;
+    let controller = null;
+    let previousState = null;
+    let stateSince = null;
+
+    function formatTime(date) {
+        const time = date.toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: window.timeFormat !== '24'
+        });
+        return time + '.' + String(date.getMilliseconds()).padStart(3, '0');
+    }
+
+    function formatDuration(milliseconds) {
+        const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        if (minutes > 0) return minutes + 'm ' + seconds + 's';
+        return seconds + 's';
+    }
+
+    function clearActivity() {
+        if (activityList) activityList.replaceChildren();
+        activityEmpty?.classList.remove('d-none');
+        previousState = null;
+        stateSince = null;
+        currentDurationCell = null;
+    }
+
+    let currentDurationCell = null;
+
+    function addStateRow(state, stateStartedAt) {
+        if (!activityList || !stateStartedAt) return;
+
+        const row = document.createElement('tr');
+        const timeCell = document.createElement('td');
+        timeCell.className = 'text-nowrap';
+        timeCell.textContent = formatTime(stateStartedAt);
+
+        const stateCell = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + (state === 'HIGH' ? 'bg-success' : 'bg-secondary');
+        badge.textContent = state;
+        stateCell.appendChild(badge);
+
+        currentDurationCell = document.createElement('td');
+        currentDurationCell.className = 'text-end text-nowrap';
+        currentDurationCell.textContent = '0s';
+
+        row.append(timeCell, stateCell, currentDurationCell);
+        activityList.prepend(row);
+
+        while (activityList.rows.length > maxActivityRows) {
+            activityList.deleteRow(activityList.rows.length - 1);
+        }
+        activityEmpty?.classList.toggle('d-none', activityList.rows.length > 0);
+    }
+
+    function updateCurrentDuration(sampledAt) {
+        if (currentDurationCell && stateSince) {
+            currentDurationCell.textContent = formatDuration(sampledAt - stateSince);
+        }
+    }
+
+    function stopMonitoring() {
+        active = false;
+        if (pollTimer !== null) {
+            window.clearTimeout(pollTimer);
+            pollTimer = null;
+        }
+        if (controller) {
+            controller.abort();
+            controller = null;
+        }
+    }
+
+    async function readSensor() {
+        if (!active) return;
+
+        const requestController = new AbortController();
+        controller = requestController;
+        try {
+            const response = await fetch(statusUrl, {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                signal: requestController.signal
+            });
+            const data = await response.json();
+
+            if (!active) return;
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Unable to read the PIR sensor.');
+            }
+
+            // pinctrl reports the level as HI/LO; normalize it for the monitor history.
+            const rawState = String(data.state || '').toUpperCase();
+            const state = rawState === 'HI' ? 'HIGH' : rawState === 'LO' ? 'LOW' : rawState;
+            const now = new Date();
+            const isHigh = state === 'HIGH';
+            stateBadge.textContent = state;
+            stateBadge.className = 'badge fs-4 px-4 py-3 ' + (isHigh ? 'bg-success' : 'bg-secondary');
+            message.textContent = isHigh
+                ? 'GPIO 4 is HIGH. The PIR sensor is outputting an active signal.'
+                : 'GPIO 4 is LOW. No active signal is present at this moment.';
+            rawOutput.textContent = data.raw || '';
+
+            if (state === 'HIGH' || state === 'LOW') {
+                if (previousState === null) {
+                    // Start the history with the first state observed when the monitor opens.
+                    previousState = state;
+                    stateSince = now;
+                    addStateRow(state, now);
+                } else if (state !== previousState) {
+                    // Finalize the state interval that just ended, then log the transition.
+                    const priorState = previousState;
+                    const durationMs = now.getTime() - stateSince.getTime();
+                    updateCurrentDuration(now);
+
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                    fetch('/pir_sensor_event', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
+                        },
+                        body: JSON.stringify({
+                            previous_state: priorState,
+                            state,
+                            duration_ms: durationMs
+                        })
+                    }).catch(() => {
+                        // Continue monitoring if a log event cannot be delivered.
+                    });
+
+                    previousState = state;
+                    stateSince = now;
+                    addStateRow(state, now);
+                } else {
+                    // Keep the current duration live without adding duplicate rows.
+                    updateCurrentDuration(now);
+                }
+            }
+        } catch (error) {
+            if (!active || error.name === 'AbortError') return;
+            stateBadge.textContent = 'Unavailable';
+            stateBadge.className = 'badge bg-danger fs-5 px-4 py-3';
+            message.textContent = error.message || 'Unable to read the PIR sensor.';
+            rawOutput.textContent = '';
+        } finally {
+            if (controller === requestController) {
+                controller = null;
+            }
+            if (active) {
+                pollTimer = window.setTimeout(readSensor, 500);
+            }
+        }
+    }
+
+    modal.addEventListener('shown.bs.modal', () => {
+        stopMonitoring();
+        clearActivity();
+        active = true;
+        stateBadge.textContent = 'Reading…';
+        stateBadge.className = 'badge bg-secondary fs-4 px-4 py-3';
+        message.textContent = 'Reading the sensor. Move in front of the PIR to observe changes.';
+        rawOutput.textContent = '';
+        readSensor();
+    });
+
+    modal.addEventListener('hide.bs.modal', () => {
+        stopMonitoring();
+
+        // Bootstrap hides the modal from assistive technology during the hide transition.
+        // Blur any focused control inside it first to avoid retaining focus under aria-hidden.
+        const focusedElement = document.activeElement;
+        if (focusedElement && modal.contains(focusedElement)) {
+            focusedElement.blur();
+        }
+    });
+    window.addEventListener('pagehide', stopMonitoring);
+})();
