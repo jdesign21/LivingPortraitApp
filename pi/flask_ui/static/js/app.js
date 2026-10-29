@@ -81,6 +81,8 @@ document.querySelectorAll(".tomselect").forEach(el => {
 // Playlist order is managed from Video Library; the Mode page only selects
 // which playback mode uses that saved order.
 
+document.addEventListener('DOMContentLoaded', () => {
+
 // ========================================================
     // COUNTDOWN TIMER
     // ========================================================
