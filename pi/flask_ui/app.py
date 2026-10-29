@@ -1551,44 +1551,15 @@ def select():
         interval = 0
 
     if action == "shuffle":
+        # Backward-compatible handler: shuffle saved order without changing
+        # playback mode, active flags, or the currently selected video.
         settings = load_settings()
         order = settings.get("playlist", {}).get("order", [])
-
-        active_videos = [
-            v
-            for v in order
-            if v.get("active", True)
-        ]
-
-        inactive_videos = [
-            v
-            for v in order
-            if not v.get("active", True)
-        ]
-
+        active_videos = [dict(v) for v in order if v.get("active", True)]
+        inactive_videos = [dict(v) for v in order if not v.get("active", True)]
         random.shuffle(active_videos)
-        new_order = active_videos + inactive_videos
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        update_playlist_settings(
-            mode="fixed",
-            interval=interval,
-            last_updated=timestamp,
-            order=new_order,
-            triggered_flag=triggered_flag,
-            trigger_change=trigger_change,
-            delay=delay,
-            secondary_start_mode=secondary_start_mode,
-            secondary_start_delay=secondary_start_delay,
-            secondary_video_mode=secondary_video_mode
-        )
-
-        settings = load_settings()
-
-        if new_order:
-            settings["selected_video"] = new_order[0]["filename"]
-            save_settings(settings)
-
+        settings.setdefault("playlist", {})["order"] = active_videos + inactive_videos
+        save_settings(settings)
         flash("Playlist order shuffled!", "success")
         return redirect(url_for("index"))
 
@@ -1689,56 +1660,28 @@ def select():
             )
             return redirect(url_for("index"))
 
-        order_str = request.form.get(
-            "fixed_order",
-            ""
-        )
-
-        filenames = [
-            v.strip()
-            for v in order_str.split(",")
-            if v.strip() in videos
-        ]
-
-        if not filenames:
-            flash(
-                "Please provide a valid fixed order with existing videos",
-                "danger"
-            )
-            return redirect(url_for("index"))
-
-        existing_order = load_settings().get(
-            "playlist",
-            {}
-        ).get(
-            "order",
-            []
-        )
-
+        # Fixed Order uses the saved Video Library order. Changing playback
+        # mode must never reactivate inactive videos or rebuild per-video metadata.
+        existing_order = load_settings().get("playlist", {}).get("order", [])
         existing_dict = {
-            entry["filename"]: entry
+            entry["filename"]: dict(entry)
             for entry in existing_order
-            if "filename" in entry
+            if isinstance(entry, dict) and entry.get("filename")
         }
 
-        new_order = []
+        new_order = [
+            existing_dict[filename]
+            for filename in videos
+            if filename in existing_dict and (VIDEO_FOLDER / filename).is_file()
+        ]
+        known_names = {entry["filename"] for entry in new_order}
+        for filename in videos:
+            if filename not in known_names and (VIDEO_FOLDER / filename).is_file():
+                new_order.append({"filename": filename, "active": True})
 
-        for fn in filenames:
-            if fn in existing_dict:
-                entry = dict(existing_dict[fn])
-                entry["active"] = True
-                new_order.append(entry)
-            else:
-                new_order.append({
-                    "filename": fn,
-                    "active": True
-                })
-
-        for fn, entry in existing_dict.items():
-            if fn not in filenames:
-                entry = dict(entry)
-                entry["active"] = False
-                new_order.append(entry)
+        if not new_order:
+            flash("No valid videos are available for Fixed Order playback.", "danger")
+            return redirect(url_for("index"))
 
         timestamp = datetime.now().strftime(
             "%Y-%m-%d %H:%M:%S"
@@ -2070,6 +2013,81 @@ def update_thumbnail_rotation():
     settings["playlist"]["order"] = order
     save_settings(settings)
     return jsonify(success=True, filename=filename, rotation=rotation)
+
+
+@app.route("/update_playlist_order", methods=["POST"])
+def update_playlist_order():
+    """Persist Video Library drag-and-drop order without changing video metadata."""
+    settings = load_settings()
+    playlist = settings.setdefault("playlist", {})
+    existing_order = playlist.get("order", [])
+    entries_by_name = {
+        entry.get("filename"): entry
+        for entry in existing_order
+        if isinstance(entry, dict) and entry.get("filename")
+    }
+
+    if request.is_json:
+        payload = request.get_json(silent=True) or {}
+        submitted_names = payload.get("order", [])
+        action = payload.get("action", "")
+    else:
+        submitted_names = request.form.getlist("order[]")
+        action = request.form.get("action", "")
+
+    disk_names = {
+        path.name for path in VIDEO_FOLDER.glob("*.mp4") if path.is_file()
+    }
+    for filename in disk_names:
+        if filename not in entries_by_name:
+            entries_by_name[filename] = {"filename": filename, "active": True}
+
+    current_names = [
+        entry.get("filename")
+        for entry in existing_order
+        if isinstance(entry, dict) and entry.get("filename") in disk_names
+    ]
+    for filename in disk_names:
+        if filename not in current_names:
+            current_names.append(filename)
+
+    if action == "shuffle":
+        active_names = [
+            name for name in current_names
+            if entries_by_name.get(name, {}).get("active", True)
+        ]
+        inactive_names = [
+            name for name in current_names
+            if not entries_by_name.get(name, {}).get("active", True)
+        ]
+        random.shuffle(active_names)
+        submitted_names = active_names + inactive_names
+
+    if not isinstance(submitted_names, list):
+        return jsonify(success=False, error="Invalid playlist order."), 400
+
+    safe_names = []
+    for value in submitted_names:
+        if not isinstance(value, str):
+            return jsonify(success=False, error="Invalid video filename in playlist order."), 400
+        filename = value.strip()
+        if not filename or Path(filename).name != filename or filename not in disk_names:
+            return jsonify(success=False, error="Playlist order contains an invalid or missing video."), 400
+        safe_names.append(filename)
+
+    if len(safe_names) != len(set(safe_names)) or set(safe_names) != disk_names:
+        return jsonify(success=False, error="Playlist order must contain every existing video exactly once."), 400
+
+    reordered = [entries_by_name[name] for name in safe_names]
+    # Keep historical settings entries whose files are gone; they are not
+    # draggable and remain at the end until cleaned up separately.
+    reordered.extend(
+        entry for entry in existing_order
+        if isinstance(entry, dict) and entry.get("filename") not in disk_names
+    )
+    playlist["order"] = reordered
+    save_settings(settings)
+    return jsonify(success=True, order=safe_names, action=action or "reorder")
 
 
 @app.route("/update_all", methods=["POST"])
