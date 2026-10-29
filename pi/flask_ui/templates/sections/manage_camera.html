@@ -18,6 +18,9 @@
           <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#syncTagsModal">
             <i class="bi bi-arrow-repeat me-1"></i> Sync Tags
           </button>
+          <button type="button" class="btn btn-light btn-sm" id="shuffleVideoPlaylist">
+            <i class="bi bi-shuffle me-1"></i> Shuffle Playlist
+          </button>
           <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#uploadModal">
             <i class="bi bi-cloud-arrow-up me-1"></i> Upload Video
           </button>
@@ -47,13 +50,6 @@
               <option value="{{ tag|lower }}">{{ tag }} (Sync)</option>
               {% endif %}
               {% endfor %}
-            </select>
-          </div>
-          <div class="video-sort-control">
-            <label class="visually-hidden" for="videoSort">Sort videos</label>
-            <select class="form-select" id="videoSort">
-              <option value="name-asc">Name (A–Z)</option>
-              <option value="name-desc">Name (Z–A)</option>
             </select>
           </div>
           <div class="video-layout-control d-flex justify-content-end gap-1 flex-shrink-0">
@@ -89,6 +85,9 @@
                   value="{{ video.get('thumbnail_rotation', 0) }}" class="thumbnail-rotation-value">
                 <div class="d-flex align-items-center gap-3">
                   <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm video-drag-handle" title="Drag to reorder playlist" aria-label="Drag to reorder {{ video.filename }}">
+                      <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+                    </button>
                     <button type="button" class="btn btn-outline-secondary btn-sm rotate-thumbnail-btn"
                       data-filename="{{ video.filename }}"
                       aria-label="Rotate thumbnail for {{ video.filename }}" title="Rotate thumbnail 90° clockwise">
@@ -234,7 +233,6 @@
 
       const search = document.getElementById("videoSearch");
       const tagFilter = document.getElementById("videoTagFilter");
-      const sort = document.getElementById("videoSort");
       const listButton = document.getElementById("videoListView");
       const gridButton = document.getElementById("videoGridView");
 
@@ -261,14 +259,51 @@
           item.hidden = !(name.includes(query) && (!tag || tags.includes(tag)));
         });
 
-        const sorted = items().sort((a, b) => {
-          const aName = a.dataset.videoName || "";
-          const bName = b.dataset.videoName || "";
-          return sort.value === "name-desc"
-            ? bName.localeCompare(aName)
-            : aName.localeCompare(bName);
+        // Filters only hide rows. They never reorder the saved playlist.
+        if (videoSortable) {
+          videoSortable.option("disabled", Boolean(query || tag));
+        }
+      }
+
+      let videoSortable = null;
+
+      async function saveVideoOrder(action = "reorder") {
+        const order = items().map(item =>
+          item.querySelector('input[name$="[filename]"]')?.value
+        ).filter(Boolean);
+        const body = new URLSearchParams();
+        order.forEach(filename => body.append("order[]", filename));
+        if (action === "shuffle") body.set("action", "shuffle");
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
+          || document.querySelector('input[name="csrf_token"]')?.value || "";
+        if (csrfToken) body.set("csrf_token", csrfToken);
+
+        const response = await fetch("/update_playlist_order", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+            "X-Requested-With": "XMLHttpRequest",
+            "X-CSRF-Token": csrfToken
+          },
+          body: body.toString()
         });
-        sorted.forEach(item => list.appendChild(item));
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || "Unable to save playlist order.");
+        }
+        return result.order || order;
+      }
+
+      function reorderVideoRows(order) {
+        const byName = new Map(items().map(item => [
+          item.querySelector('input[name$="[filename]"]')?.value,
+          item
+        ]));
+        order.forEach(filename => {
+          const item = byName.get(filename);
+          if (item) list.appendChild(item);
+        });
       }
 
       function setVideoLayout(layout) {
@@ -325,9 +360,47 @@
         });
       });
 
+      if (window.Sortable) {
+        videoSortable = Sortable.create(list, {
+          animation: 150,
+          handle: ".video-drag-handle",
+          draggable: ".video-library-item",
+          filter: "button, input, select, textarea, a",
+          preventOnFilter: false,
+          onEnd: async () => {
+            if (search.value.trim() || tagFilter.value.trim()) {
+              applyVideoFilters();
+              return;
+            }
+            try {
+              await saveVideoOrder();
+              if (typeof showToast === "function") showToast("Playlist order saved.", "success");
+            } catch (error) {
+              alert(error.message || "Unable to save playlist order.");
+              window.location.reload();
+            }
+          }
+        });
+      }
+
+      document.getElementById("shuffleVideoPlaylist")?.addEventListener("click", async event => {
+        const button = event.currentTarget;
+        if (button.disabled) return;
+        button.disabled = true;
+        try {
+          const order = await saveVideoOrder("shuffle");
+          reorderVideoRows(order);
+          applyVideoFilters();
+          if (typeof showToast === "function") showToast("Playlist order shuffled.", "success");
+        } catch (error) {
+          alert(error.message || "Unable to shuffle playlist.");
+        } finally {
+          button.disabled = false;
+        }
+      });
+
       search.addEventListener("input", applyVideoFilters);
       tagFilter.addEventListener("change", applyVideoFilters);
-      sort.addEventListener("change", applyVideoFilters);
       listButton.addEventListener("click", () => setVideoLayout("list"));
       gridButton.addEventListener("click", () => setVideoLayout("grid"));
 
