@@ -1690,6 +1690,7 @@ def select():
             for entry in existing_order
             if isinstance(entry, dict)
             and entry.get("filename") in existing_dict
+            and entry.get("filename") in videos
             and (VIDEO_FOLDER / entry["filename"]).is_file()
         ]
         known_names = {entry["filename"] for entry in new_order}
