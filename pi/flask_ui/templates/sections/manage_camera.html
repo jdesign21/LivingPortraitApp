@@ -365,7 +365,7 @@
           animation: 150,
           handle: ".video-drag-handle",
           draggable: ".video-library-item",
-          filter: "button, input, select, textarea, a",
+          filter: "input, select, textarea, a, button:not(.video-drag-handle)",
           preventOnFilter: false,
           onEnd: async () => {
             if (search.value.trim() || tagFilter.value.trim()) {
