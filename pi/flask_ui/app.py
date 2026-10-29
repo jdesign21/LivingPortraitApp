@@ -876,6 +876,22 @@ def index():
         and entry.get("active")
     ]
 
+    # Ensure every MP4 on disk appears in the Video Library and saved order.
+    # This also handles videos copied into the Videos folder outside the UI.
+    known_video_names = {
+        entry.get("filename")
+        for entry in order
+        if isinstance(entry, dict) and entry.get("filename")
+    }
+    missing_video_names = [name for name in videos if name not in known_video_names]
+    if missing_video_names:
+        for filename in missing_video_names:
+            entry = {"filename": filename, "active": True}
+            entry.update(_get_video_file_details(filename, entry))
+            order.append(entry)
+        settings.setdefault("playlist", {})["order"] = order
+        save_settings(settings)
+
     # Fixed Playlist Schedule Tag display
     fixed_order_display = []
 
@@ -2044,7 +2060,7 @@ def update_playlist_order():
     disk_names = {
         path.name for path in VIDEO_FOLDER.glob("*.mp4") if path.is_file()
     }
-    for filename in disk_names:
+    for filename in sorted(disk_names):
         if filename not in entries_by_name:
             entries_by_name[filename] = {"filename": filename, "active": True}
 
@@ -2053,7 +2069,7 @@ def update_playlist_order():
         for entry in existing_order
         if isinstance(entry, dict) and entry.get("filename") in disk_names
     ]
-    for filename in disk_names:
+    for filename in sorted(disk_names):
         if filename not in current_names:
             current_names.append(filename)
 
