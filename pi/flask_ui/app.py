@@ -1670,17 +1670,19 @@ def select():
         }
 
         new_order = [
-            existing_dict[filename]
-            for filename in videos
-            if filename in existing_dict and (VIDEO_FOLDER / filename).is_file()
+            existing_dict[entry["filename"]]
+            for entry in existing_order
+            if isinstance(entry, dict)
+            and entry.get("filename") in existing_dict
+            and (VIDEO_FOLDER / entry["filename"]).is_file()
         ]
         known_names = {entry["filename"] for entry in new_order}
         for filename in videos:
             if filename not in known_names and (VIDEO_FOLDER / filename).is_file():
                 new_order.append({"filename": filename, "active": True})
 
-        if not new_order:
-            flash("No valid videos are available for Fixed Order playback.", "danger")
+        if not new_order or not any(entry.get("active", True) for entry in new_order):
+            flash("No active videos are available for Fixed Order playback.", "danger")
             return redirect(url_for("index"))
 
         timestamp = datetime.now().strftime(
@@ -1702,8 +1704,12 @@ def select():
 
         settings = load_settings()
 
-        if new_order:
-            settings["selected_video"] = new_order[0]["filename"]
+        first_active = next(
+            (entry["filename"] for entry in new_order if entry.get("active", True)),
+            None
+        )
+        if first_active:
+            settings["selected_video"] = first_active
             save_settings(settings)
 
         if trigger_change:
