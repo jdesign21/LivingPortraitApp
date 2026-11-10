@@ -592,8 +592,13 @@ def play_endless():
                     get_video_sync_tag(selected_path)
                 )
 
-                player.stop()
-                break
+                # Prepare the replacement media using the same
+                # preload-and-pause sequence used by Triggered Mode.
+                # This avoids stopping the active player and then
+                # starting the replacement from an unprepared state.
+                load_and_pause(selected_path)
+                player.play()
+                continue
 
             sleep(0.1)
 
