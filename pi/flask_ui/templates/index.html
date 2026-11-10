@@ -37,53 +37,92 @@
       <i class="bi bi-house"></i><span class="label">Home</span>
     </a>
 
-    <div class="sidebar-heading">Playback</div>
-    <a class="nav-link" data-section="mode">
-      <i class="bi bi-check-square"></i><span class="label">Mode</span>
-    </a>
+    <div class="sidebar-group is-collapsed" data-sidebar-group>
+      <button type="button" class="sidebar-group-toggle" aria-expanded="false" aria-controls="playbackSubmenu">
+        <i class="bi bi-play-circle"></i>
+        <span class="label">Playback</span>
+        <i class="bi bi-chevron-down group-chevron"></i>
+      </button>
+      <div class="sidebar-submenu" id="playbackSubmenu">
+        <a class="nav-link" data-section="mode">
+          <i class="bi bi-check-square"></i><span class="label">Mode</span>
+        </a>
 {% if role == "primary" or (role == "secondary" and enable != "1") %}
-    <a class="nav-link" data-section="schedule">
-      <i class="bi bi-calendar-check"></i><span class="label">Schedule</span>
-    </a>
+        <a class="nav-link" data-section="schedule">
+          <i class="bi bi-calendar-check"></i><span class="label">Schedule</span>
+        </a>
 {% endif %}
-    <a class="nav-link" data-section="manage">
-      <i class="bi bi-folder2-open"></i><span class="label">Videos</span>
-    </a>
+        <a class="nav-link" data-section="manage">
+          <i class="bi bi-folder2-open"></i><span class="label">Videos</span>
+        </a>
+      </div>
+    </div>
 
-    <div class="sidebar-heading">System</div>
-    <a class="nav-link" data-section="power">
-      <i class="bi bi-power"></i><span class="label">Power</span>
-    </a>
-    <a class="nav-link" data-section="network">
-      <i class="bi bi-hdd-network"></i><span class="label">Network</span>
-    </a>
-    <a class="nav-link" data-section="logs">
-      <i class="bi bi-file-earmark-text"></i><span class="label">Logs</span>
-    </a>
+    <div class="sidebar-group is-collapsed" data-sidebar-group>
+      <button type="button" class="sidebar-group-toggle" aria-expanded="false" aria-controls="systemSubmenu">
+        <i class="bi bi-cpu"></i>
+        <span class="label">System</span>
+        <i class="bi bi-chevron-down group-chevron"></i>
+      </button>
+      <div class="sidebar-submenu" id="systemSubmenu">
+        <a class="nav-link" data-section="network">
+          <i class="bi bi-hdd-network"></i><span class="label">Network</span>
+        </a>
+        <a class="nav-link" data-section="power">
+          <i class="bi bi-power"></i><span class="label">Power</span>
+        </a>
+        <a class="nav-link" data-section="logs">
+          <i class="bi bi-file-earmark-text"></i><span class="label">Logs</span>
+        </a>
+      </div>
+    </div>
 
-    <a class="nav-link" data-section="system_settings">
-      <i class="bi bi-sliders"></i><span class="label">System Settings</span>
-    </a>
+    <div class="sidebar-group is-collapsed" data-sidebar-group>
+      <button type="button" class="sidebar-group-toggle" aria-expanded="false" aria-controls="settingsSubmenu">
+        <i class="bi bi-sliders"></i>
+        <span class="label">Settings</span>
+        <i class="bi bi-chevron-down group-chevron"></i>
+      </button>
+      <div class="sidebar-submenu" id="settingsSubmenu">
+        <a class="nav-link" data-section="system_settings">
+          <i class="bi bi-gear"></i><span class="label">System Settings</span>
+        </a>
+        <a class="nav-link" data-section="Appearance">
+          <i class="bi bi-palette"></i><span class="label">Appearance</span>
+        </a>
+        <a class="nav-link" data-section="account_security">
+          <i class="bi bi-shield-lock"></i><span class="label">Account &amp; Security</span>
+        </a>
+        <a class="nav-link" data-section="privacy_analytics">
+          <i class="bi bi-shield-check"></i><span class="label">Privacy &amp; Analytics</span>
+        </a>
+      </div>
+    </div>
 
-    <a class="nav-link" data-section="Appearance">
-      <i class="bi bi-palette"></i><span class="label">Appearance</span>
-    </a>
-
-    <div class="sidebar-heading">Security</div>
-    <a class="nav-link" data-section="account_security">
-      <i class="bi bi-shield-lock"></i><span class="label">Account &amp; Security</span>
-    </a>
-
-    <div class="sidebar-heading">More</div>
-    <a class="nav-link" data-section="about">
-      <i class="bi bi-info-circle"></i><span class="label">About</span>
-    </a>
-    <a class="nav-link" data-section="updates">
-      <i class="bi bi-arrow-repeat"></i><span class="label">Check Updates</span>
-    </a>
-    <a class="nav-link" data-section="whats_new">
-      <i class="bi bi-megaphone"></i><span class="label">What&#39;s New</span>
-    </a>
+    <div class="sidebar-group is-collapsed" data-sidebar-group>
+      <button type="button" class="sidebar-group-toggle" aria-expanded="false" aria-controls="helpSubmenu">
+        <i class="bi bi-life-preserver"></i>
+        <span class="label">Help &amp; Information</span>
+        <i class="bi bi-chevron-down group-chevron"></i>
+      </button>
+      <div class="sidebar-submenu" id="helpSubmenu">
+        <a class="nav-link" data-section="about">
+          <i class="bi bi-info-circle"></i><span class="label">About</span>
+        </a>
+        <a class="nav-link" data-section="updates">
+          <i class="bi bi-arrow-repeat"></i><span class="label">Check Updates</span>
+        </a>
+        <a class="nav-link" data-section="whats_new">
+          <i class="bi bi-megaphone"></i><span class="label">What&#39;s New</span>
+        </a>
+        <a class="nav-link" href="#" data-support-action="bug">
+          <i class="bi bi-bug"></i><span class="label">Report an Issue</span>
+        </a>
+        <a class="nav-link" href="#" data-support-action="enhancement">
+          <i class="bi bi-lightbulb"></i><span class="label">Suggest Feature</span>
+        </a>
+      </div>
+    </div>
   </nav>
 
 
@@ -261,6 +300,9 @@
     <!-- WHAT'S NEW SECTION -->
   {% include 'sections/whats_new.html' %}
 
+    <!-- PRIVACY & ANALYTICS SECTION -->
+    {% include 'sections/privacy_analytics.html' %}
+
   </main>
 
 
@@ -312,6 +354,43 @@
     </div>
   </div>
   {% endif %}
+
+  <!-- First-run and consent-version review dialog -->
+  <div class="modal fade" id="analyticsConsentModal" tabindex="-1" aria-labelledby="analyticsConsentModalLabel"
+       aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title fw-bold" id="analyticsConsentModalLabel">
+            <i class="bi bi-shield-check me-2"></i>Help Improve LivingPortraitApp
+          </h5>
+        </div>
+        <div class="modal-body">
+          <p>Would you like to share limited application usage and diagnostic information to help improve LivingPortraitApp?</p>
+          <p class="fw-semibold mb-2">If you enable analytics, the application may send:</p>
+          <ul>
+            <li>Application launch events, application version, operating system, OS release, CPU architecture, and Python version.</li>
+            <li>A randomly generated installation identifier that is not based on your name or administrator account.</li>
+            <li>Short, sanitized error information when an application error occurs.</li>
+          </ul>
+          <p class="fw-semibold mb-2">We do not collect:</p>
+          <ul>
+            <li>Page views or browsing history.</li>
+            <li>Videos, images, recordings, filenames, playlists, or personal media.</li>
+            <li>Administrator credentials, hardware serial number, hostname, or local IP address.</li>
+            <li>Full error stack traces, memory dumps, or application logs.</li>
+          </ul>
+          <p class="small text-muted mb-0">
+            Analytics is disabled by default. Events are sent to PostHog over HTTPS only if you opt in. PostHog receives network connection information needed to process requests; GeoIP enrichment is disabled. You can change your choice at any time under Privacy &amp; Analytics. An optional diagnostic contact email can be configured there and is only attached to diagnostic events.
+          </p>
+        </div>
+        <div class="modal-footer justify-content-between">
+          <button type="button" class="btn btn-outline-secondary" id="declineAnalyticsConsent">No Thanks</button>
+          <button type="button" class="btn btn-primary" id="enableAnalyticsConsent">Enable Usage Analytics</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Validation Error Modal -->
   <div class="modal fade" id="validationModal" tabindex="-1" aria-labelledby="validationModalLabel" aria-hidden="true">
@@ -670,7 +749,127 @@
     })();
   </script>
 
-  <script src="{{ url_for('static', filename='js/app.js') }}?v=pir-activity-5"></script>
+  <script>
+    // Open a pre-filled GitHub issue form; the user reviews and submits it.
+    const supportMetadata = {{ {
+      "app_version": version,
+      "operating_system": system_info.os_version,
+      "kernel_version": system_info.kernel_version,
+      "architecture": system_info.architecture,
+      "raspberry_pi_model": system_info.pi_model,
+      "application_role": role
+    }|tojson }};
+    document.querySelectorAll('[data-support-action]').forEach(link => {
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        const action = link.dataset.supportAction;
+        const isBug = action === 'bug';
+        const title = isBug ? '[Bug] LivingPortraitApp: ' : '[Enhancement] LivingPortraitApp: ';
+        const body = isBug
+          ? '## Describe the issue\n\nWhat happened?\n\n## Steps to reproduce\n\n1.\n2.\n3.\n\n## Expected behavior\n\nWhat did you expect to happen?\n\n## Actual behavior\n\nWhat happened instead?\n\n'
+          : '## What would you like to see changed?\n\nDescribe the feature or improvement.\n\n## Why would this be useful?\n\nExplain the problem this would solve.\n\n';
+        const metadata = '## Environment\n\n' + Object.entries(supportMetadata).map(([key, value]) => '- ' + key.replaceAll('_', ' ') + ': ' + (value || 'Unavailable')).join('\n');
+        const url = new URL('https://github.com/jdesign21/LivingPortraitApp/issues/new');
+        url.searchParams.set('title', title);
+        url.searchParams.set('body', body + metadata);
+        window.open(url.toString(), '_blank', 'noopener,noreferrer');
+      });
+    });
+
+    // Opt-in analytics consent and Privacy & Analytics controls.
+    document.addEventListener('DOMContentLoaded', async () => {
+      const consentElement = document.getElementById('analyticsConsentModal');
+      const consentModal = consentElement ? bootstrap.Modal.getOrCreateInstance(consentElement) : null;
+      const settingsMessage = document.getElementById('analyticsSettingsMessage');
+      const emailMessage = document.getElementById('analyticsEmailMessage');
+      const toggle = document.getElementById('analyticsEnabledToggle');
+      const emailInput = document.getElementById('analyticsContactEmail');
+      const saveEmailButton = document.getElementById('saveAnalyticsEmail');
+      const removeEmailButton = document.getElementById('removeAnalyticsEmail');
+      const statusText = document.getElementById('analyticsStatusText');
+
+      const postJson = async (url, body) => {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const result = await response.json();
+        if (!response.ok || result.success === false) throw new Error(result.error || 'Unable to save your preference.');
+        return result;
+      };
+
+      const applyAnalyticsState = (enabled, email = null) => {
+        if (toggle) toggle.checked = enabled;
+        if (statusText) statusText.textContent = enabled ? 'Enabled' : 'Disabled';
+        if (emailInput) emailInput.disabled = !enabled;
+        if (saveEmailButton) saveEmailButton.disabled = !enabled;
+        if (removeEmailButton) removeEmailButton.disabled = !enabled || !(email || (emailInput && emailInput.value));
+        if (!enabled && emailInput) emailInput.value = '';
+      };
+
+      try {
+        const response = await fetch('/api/analytics/status', { credentials: 'same-origin', cache: 'no-store' });
+        if (response.ok) {
+          const status = await response.json();
+          applyAnalyticsState(!!status.enabled, status.contact_email || '');
+          if (status.consent_required && consentModal) consentModal.show();
+        }
+      } catch (error) {
+        console.warn('Unable to load analytics consent status:', error);
+      }
+
+      const saveConsent = async (enabled) => {
+        const result = await postJson('/api/analytics/consent', { enabled });
+        applyAnalyticsState(!!result.enabled, '');
+        if (consentModal) consentModal.hide();
+        if (settingsMessage) settingsMessage.textContent = enabled ? 'Usage Analytics enabled.' : 'Usage Analytics disabled.';
+      };
+
+      document.getElementById('enableAnalyticsConsent')?.addEventListener('click', async () => {
+        try { await saveConsent(true); }
+        catch (error) { alert(error.message); }
+      });
+      document.getElementById('declineAnalyticsConsent')?.addEventListener('click', async () => {
+        try { await saveConsent(false); }
+        catch (error) { alert(error.message); }
+      });
+      toggle?.addEventListener('change', async () => {
+        const requested = toggle.checked;
+        toggle.disabled = true;
+        try { await saveConsent(requested); }
+        catch (error) {
+          toggle.checked = !requested;
+          if (settingsMessage) settingsMessage.textContent = error.message;
+        } finally { toggle.disabled = false; }
+      });
+
+      saveEmailButton?.addEventListener('click', async () => {
+        if (emailMessage) emailMessage.textContent = '';
+        try {
+          const result = await postJson('/api/analytics/contact-email', { action: 'save', email: emailInput.value });
+          emailInput.value = result.contact_email || '';
+          applyAnalyticsState(true, emailInput.value);
+          if (emailMessage) emailMessage.textContent = 'Diagnostic contact email saved.';
+        } catch (error) { if (emailMessage) emailMessage.textContent = error.message; }
+      });
+      removeEmailButton?.addEventListener('click', async () => {
+        if (emailMessage) emailMessage.textContent = '';
+        try {
+          await postJson('/api/analytics/contact-email', { action: 'remove' });
+          emailInput.value = '';
+          applyAnalyticsState(true, '');
+          if (emailMessage) emailMessage.textContent = 'Diagnostic contact email removed.';
+        } catch (error) { if (emailMessage) emailMessage.textContent = error.message; }
+      });
+      emailInput?.addEventListener('input', () => {
+        if (removeEmailButton) removeEmailButton.disabled = !toggle?.checked || !emailInput.value;
+      });
+    });
+  </script>
+
+
+  <script src="{{ url_for('static', filename='js/app.js') }}?v=alpha-menu-analytics-1"></script>
 
 
 </body>

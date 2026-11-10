@@ -1,0 +1,97 @@
+<section id="privacy_analytics" class="section">
+  <h3 class="fw-bold border-bottom pb-2 mb-4 text-primary">
+    <i class="bi bi-shield-check me-2"></i>Privacy &amp; Analytics
+  </h3>
+
+  <div class="row g-4">
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header bg-primary text-white">
+          <strong><i class="bi bi-graph-up me-2"></i>Usage Analytics</strong>
+        </div>
+        <div class="card-body py-3">
+          <p class="text-muted small mb-2">
+            Optionally share limited usage and diagnostic information to help improve LivingPortraitApp.
+          </p>
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <div>
+              <div class="fw-semibold">Share Usage Analytics</div>
+            </div>
+            <div class="form-check form-switch fs-5 mb-0">
+              <input class="form-check-input" type="checkbox" role="switch" id="analyticsEnabledToggle"
+                     aria-label="Enable Usage Analytics" {% if analytics_status.enabled %}checked{% endif %}>
+            </div>
+          </div>
+          <div class="small text-muted">
+            Analytics is off by default. You can change this anytime; disabling it stops future events and removes the saved contact email.
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+          <strong><i class="bi bi-envelope me-2"></i>Diagnostic Contact Email</strong>
+        </div>
+        <div class="card-body py-3">
+          <p class="text-muted small mb-2">
+            Optional. This address is included only with diagnostic error events, never ordinary usage events.
+          </p>
+          <label for="analyticsContactEmail" class="form-label fw-semibold mb-1">Email Address</label>
+          <input type="email" class="form-control mb-2" id="analyticsContactEmail" maxlength="254"
+                 placeholder="you@example.com" value="{{ analytics_contact_email }}"
+                 {% if not analytics_status.enabled %}disabled{% endif %}>
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-primary" id="saveAnalyticsEmail"
+                    {% if not analytics_status.enabled %}disabled{% endif %}>
+              <i class="bi bi-save me-1"></i>Save Email
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="removeAnalyticsEmail"
+                    {% if not analytics_status.enabled or not analytics_contact_email %}disabled{% endif %}>
+              <i class="bi bi-trash me-1"></i>Remove Email
+            </button>
+          </div>
+          <div class="small text-muted mt-2">
+            Stored locally with account-only file permissions; it is not encrypted.
+          </div>
+          <div class="small mt-1" id="analyticsEmailMessage" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header bg-primary text-white">
+          <strong><i class="bi bi-info-circle me-2"></i>Information &amp; Privacy</strong>
+        </div>
+        <div class="card-body">
+          <p class="small">
+            When enabled, LivingPortraitApp sends a limited set of events to PostHog (US Cloud) to help understand installation activity, supported environments, and application reliability.
+          </p>
+          <h6 class="fw-bold text-primary">Information that may be collected</h6>
+          <ul class="small">
+            <li>Application launch events.</li>
+            <li>LivingPortraitApp version, operating system, OS release, CPU architecture, and Python version.</li>
+            <li>A randomly generated installation identifier that is not based on your name or administrator account.</li>
+            <li>Application errors with a short, sanitized error type and message when available.</li>
+            <li>Your optional diagnostic contact email only with diagnostic error events.</li>
+          </ul>
+          <h6 class="fw-bold text-primary">Information that is not collected</h6>
+          <ul class="small">
+            <li>No page-view tracking or browsing history.</li>
+            <li>No video files, images, recordings, filenames, playlists, or personal media.</li>
+            <li>No administrator username, password, account details, hardware serial number, hostname, or local IP address.</li>
+            <li>No full error stack traces, memory dumps, or application logs.</li>
+          </ul>
+          <h6 class="fw-bold text-primary">Network and privacy</h6>
+          <p class="small mb-2">
+            Analytics is sent to PostHog over HTTPS. PostHog necessarily receives network connection information to process the request. GeoIP enrichment is disabled in event properties. No analytics events are sent unless you opt in.
+          </p>
+          <p class="small text-muted mb-0">
+            You can disable analytics at any time. Disabling it stops new events and removes the optional diagnostic contact email stored by LivingPortraitApp.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="small text-muted mt-3" id="analyticsSettingsMessage" role="status" aria-live="polite"></div>
+</section>
