@@ -15,6 +15,7 @@ import shutil
 import re
 import secrets
 import threading
+from flask.signals import got_request_exception
 
 HOME = Path(os.path.expanduser("~"))
 
@@ -81,6 +82,16 @@ from shared.display_helper import (
 from shared import mqtt_client
 from shared.power_manager import start_power_scheduler
 
+from shared.analytics import (
+    get_consent_status,
+    get_contact_email,
+    save_consent,
+    save_contact_email,
+    remove_contact_email,
+    capture_application_started,
+    capture_diagnostic,
+)
+
 from shared.audio import (
     get_audio_outputs,
     get_effective_audio_output,
@@ -100,6 +111,19 @@ app.config.update(
 )
 start_power_scheduler()
 start_discovery_service()
+
+def _capture_flask_exception(sender, exception, **extra):
+    try:
+        threading.Thread(
+            target=capture_diagnostic,
+            args=(type(exception).__name__, str(exception)),
+            daemon=True,
+        ).start()
+    except Exception:
+        pass
+
+got_request_exception.connect(_capture_flask_exception, app, weak=False)
+threading.Thread(target=capture_application_started, daemon=True).start()
 
 _LOGIN_FAILURES = {}
 _LOGIN_WINDOW_SECONDS = 15 * 60
@@ -1183,10 +1207,45 @@ def index():
         audio_outputs=audio_outputs,
         audio_output=audio_output,
         system_info=system_info,
+        analytics_status=get_consent_status(),
+        analytics_contact_email=get_contact_email(),
         display_info=display_info,
         display_mode_selection=display_mode_selection,
         power_schedule=power_schedule
     )
+
+
+@app.route("/api/analytics/status", methods=["GET"])
+def analytics_status():
+    status = get_consent_status()
+    status["contact_email"] = get_contact_email()
+    return jsonify(status)
+
+
+@app.route("/api/analytics/consent", methods=["POST"])
+def analytics_consent():
+    payload = request.get_json(silent=True) or {}
+    enabled = payload.get("enabled")
+    if not isinstance(enabled, bool):
+        return jsonify(success=False, error="A valid analytics preference is required."), 400
+    status = save_consent(enabled)
+    return jsonify(success=True, **status)
+
+
+@app.route("/api/analytics/contact-email", methods=["POST"])
+def analytics_contact_email():
+    payload = request.get_json(silent=True) or {}
+    action = payload.get("action")
+    if action == "remove":
+        remove_contact_email()
+        return jsonify(success=True, contact_email="")
+    if action == "save":
+        try:
+            save_contact_email(payload.get("email", ""))
+        except ValueError as exc:
+            return jsonify(success=False, error=str(exc)), 400
+        return jsonify(success=True, contact_email=get_contact_email())
+    return jsonify(success=False, error="Invalid contact email action."), 400
 
 
 def _get_discovered_secondary_pis_for_config(secondary_pis):
