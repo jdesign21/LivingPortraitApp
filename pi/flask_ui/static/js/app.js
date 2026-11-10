@@ -1167,10 +1167,17 @@ if (fixedPlaylist && fixedOrderInput) {
 
     function activateSection(sectionId) {
         navLinks.forEach(link => {
-            link.classList.toggle(
-                'active',
-                link.getAttribute('data-section') === sectionId
-            );
+            const isActive = link.getAttribute('data-section') === sectionId;
+            link.classList.toggle('active', isActive);
+
+            if (isActive) {
+                const group = link.closest('[data-sidebar-group]');
+                if (group) {
+                    group.classList.remove('is-collapsed');
+                    const groupToggle = group.querySelector('.sidebar-group-toggle');
+                    groupToggle?.setAttribute('aria-expanded', 'true');
+                }
+            }
         });
 
         sections.forEach(sec => {
@@ -1180,6 +1187,17 @@ if (fixedPlaylist && fixedOrderInput) {
             );
         });
     }
+
+    document.querySelectorAll('[data-sidebar-group] .sidebar-group-toggle').forEach(button => {
+        button.addEventListener('click', () => {
+            const group = button.closest('[data-sidebar-group]');
+            if (!group) return;
+
+            const isExpanded = button.getAttribute('aria-expanded') === 'true';
+            button.setAttribute('aria-expanded', String(!isExpanded));
+            group.classList.toggle('is-collapsed', isExpanded);
+        });
+    });
 
     let savedSection = localStorage.getItem('activeSidebarSection') || 'select';
 
@@ -1196,6 +1214,7 @@ if (fixedPlaylist && fixedOrderInput) {
     navLinks.forEach(link => {
         link.addEventListener('click', () => {
             const selectedSection = link.getAttribute('data-section');
+            if (!selectedSection) return;
             localStorage.setItem('activeSidebarSection', selectedSection);
             activateSection(selectedSection);
         });
